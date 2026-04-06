@@ -13,7 +13,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.group.GroupManager;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
@@ -42,8 +42,8 @@ public class JobCommand {
                         ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
                         return Command.SINGLE_SUCCESS;
                     }
-                    if (GroupManager.getPlayerGroup(player.getUniqueId()) == null) {
-                        player.sendMessage(error("You must join or create a group before choosing a job."));
+                    if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
+                        player.sendMessage(error("You must join or create a faction before choosing a job."));
                         return Command.SINGLE_SUCCESS;
                     }
                     if (JobManager.hasJob(player.getUniqueId())) {

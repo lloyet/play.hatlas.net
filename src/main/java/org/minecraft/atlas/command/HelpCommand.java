@@ -30,7 +30,7 @@ public class HelpCommand {
 
     private static Component buildJobHelp() {
         return Component.text("--- Job Commands ---", NamedTextColor.GOLD)
-                .append(entry("/job", "Open the job selection menu (requires group, no job yet)"))
+                .append(entry("/job", "Open the job selection menu (requires faction, no job yet)"))
                 .append(entry("/job level", "View your current level and XP progress"))
                 .append(entry("/job remove [player]", "Remove a player's job (admin only)"))
                 .append(entry("/job set <job> [player]", "Set a player's job directly (admin only)"))
