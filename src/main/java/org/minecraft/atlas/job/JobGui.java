@@ -27,8 +27,22 @@ public class JobGui implements Listener {
     private static final int[] JOB_SLOTS = {10, 12, 14, 16};
 
     private static final Set<UUID> openMenus = new HashSet<>();
+    /** Players whose job selection should bypass the permanent-job check (admin /job set). */
+    private static final Set<UUID> forceOverride = new HashSet<>();
 
+    /** Opens the job selection GUI for the player. Normal flow: respects permanent-job rule. */
     public static void open(Player player) {
+        openMenus.add(player.getUniqueId());
+        player.openInventory(buildInventory());
+    }
+
+    /** Opens the job selection GUI for a player, overriding any existing job (admin use). */
+    public static void openAdmin(Player target) {
+        forceOverride.add(target.getUniqueId());
+        open(target);
+    }
+
+    private static Inventory buildInventory() {
         Inventory inv = Bukkit.createInventory(null, 27, Component.text(TITLE, NamedTextColor.GOLD));
 
         Job[] jobs = Job.values();
@@ -43,9 +57,7 @@ public class JobGui implements Listener {
         for (int i = 0; i < 27; i++) {
             if (inv.getItem(i) == null) inv.setItem(i, filler);
         }
-
-        openMenus.add(player.getUniqueId());
-        player.openInventory(inv);
+        return inv;
     }
 
     private static ItemStack buildJobItem(Job job) {
@@ -80,18 +92,20 @@ public class JobGui implements Listener {
             if (JOB_SLOTS[i] != slot) continue;
 
             Job selected = jobs[i];
+            boolean isForce = forceOverride.remove(player.getUniqueId());
             openMenus.remove(player.getUniqueId());
             player.closeInventory();
 
-            if (JobManager.setJob(player.getUniqueId(), selected)) {
-                player.sendMessage(
-                    Component.text("You have chosen the job: ", NamedTextColor.GREEN)
-                        .append(Component.text(selected.getDisplayName(), selected.getColor()))
-                        .append(Component.text("!", NamedTextColor.GREEN))
-                );
+            if (isForce) {
+                JobManager.forceSetJob(player.getUniqueId(), selected);
             } else {
-                player.sendMessage(Component.text("You already have a job.", NamedTextColor.RED));
+                JobManager.setJob(player.getUniqueId(), selected);
             }
+            player.sendMessage(
+                Component.text("You have chosen the job: ", NamedTextColor.GREEN)
+                    .append(Component.text(selected.getDisplayName(), selected.getColor()))
+                    .append(Component.text("!", NamedTextColor.GREEN))
+            );
             return;
         }
     }
@@ -102,6 +116,7 @@ public class JobGui implements Listener {
         String title = PlainTextComponentSerializer.plainText().serialize(event.getView().title());
         if (title.equals(TITLE)) {
             openMenus.remove(player.getUniqueId());
+            forceOverride.remove(player.getUniqueId());
         }
     }
 }

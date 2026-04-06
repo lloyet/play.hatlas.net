@@ -92,9 +92,7 @@ public class FactionCommand {
 
                                     if (FactionManager.createFaction(name, player.getUniqueId())) {
                                         player.sendMessage(success("Faction '" + name + "' created successfully."));
-                                        if (!JobManager.hasJob(player.getUniqueId())) {
-                                            JobGui.open(player);
-                                        }
+                                        player.sendMessage(info("Don't forget to pick a job using the /job command!"));
                                         ItemStack crystal = new ItemStack(Material.END_CRYSTAL);
                                         ItemMeta meta = crystal.getItemMeta();
                                         meta.displayName(Component.text("Crystal of the End", NamedTextColor.LIGHT_PURPLE)
@@ -160,9 +158,7 @@ public class FactionCommand {
                                 FactionManager.broadcastToFaction(factionName,
                                         info(player.getName() + " joined the faction."),
                                         player.getUniqueId());
-                                if (!JobManager.hasJob(player.getUniqueId())) {
-                                    JobGui.open(player);
-                                }
+                                player.sendMessage(info("Don't forget to pick a job using the /job command!"));
                             } else {
                                 player.sendMessage(error("You have no pending invitation."));
                             }

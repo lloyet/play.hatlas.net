@@ -31,6 +31,55 @@ public class JobManager {
         return true;
     }
 
+    /** Removes a player's job entirely. Returns false if they had no job. */
+    public static boolean removeJob(UUID playerUUID) {
+        return playerJobs.remove(playerUUID) != null;
+    }
+
+    /** Sets a player's job, replacing any existing one (admin override). */
+    public static void forceSetJob(UUID playerUUID, Job job) {
+        playerJobs.put(playerUUID, new PlayerJobData(job));
+    }
+
+    public static boolean adminSetLevel(UUID playerUUID, int level) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+        data.setLevel(level);
+        return true;
+    }
+
+    public static boolean adminAddLevel(UUID playerUUID, int amount) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+        data.setLevel(data.getLevel() + amount);
+        return true;
+    }
+
+    public static boolean adminRemoveLevel(UUID playerUUID, int amount) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+        data.setLevel(data.getLevel() - amount);
+        return true;
+    }
+
+    public static boolean adminSetXp(UUID playerUUID, int xp) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+        data.setProgress(xp);
+        return true;
+    }
+
+    public static boolean adminAddXp(UUID playerUUID, int amount, Player player) {
+        return addProgress(playerUUID, amount, player);
+    }
+
+    public static boolean adminRemoveXp(UUID playerUUID, int amount) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+        data.setProgress(data.getProgress() - amount);
+        return true;
+    }
+
     /**
      * Adds progression progress for a player and sends a level-up notification if applicable.
      * @return true if the player leveled up.

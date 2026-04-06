@@ -9,10 +9,12 @@ import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.FactionListener;
+import org.minecraft.atlas.command.HelpCommand;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.listener.JobListener;
+
 import org.bukkit.plugin.java.JavaPlugin;
 import org.minecraft.atlas.listener.GolemListener;
 import org.minecraft.atlas.listener.TradeListener;
@@ -45,6 +47,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(FactionCommand.build());
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
+                        event.registrar().register(HelpCommand.build());
                     }
                 }
         );

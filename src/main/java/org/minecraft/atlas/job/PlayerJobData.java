@@ -21,6 +21,8 @@ public class PlayerJobData {
     public Job getJob() { return job; }
     public int getLevel() { return level; }
     public int getProgress() { return progress; }
+    public void setLevel(int level) { this.level = Math.max(1, level); }
+    public void setProgress(int progress) { this.progress = Math.max(0, progress); }
 
     /** Progress required to advance from the current level to the next. */
     public int getProgressRequired() {
