@@ -1,0 +1,3 @@
+# Atlas plugin configuration
+# Groups are persisted here automatically on server shutdown.
+groups: {}
