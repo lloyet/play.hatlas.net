@@ -6,39 +6,39 @@ api-version: '1.21.11'
 load: POSTWORLD
 
 permissions:
-  territory.group:
-    description: Access to /group help
+  atlas.faction:
+    description: Access to /faction help
     default: true
-  territory.group.create:
-    description: Create a group
+  atlas.faction.create:
+    description: Create a faction
     default: true
-  territory.group.invite:
-    description: Invite players to a group
+  atlas.faction.invite:
+    description: Invite players to a faction
     default: true
-  territory.group.accept:
-    description: Accept group invitations
+  atlas.faction.accept:
+    description: Accept faction invitations
     default: true
-  territory.group.decline:
-    description: Decline group invitations
+  atlas.faction.decline:
+    description: Decline faction invitations
     default: true
-  territory.group.rename:
-    description: Rename a group
+  atlas.faction.rename:
+    description: Rename a faction
     default: true
-  territory.group.kick:
-    description: Kick members from a group
+  atlas.faction.kick:
+    description: Kick members from a faction
     default: true
-  territory.group.delete:
-    description: Delete a group
+  atlas.faction.delete:
+    description: Delete a faction
     default: true
-  territory.group.color:
-    description: Change group color
+  atlas.faction.color:
+    description: Change faction color
     default: true
-  territory.group.leave:
-    description: Leave a group
+  atlas.faction.leave:
+    description: Leave a faction
     default: true
-  territory.group.list:
-    description: List all groups
+  atlas.faction.list:
+    description: List all factions
     default: true
-  territory.group.members:
-    description: List members of your group
+  atlas.faction.members:
+    description: List members of your faction
     default: true
