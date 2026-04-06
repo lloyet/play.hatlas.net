@@ -4,3 +4,41 @@ version: '$version'
 main: org.minecraft.atlas.Atlas
 api-version: '1.21.11'
 load: POSTWORLD
+
+permissions:
+  territory.group:
+    description: Access to /group help
+    default: true
+  territory.group.create:
+    description: Create a group
+    default: true
+  territory.group.invite:
+    description: Invite players to a group
+    default: true
+  territory.group.accept:
+    description: Accept group invitations
+    default: true
+  territory.group.decline:
+    description: Decline group invitations
+    default: true
+  territory.group.rename:
+    description: Rename a group
+    default: true
+  territory.group.kick:
+    description: Kick members from a group
+    default: true
+  territory.group.delete:
+    description: Delete a group
+    default: true
+  territory.group.color:
+    description: Change group color
+    default: true
+  territory.group.leave:
+    description: Leave a group
+    default: true
+  territory.group.list:
+    description: List all groups
+    default: true
+  territory.group.members:
+    description: List members of your group
+    default: true
