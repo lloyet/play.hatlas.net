@@ -19,6 +19,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.job.JobGui;
+import org.minecraft.atlas.job.JobManager;
 
 import java.util.List;
 import java.util.UUID;
@@ -90,6 +92,7 @@ public class FactionCommand {
 
                                     if (FactionManager.createFaction(name, player.getUniqueId())) {
                                         player.sendMessage(success("Faction '" + name + "' created successfully."));
+                                        player.sendMessage(info("Don't forget to pick a job using the /job command!"));
                                         ItemStack crystal = new ItemStack(Material.END_CRYSTAL);
                                         ItemMeta meta = crystal.getItemMeta();
                                         meta.displayName(Component.text("Crystal of the End", NamedTextColor.LIGHT_PURPLE)
@@ -155,6 +158,7 @@ public class FactionCommand {
                                 FactionManager.broadcastToFaction(factionName,
                                         info(player.getName() + " joined the faction."),
                                         player.getUniqueId());
+                                player.sendMessage(info("Don't forget to pick a job using the /job command!"));
                             } else {
                                 player.sendMessage(error("You have no pending invitation."));
                             }

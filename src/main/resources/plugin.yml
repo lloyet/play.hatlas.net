@@ -6,6 +6,12 @@ api-version: '1.21.11'
 load: POSTWORLD
 
 permissions:
+  atlas.job:
+    description: Access to /job
+    default: true
+  atlas.job.admin:
+    description: Admin access to /job remove, /job set, and /job level management
+    default: op
   atlas.faction:
     description: Access to /faction help
     default: true
