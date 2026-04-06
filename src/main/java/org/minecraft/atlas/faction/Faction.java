@@ -1,4 +1,4 @@
-package org.minecraft.atlas.group;
+package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 
@@ -6,14 +6,14 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class Group {
+public class Faction {
 
     private String name;
     private final UUID owner;
     private final List<UUID> members = new ArrayList<>();
     private NamedTextColor color = NamedTextColor.WHITE;
 
-    public Group(String name, UUID owner) {
+    public Faction(String name, UUID owner) {
         this.name = name;
         this.owner = owner;
     }

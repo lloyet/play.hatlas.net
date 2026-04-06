@@ -5,11 +5,13 @@ import io.papermc.paper.plugin.lifecycle.event.handler.LifecycleEventHandler;
 import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEvent;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.jspecify.annotations.NonNull;
-import org.minecraft.atlas.command.GroupCommand;
-import org.minecraft.atlas.group.GroupManager;
-import org.minecraft.atlas.listener.GroupListener;
-
+import org.minecraft.atlas.command.FactionCommand;
+import org.minecraft.atlas.command.TradeCommand;
+import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.listener.FactionListener;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.minecraft.atlas.listener.GolemListener;
+import org.minecraft.atlas.listener.TradeListener;
 
 public final class Atlas extends JavaPlugin {
 
@@ -20,28 +22,33 @@ public final class Atlas extends JavaPlugin {
         instance = this;
 
         saveDefaultConfig();
-        GroupManager.loadGroups(getConfig());
+        FactionManager.loadFactions(getConfig());
 
         // Register all listeners
-        getServer().getPluginManager().registerEvents(new GroupListener(), this);
+        getServer().getPluginManager().registerEvents(new FactionListener(), this);
+        getServer().getPluginManager().registerEvents(new TradeListener(), this);
+        getServer().getPluginManager().registerEvents(new GolemListener(), this);
+
+        // Scheduler with ticks
+        GolemListener.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 new LifecycleEventHandler<ReloadableRegistrarEvent<Commands>>() {
                     @Override
                     public void run(@NonNull ReloadableRegistrarEvent<Commands> event) {
-                        event.registrar().register(GroupCommand.build());
+                        event.registrar().register(FactionCommand.build());
+                        event.registrar().register(TradeCommand.build());
                     }
                 }
         );
 
         getLogger().info("Atlas enabled.");
-
     }
 
     @Override
     public void onDisable() {
-        GroupManager.saveGroups(getConfig());
+        FactionManager.saveFactions(getConfig());
         saveConfig();
 
         getLogger().info("Atlas disabled.");    }

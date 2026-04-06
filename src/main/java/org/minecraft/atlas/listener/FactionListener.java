@@ -15,12 +15,12 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.minecraft.atlas.group.Group;
-import org.minecraft.atlas.group.GroupManager;
+import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.Objects;
 
-public class GroupListener implements Listener {
+public class FactionListener implements Listener {
 
     @EventHandler
     public void onPlayerInteract(PlayerInteractEvent event) {
@@ -53,17 +53,17 @@ public class GroupListener implements Listener {
     @EventHandler
     public void onChat(AsyncChatEvent event) {
         Player player = event.getPlayer();
-        String groupName = GroupManager.getPlayerGroup(player.getUniqueId());
+        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
 
-        if (groupName == null) return;
+        if (factionName == null) return;
 
-        Group group = GroupManager.getGroup(groupName);
+        Faction faction = FactionManager.getFaction(factionName);
 
-        if (group == null) return;
+        if (faction == null) return;
 
         event.renderer((source, sourceDisplayName, message, viewer) ->
                 Component.text("[")
-                        .append(Component.text(groupName, group.getColor()))
+                        .append(Component.text(factionName, faction.getColor()))
                         .append(Component.text("] "))
                         .append(sourceDisplayName)
                         .append(Component.text(": "))
