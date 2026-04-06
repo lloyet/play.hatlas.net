@@ -126,7 +126,7 @@ public class JobManager {
 
             try {
                 Job job = Job.valueOf(jobName);
-                int level = s.getInt("level", 1);
+                int level = s.getInt("level", 0);
                 int progress = s.getInt("progress", 0);
                 playerJobs.put(UUID.fromString(uuidStr), new PlayerJobData(job, level, progress));
             } catch (IllegalArgumentException ignored) {}

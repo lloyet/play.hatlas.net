@@ -8,7 +8,7 @@ public class PlayerJobData {
 
     public PlayerJobData(Job job) {
         this.job = job;
-        this.level = 1;
+        this.level = 0;
         this.progress = 0;
     }
 
@@ -26,7 +26,7 @@ public class PlayerJobData {
 
     /** Progress required to advance from the current level to the next. */
     public int getProgressRequired() {
-        return level * 64;
+        return (level + 1) * 64;
     }
 
     /**

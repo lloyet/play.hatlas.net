@@ -110,6 +110,18 @@ public class JobCommand {
                                             doAdminSet(player, target, job);
                                             return Command.SINGLE_SUCCESS;
                                         }))))
+                // /job list
+                .then(Commands.literal("list")
+                        .executes(ctx -> {
+                            Component msg = Component.text("--- Available Jobs ---", NamedTextColor.GOLD);
+                            for (Job j : Job.values()) {
+                                msg = msg.append(Component.newline())
+                                        .append(Component.text("• ", NamedTextColor.GRAY))
+                                        .append(Component.text(j.getDisplayName(), j.getColor()));
+                            }
+                            ctx.getSource().getSender().sendMessage(msg);
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 // /job level [add|set|remove <player> <amount> xp|level]
                 .then(Commands.literal("level")
                         .executes(ctx -> {
