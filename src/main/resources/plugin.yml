@@ -48,3 +48,12 @@ permissions:
   atlas.faction.members:
     description: List members of your faction
     default: true
+  atlas.faction.description:
+    description: View or set the faction description
+    default: true
+  atlas.faction.promote:
+    description: Promote a faction member to the next role
+    default: true
+  atlas.faction.demote:
+    description: Demote a faction member to the previous role
+    default: true

@@ -3,7 +3,9 @@ package org.minecraft.atlas.faction;
 import net.kyori.adventure.text.format.NamedTextColor;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class Faction {
@@ -12,6 +14,8 @@ public class Faction {
     private final UUID owner;
     private final List<UUID> members = new ArrayList<>();
     private NamedTextColor color = NamedTextColor.WHITE;
+    private String description = "";
+    private final Map<UUID, FactionRole> roles = new HashMap<>();
 
     public Faction(String name, UUID owner) {
         this.name = name;
@@ -26,4 +30,28 @@ public class Faction {
     public void removeMember(UUID uuid) { members.remove(uuid); }
     public NamedTextColor getColor() { return color; }
     public void setColor(NamedTextColor color) { this.color = color; }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public FactionRole getRole(UUID uuid) {
+        return roles.getOrDefault(uuid, FactionRole.MEMBER);
+    }
+
+    public void setRole(UUID uuid, FactionRole role) {
+        roles.put(uuid, role);
+    }
+
+    public void removeRole(UUID uuid) {
+        roles.remove(uuid);
+    }
+
+    public Map<UUID, FactionRole> getRoles() {
+        return roles;
+    }
 }

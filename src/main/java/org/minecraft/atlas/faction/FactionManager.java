@@ -45,7 +45,9 @@ public class FactionManager {
         return true;
     }
 
-    /** Renames a faction. Only the owner can do this. Returns false if the new name is already taken. */
+    /**
+     * Renames a faction. Owner or Leaders can do this. Returns false if the new name is already taken.
+     */
     public static boolean renameFaction(String newName, UUID requesterUUID) {
         String oldName = playerFaction.get(requesterUUID);
 
@@ -53,7 +55,9 @@ public class FactionManager {
 
         Faction faction = factions.get(oldName);
 
-        if (!faction.getOwner().equals(requesterUUID)) return false;
+        boolean canRename = faction.getOwner().equals(requesterUUID)
+                || faction.getRole(requesterUUID).isAtLeast(FactionRole.LEADER);
+        if (!canRename) return false;
         if (factions.containsKey(newName)) return false;
 
         faction.setName(newName);
@@ -66,7 +70,7 @@ public class FactionManager {
         return true;
     }
 
-    /** Sends an invitation from the owner to a target. Returns false if the inviter is not an owner or target is already factioned. */
+    /** Sends an invitation. Owner, Leaders, and Moderators can invite. Returns false if target is already in a faction. */
     public static boolean invitePlayer(UUID inviterUUID, UUID targetUUID) {
         String factionName = playerFaction.get(inviterUUID);
 
@@ -74,7 +78,9 @@ public class FactionManager {
 
         Faction faction = factions.get(factionName);
 
-        if (!faction.getOwner().equals(inviterUUID)) return false;
+        boolean canInvite = faction.getOwner().equals(inviterUUID)
+                || faction.getRole(inviterUUID).isAtLeast(FactionRole.MODERATOR);
+        if (!canInvite) return false;
         if (playerFaction.containsKey(targetUUID)) return false;
 
         pendingInvitations.put(targetUUID, factionName);
@@ -112,12 +118,13 @@ public class FactionManager {
         if (faction.getOwner().equals(playerUUID)) return false; // owner must delete, not leave
 
         faction.removeMember(playerUUID);
+        faction.removeRole(playerUUID);
         playerFaction.remove(playerUUID);
 
         return true;
     }
 
-    /** Kicks a member from the owner's faction. */
+    /** Kicks a member from the faction. Only the owner can do this. */
     public static boolean kickPlayer(UUID ownerUUID, UUID targetUUID) {
         String factionName = playerFaction.get(ownerUUID);
 
@@ -129,9 +136,83 @@ public class FactionManager {
         if (!faction.getMembers().contains(targetUUID)) return false;
 
         faction.removeMember(targetUUID);
+        faction.removeRole(targetUUID);
         playerFaction.remove(targetUUID);
 
         return true;
+    }
+
+    /**
+     * Sets the faction description. Owner or Leaders can do this.
+     */
+    public static boolean setFactionDescription(UUID requesterUUID, String description) {
+        String factionName = playerFaction.get(requesterUUID);
+
+        if (factionName == null) return false;
+
+        Faction faction = factions.get(factionName);
+
+        boolean canEdit = faction.getOwner().equals(requesterUUID)
+                || faction.getRole(requesterUUID).isAtLeast(FactionRole.LEADER);
+        if (!canEdit) return false;
+
+        faction.setDescription(description);
+        return true;
+    }
+
+    /**
+     * Promotes a member to the next role (MEMBER → MODERATOR → LEADER). Only the owner can promote.
+     */
+    public static boolean promotePlayer(UUID ownerUUID, UUID targetUUID) {
+        String factionName = playerFaction.get(ownerUUID);
+
+        if (factionName == null) return false;
+
+        Faction faction = factions.get(factionName);
+
+        if (!faction.getOwner().equals(ownerUUID)) return false;
+        if (!factionName.equals(playerFaction.get(targetUUID))) return false;
+        if (faction.getOwner().equals(targetUUID)) return false;
+
+        FactionRole current = faction.getRole(targetUUID);
+        if (current == FactionRole.LEADER) return false; // already at highest role
+
+        FactionRole[] values = FactionRole.values();
+        faction.setRole(targetUUID, values[current.ordinal() + 1]);
+        return true;
+    }
+
+    /**
+     * Demotes a member to the previous role (LEADER → MODERATOR → MEMBER). Only the owner can demote.
+     */
+    public static boolean demotePlayer(UUID ownerUUID, UUID targetUUID) {
+        String factionName = playerFaction.get(ownerUUID);
+
+        if (factionName == null) return false;
+
+        Faction faction = factions.get(factionName);
+
+        if (!faction.getOwner().equals(ownerUUID)) return false;
+        if (!factionName.equals(playerFaction.get(targetUUID))) return false;
+        if (faction.getOwner().equals(targetUUID)) return false;
+
+        FactionRole current = faction.getRole(targetUUID);
+        if (current == FactionRole.MEMBER) return false; // already at lowest role
+
+        FactionRole[] values = FactionRole.values();
+        faction.setRole(targetUUID, values[current.ordinal() - 1]);
+        return true;
+    }
+
+    /**
+     * Returns the role of a player in their faction, or null if they are the owner or not in any faction.
+     */
+    public static FactionRole getPlayerRole(UUID playerUUID) {
+        String factionName = playerFaction.get(playerUUID);
+        if (factionName == null) return null;
+        Faction faction = factions.get(factionName);
+        if (faction.getOwner().equals(playerUUID)) return null;
+        return faction.getRole(playerUUID);
     }
 
     /** Returns the faction name of a player, or null if not in any faction. */
@@ -185,15 +266,19 @@ public class FactionManager {
         }
     }
 
-    /** Changes the color of the caller's faction. Only the owner can do this. */
-    public static boolean setFactionColor(UUID ownerUUID, NamedTextColor color) {
-        String factionName = playerFaction.get(ownerUUID);
+    /**
+     * Changes the color of the faction. Owner or Leaders can do this.
+     */
+    public static boolean setFactionColor(UUID requesterUUID, NamedTextColor color) {
+        String factionName = playerFaction.get(requesterUUID);
 
         if (factionName == null) return false;
 
         Faction faction = factions.get(factionName);
 
-        if (!faction.getOwner().equals(ownerUUID)) return false;
+        boolean canChange = faction.getOwner().equals(requesterUUID)
+                || faction.getRole(requesterUUID).isAtLeast(FactionRole.LEADER);
+        if (!canChange) return false;
 
         faction.setColor(color);
 
@@ -211,6 +296,13 @@ public class FactionManager {
             s.set("members", faction.getMembers().stream().map(UUID::toString).toList());
             String colorName = NamedTextColor.NAMES.key(faction.getColor());
             s.set("color", colorName != null ? colorName : "white");
+            s.set("description", faction.getDescription());
+
+            Map<UUID, FactionRole> roles = faction.getRoles();
+            if (!roles.isEmpty()) {
+                ConfigurationSection rolesSection = s.createSection("roles");
+                roles.forEach((uuid, role) -> rolesSection.set(uuid.toString(), role.name()));
+            }
         }
     }
 
@@ -237,10 +329,23 @@ public class FactionManager {
             NamedTextColor color = NamedTextColor.NAMES.value(colorName);
             faction.setColor(color != null ? color : NamedTextColor.WHITE);
 
+            faction.setDescription(s.getString("description", ""));
+
             for (String memberStr : s.getStringList("members")) {
                 UUID memberUUID = UUID.fromString(memberStr);
                 faction.addMember(memberUUID);
                 playerFaction.put(memberUUID, factionName);
+            }
+
+            ConfigurationSection rolesSection = s.getConfigurationSection("roles");
+            if (rolesSection != null) {
+                for (String uuidStr : rolesSection.getKeys(false)) {
+                    try {
+                        UUID uuid = UUID.fromString(uuidStr);
+                        String roleName = rolesSection.getString(uuidStr, "MEMBER");
+                        faction.setRole(uuid, FactionRole.valueOf(roleName));
+                    } catch (IllegalArgumentException ignored) {}
+                }
             }
 
             factions.put(factionName, faction);
