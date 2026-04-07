@@ -5,6 +5,7 @@ import io.papermc.paper.plugin.lifecycle.event.handler.LifecycleEventHandler;
 import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEvent;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.jspecify.annotations.NonNull;
+import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
@@ -50,6 +51,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
                         event.registrar().register(HelpCommand.build());
+                        event.registrar().register(CrystalCommand.build());
                     }
                 }
         );
