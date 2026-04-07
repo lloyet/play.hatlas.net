@@ -7,37 +7,117 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
 public class JobManager {
 
-    private static final Map<UUID, PlayerJobData> playerJobs = new HashMap<>();
+    // UUID → (Job → data), insertion order preserved so "first job" is deterministic
+    private static final Map<UUID, Map<Job, PlayerJobData>> playerJobs = new HashMap<>();
+    private static final Map<UUID, JobSettings> playerSettings = new HashMap<>();
 
-    public static boolean hasJob(UUID playerUUID) {
-        return playerJobs.containsKey(playerUUID);
+    // -------------------------------------------------------------------------
+    // Existence checks
+    // -------------------------------------------------------------------------
+
+    public static boolean hasJob(UUID uuid) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        return jobs != null && !jobs.isEmpty();
     }
 
-    public static PlayerJobData getJobData(UUID playerUUID) {
-        return playerJobs.get(playerUUID);
+    public static boolean hasJob(UUID uuid, Job job) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        return jobs != null && jobs.containsKey(job);
     }
 
-    /** Assigns a job to a player. Jobs are permanent — returns false if one is already set. */
-    public static boolean setJob(UUID playerUUID, Job job) {
-        if (playerJobs.containsKey(playerUUID)) return false;
-        playerJobs.put(playerUUID, new PlayerJobData(job));
+    // -------------------------------------------------------------------------
+    // Data access
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns data for the player's primary (first) job, or null if they have none.
+     * Admin commands use this for backward-compatible single-job operations.
+     */
+    public static PlayerJobData getJobData(UUID uuid) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        if (jobs == null || jobs.isEmpty()) return null;
+        return jobs.values().iterator().next();
+    }
+
+    public static PlayerJobData getJobData(UUID uuid, Job job) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        if (jobs == null) return null;
+        return jobs.get(job);
+    }
+
+    public static Map<Job, PlayerJobData> getAllJobData(UUID uuid) {
+        return playerJobs.getOrDefault(uuid, Collections.emptyMap());
+    }
+
+    public static int getJobCount(UUID uuid) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        return jobs == null ? 0 : jobs.size();
+    }
+
+    public static int getMasteredJobCount(UUID uuid) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        if (jobs == null) return 0;
+        return (int) jobs.values().stream().filter(PlayerJobData::isMastered).count();
+    }
+
+    /**
+     * Returns true if the player may add another job.
+     * Rule: allowedJobs = masteredJobCount + 1.
+     * A player with no jobs may always add their first one.
+     */
+    public static boolean canAddJob(UUID uuid) {
+        return getMasteredJobCount(uuid) >= getJobCount(uuid);
+    }
+
+    // -------------------------------------------------------------------------
+    // Job assignment
+    // -------------------------------------------------------------------------
+
+    /**
+     * Adds a job to the player (permanent). Returns false if they already have this job
+     * or are not yet eligible to add another one.
+     */
+    public static boolean setJob(UUID uuid, Job job) {
+        if (hasJob(uuid, job)) return false;
+        if (!canAddJob(uuid)) return false;
+        playerJobs.computeIfAbsent(uuid, k -> new LinkedHashMap<>()).put(job, new PlayerJobData(job));
         return true;
     }
 
-    /** Removes a player's job entirely. Returns false if they had no job. */
-    public static boolean removeJob(UUID playerUUID) {
-        return playerJobs.remove(playerUUID) != null;
+    /** Removes all jobs from a player. Returns false if they had none. */
+    public static boolean removeJob(UUID uuid) {
+        Map<Job, PlayerJobData> jobs = playerJobs.remove(uuid);
+        return jobs != null && !jobs.isEmpty();
     }
 
-    /** Sets a player's job, replacing any existing one (admin override). */
-    public static void forceSetJob(UUID playerUUID, Job job) {
-        playerJobs.put(playerUUID, new PlayerJobData(job));
+    /** Removes one specific job from a player. Returns false if they don't have that job. */
+    public static boolean removeJob(UUID uuid, Job job) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        if (jobs == null || !jobs.containsKey(job)) return false;
+        jobs.remove(job);
+        if (jobs.isEmpty()) playerJobs.remove(uuid);
+        return true;
+    }
+
+    /** Sets (or replaces) a specific job for a player — admin override, bypasses eligibility. */
+    public static void forceSetJob(UUID uuid, Job job) {
+        playerJobs.computeIfAbsent(uuid, k -> new LinkedHashMap<>()).put(job, new PlayerJobData(job));
+    }
+
+    // -------------------------------------------------------------------------
+    // Settings
+    // -------------------------------------------------------------------------
+
+    public static JobSettings getSettings(UUID uuid) {
+        return playerSettings.computeIfAbsent(uuid, k -> new JobSettings());
     }
 
     // -------------------------------------------------------------------------
@@ -45,27 +125,41 @@ public class JobManager {
     // -------------------------------------------------------------------------
 
     /**
-     * Awards XP to a player and sends a level-up message if applicable.
-     * @return true if the player leveled up.
+     * Awards XP to a player for a specific job and sends appropriate notifications.
+     * Notifications for post-mastery levels are gated by the player's extra_levels setting.
+     *
+     * @return true if the player leveled up at least once.
      */
-    public static boolean addXp(UUID playerUUID, double amount, Player player) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean addXp(UUID uuid, Job job, double amount, Player player) {
+        Map<Job, PlayerJobData> jobs = playerJobs.get(uuid);
+        if (jobs == null) return false;
+        PlayerJobData data = jobs.get(job);
         if (data == null) return false;
 
+        boolean wasMastered = data.isMastered();
         boolean leveledUp = data.addXp(amount);
+        boolean nowMastered = data.isMastered();
+
+        boolean extraLevels = getSettings(uuid).isExtraLevels();
 
         if (leveledUp) {
-            boolean maxed = data.getLevel() >= JobRegistry.getMaxLevel();
-            Component msg = Component.text("Your ", NamedTextColor.GOLD)
-                    .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
-                    .append(maxed
-                            ? Component.text(" job reached max level (" + data.getLevel() + ")!", NamedTextColor.GOLD)
-                            : Component.text(" job advanced to level " + data.getLevel() + "!", NamedTextColor.GOLD));
-            player.sendMessage(msg);
+            if (!wasMastered && nowMastered) {
+                // First-time mastery — always notify regardless of extra_levels
+                player.sendMessage(Component.text("Your ", NamedTextColor.GOLD)
+                        .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
+                        .append(Component.text(" job has been ", NamedTextColor.GOLD))
+                        .append(Component.text("MASTERED", NamedTextColor.GOLD).decorate(TextDecoration.BOLD))
+                        .append(Component.text("! You may now select an additional job.", NamedTextColor.GOLD)));
+            } else if (!nowMastered || extraLevels) {
+                // Regular level-up: only show if below mastery, or extra_levels is enabled
+                player.sendMessage(Component.text("Your ", NamedTextColor.GOLD)
+                        .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
+                        .append(Component.text(" job advanced to level " + data.getLevel() + "!", NamedTextColor.GOLD)));
+            }
         }
 
-        // Action bar XP indicator (hidden at max level)
-        if (data.getLevel() < JobRegistry.getMaxLevel()) {
+        // Action bar XP indicator — suppressed for mastered jobs when extra_levels is off
+        if (!nowMastered || extraLevels) {
             String xpText = String.format("%,d/%,d XP", (int) data.getXp(), data.getXpRequired());
             player.sendActionBar(
                     Component.text(xpText, data.getJob().getColor()).decorate(TextDecoration.BOLD)
@@ -76,47 +170,43 @@ public class JobManager {
     }
 
     // -------------------------------------------------------------------------
-    // Admin — level
+    // Admin — level/XP (job-specific)
     // -------------------------------------------------------------------------
 
-    public static boolean adminSetLevel(UUID playerUUID, int level) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean adminSetLevel(UUID uuid, Job job, int level) {
+        PlayerJobData data = getJobData(uuid, job);
         if (data == null) return false;
         data.setLevel(level);
         return true;
     }
 
-    public static boolean adminAddLevel(UUID playerUUID, int amount) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean adminAddLevel(UUID uuid, Job job, int amount) {
+        PlayerJobData data = getJobData(uuid, job);
         if (data == null) return false;
         data.setLevel(data.getLevel() + amount);
         return true;
     }
 
-    public static boolean adminRemoveLevel(UUID playerUUID, int amount) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean adminRemoveLevel(UUID uuid, Job job, int amount) {
+        PlayerJobData data = getJobData(uuid, job);
         if (data == null) return false;
         data.setLevel(data.getLevel() - amount);
         return true;
     }
 
-    // -------------------------------------------------------------------------
-    // Admin — XP
-    // -------------------------------------------------------------------------
-
-    public static boolean adminSetXp(UUID playerUUID, double xp) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean adminSetXp(UUID uuid, Job job, double xp) {
+        PlayerJobData data = getJobData(uuid, job);
         if (data == null) return false;
         data.setXp(xp);
         return true;
     }
 
-    public static boolean adminAddXp(UUID playerUUID, double amount, Player player) {
-        return addXp(playerUUID, amount, player);
+    public static boolean adminAddXp(UUID uuid, Job job, double amount, Player player) {
+        return addXp(uuid, job, amount, player);
     }
 
-    public static boolean adminRemoveXp(UUID playerUUID, double amount) {
-        PlayerJobData data = playerJobs.get(playerUUID);
+    public static boolean adminRemoveXp(UUID uuid, Job job, double amount) {
+        PlayerJobData data = getJobData(uuid, job);
         if (data == null) return false;
         data.setXp(data.getXp() - amount);
         return true;
@@ -128,35 +218,80 @@ public class JobManager {
 
     public static void saveJobs(FileConfiguration config) {
         config.set("jobs", null);
-        ConfigurationSection section = config.createSection("jobs");
+        config.set("job-settings", null);
 
-        for (Map.Entry<UUID, PlayerJobData> entry : playerJobs.entrySet()) {
-            ConfigurationSection s = section.createSection(entry.getKey().toString());
-            PlayerJobData data = entry.getValue();
-            s.set("job", data.getJob().name());
-            s.set("level", data.getLevel());
-            s.set("xp", data.getXp());
+        ConfigurationSection jobsSection = config.createSection("jobs");
+        for (Map.Entry<UUID, Map<Job, PlayerJobData>> entry : playerJobs.entrySet()) {
+            ConfigurationSection playerSection = jobsSection.createSection(entry.getKey().toString());
+            for (PlayerJobData data : entry.getValue().values()) {
+                ConfigurationSection s = playerSection.createSection(data.getJob().name());
+                s.set("level", data.getLevel());
+                s.set("xp", data.getXp());
+            }
+        }
+
+        ConfigurationSection settingsSection = config.createSection("job-settings");
+        for (Map.Entry<UUID, JobSettings> entry : playerSettings.entrySet()) {
+            ConfigurationSection s = settingsSection.createSection(entry.getKey().toString());
+            s.set("extra-levels", entry.getValue().isExtraLevels());
         }
     }
 
     public static void loadJobs(FileConfiguration config) {
         playerJobs.clear();
+        playerSettings.clear();
+
         ConfigurationSection section = config.getConfigurationSection("jobs");
-        if (section == null) return;
+        if (section != null) {
+            for (String uuidStr : section.getKeys(false)) {
+                UUID uuid;
+                try { uuid = UUID.fromString(uuidStr); } catch (IllegalArgumentException e) { continue; }
 
-        for (String uuidStr : section.getKeys(false)) {
-            ConfigurationSection s = section.getConfigurationSection(uuidStr);
-            if (s == null) continue;
+                ConfigurationSection playerSection = section.getConfigurationSection(uuidStr);
+                if (playerSection == null) continue;
 
-            String jobName = s.getString("job");
-            if (jobName == null) continue;
+                Map<Job, PlayerJobData> jobs = new LinkedHashMap<>();
 
-            try {
-                Job job = Job.valueOf(jobName);
-                int level = s.getInt("level", 1);
-                double xp = s.getDouble("xp", 0.0);
-                playerJobs.put(UUID.fromString(uuidStr), new PlayerJobData(job, level, xp));
-            } catch (IllegalArgumentException ignored) {}
+                if (playerSection.contains("job")) {
+                    // Legacy single-job format: { job: MINER, level: 45, xp: 1234.5 }
+                    String jobName = playerSection.getString("job");
+                    if (jobName != null) {
+                        try {
+                            Job job = Job.valueOf(jobName);
+                            int level = playerSection.getInt("level", 1);
+                            double xp = playerSection.getDouble("xp", 0.0);
+                            jobs.put(job, new PlayerJobData(job, level, xp));
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                } else {
+                    // New multi-job format: keys are Job enum names
+                    for (String jobName : playerSection.getKeys(false)) {
+                        try {
+                            Job job = Job.valueOf(jobName);
+                            ConfigurationSection s = playerSection.getConfigurationSection(jobName);
+                            if (s == null) continue;
+                            int level = s.getInt("level", 1);
+                            double xp = s.getDouble("xp", 0.0);
+                            jobs.put(job, new PlayerJobData(job, level, xp));
+                        } catch (IllegalArgumentException ignored) {}
+                    }
+                }
+
+                if (!jobs.isEmpty()) playerJobs.put(uuid, jobs);
+            }
+        }
+
+        ConfigurationSection settingsSection = config.getConfigurationSection("job-settings");
+        if (settingsSection != null) {
+            for (String uuidStr : settingsSection.getKeys(false)) {
+                UUID uuid;
+                try { uuid = UUID.fromString(uuidStr); } catch (IllegalArgumentException e) { continue; }
+                ConfigurationSection s = settingsSection.getConfigurationSection(uuidStr);
+                if (s == null) continue;
+                JobSettings settings = new JobSettings();
+                settings.setExtraLevels(s.getBoolean("extra-levels", false));
+                playerSettings.put(uuid, settings);
+            }
         }
     }
 }

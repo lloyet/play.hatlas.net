@@ -3,7 +3,7 @@ package org.minecraft.atlas.job;
 public class PlayerJobData {
 
     private final Job job;
-    private int level;    // 1 to max-level (from jobs.yml)
+    private int level;    // 1 to max-level and beyond (post-100 is cosmetic)
     private double xp;    // accumulated XP within the current level
 
     public PlayerJobData(Job job) {
@@ -22,15 +22,19 @@ public class PlayerJobData {
     public int getLevel() { return level; }
     public double getXp() { return xp; }
 
-    /** XP required to advance from the current level to the next. */
+    /** True when the job has reached the mastery threshold (max level). */
+    public boolean isMastered() {
+        return level >= JobRegistry.getMaxLevel();
+    }
+
+    /** XP required to advance from the current level to the next. Scales exponentially forever. */
     public int getXpRequired() {
-        if (level >= JobRegistry.getMaxLevel()) return Integer.MAX_VALUE;
         return (int) Math.round(JobRegistry.getXpBase() * Math.pow(JobRegistry.getXpMultiplier(), level - 1));
     }
 
-    /** Direct setters for admin use. */
+    /** Direct setters for admin use. Level is clamped to a minimum of 1. */
     public void setLevel(int level) {
-        this.level = Math.max(1, Math.min(JobRegistry.getMaxLevel(), level));
+        this.level = Math.max(1, level);
     }
 
     public void setXp(double xp) {
@@ -38,22 +42,21 @@ public class PlayerJobData {
     }
 
     /**
-     * Adds XP, handling carry-over across multiple level-ups and capping at max level.
+     * Adds XP with carry-over across level-ups. Levels continue indefinitely past max level
+     * (post-mastery levels are cosmetic only — reward logic is handled by the caller).
+     *
      * @return true if the player leveled up at least once.
      */
     public boolean addXp(double amount) {
-        if (level >= JobRegistry.getMaxLevel()) return false;
-
         xp += amount;
         boolean leveledUp = false;
 
-        while (level < JobRegistry.getMaxLevel() && xp >= getXpRequired()) {
+        while (xp >= getXpRequired()) {
             xp -= getXpRequired();
             level++;
             leveledUp = true;
         }
 
-        if (level >= JobRegistry.getMaxLevel()) xp = 0;
         return leveledUp;
     }
 }

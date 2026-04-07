@@ -34,14 +34,19 @@ public class JobListener implements Listener {
     // Shared helper
     // -------------------------------------------------------------------------
 
-    private void award(Player player, PlayerJobData data, SourceRef ref) {
-        award(player, data, ref, 1);
+    private void award(Player player, Job job, PlayerJobData data, SourceRef ref) {
+        award(player, job, data, ref, 1);
     }
 
-    private void award(Player player, PlayerJobData data, SourceRef ref, int multiplier) {
-        JobSource source = JobRegistry.getSource(data.getJob(), ref.category(), ref.key());
-        if (source == null || !source.isActive(data.getLevel())) return;
-        JobManager.addXp(player.getUniqueId(), source.getXp() * multiplier, player);
+    private void award(Player player, Job job, PlayerJobData data, SourceRef ref, int multiplier) {
+        JobSource source = JobRegistry.getSource(job, ref.category(), ref.key());
+        if (source == null) return;
+        // Mastered players bypass cutoff — any source they've already unlocked stays earnable
+        boolean canEarn = data.isMastered()
+                ? data.getLevel() >= source.getUnlockLevel()
+                : source.isActive(data.getLevel());
+        if (!canEarn) return;
+        JobManager.addXp(player.getUniqueId(), job, source.getXp() * multiplier, player);
     }
 
     // -------------------------------------------------------------------------
@@ -51,20 +56,26 @@ public class JobListener implements Listener {
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null) return;
-
         Block block = event.getBlock();
         Material mat = block.getType();
 
-        SourceRef ref = switch (data.getJob()) {
-            case MINER -> JobSources.MINER_BREAK.get(mat);
-            case LUMBERJACK -> JobSources.LUMBERJACK_BREAK.get(mat);
-            case FARMER -> getFarmerCropRef(block);
-            default -> null;
-        };
+        PlayerJobData minerData = JobManager.getJobData(player.getUniqueId(), Job.MINER);
+        if (minerData != null) {
+            SourceRef ref = JobSources.MINER_BREAK.get(mat);
+            if (ref != null) award(player, Job.MINER, minerData, ref);
+        }
 
-        if (ref != null) award(player, data, ref);
+        PlayerJobData lumberjackData = JobManager.getJobData(player.getUniqueId(), Job.LUMBERJACK);
+        if (lumberjackData != null) {
+            SourceRef ref = JobSources.LUMBERJACK_BREAK.get(mat);
+            if (ref != null) award(player, Job.LUMBERJACK, lumberjackData, ref);
+        }
+
+        PlayerJobData farmerData = JobManager.getJobData(player.getUniqueId(), Job.FARMER);
+        if (farmerData != null) {
+            SourceRef ref = getFarmerCropRef(block);
+            if (ref != null) award(player, Job.FARMER, farmerData, ref);
+        }
     }
 
     /** Returns the crop SourceRef only if the crop is fully grown (or has no growth stage). */
@@ -83,11 +94,11 @@ public class JobListener implements Listener {
     @EventHandler
     public void onFurnaceExtract(FurnaceExtractEvent event) {
         Player player = event.getPlayer();
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.MINER) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.MINER);
+        if (data == null) return;
 
         SourceRef ref = JobSources.MINER_SMELT.get(event.getItemType());
-        if (ref != null) award(player, data, ref, event.getItemAmount());
+        if (ref != null) award(player, Job.MINER, data, ref, event.getItemAmount());
     }
 
     // -------------------------------------------------------------------------
@@ -97,11 +108,11 @@ public class JobListener implements Listener {
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.LUMBERJACK) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.LUMBERJACK);
+        if (data == null) return;
 
         if (JobSources.LUMBERJACK_SAPLINGS.contains(event.getBlockPlaced().getType())) {
-            award(player, data, new SourceRef("extras", "saplings"));
+            award(player, Job.LUMBERJACK, data, new SourceRef("extras", "saplings"));
         }
     }
 
@@ -114,11 +125,11 @@ public class JobListener implements Listener {
         Player killer = event.getEntity().getKiller();
         if (killer == null) return;
 
-        PlayerJobData data = JobManager.getJobData(killer.getUniqueId());
-        if (data == null || data.getJob() != Job.HUNTER) return;
+        PlayerJobData data = JobManager.getJobData(killer.getUniqueId(), Job.HUNTER);
+        if (data == null) return;
 
         SourceRef ref = JobSources.HUNTER_KILLS.get(event.getEntity().getType());
-        if (ref != null) award(killer, data, ref);
+        if (ref != null) award(killer, Job.HUNTER, data, ref);
     }
 
     // -------------------------------------------------------------------------
@@ -130,11 +141,11 @@ public class JobListener implements Listener {
         Entity breeder = event.getBreeder();
         if (!(breeder instanceof Player player)) return;
 
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.FARMER) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.FARMER);
+        if (data == null) return;
 
         if (JobSources.FARMER_BREEDABLE.contains(event.getEntity().getType())) {
-            award(player, data, new SourceRef("animals", "breeding"));
+            award(player, Job.FARMER, data, new SourceRef("animals", "breeding"));
         }
     }
 
@@ -145,11 +156,11 @@ public class JobListener implements Listener {
     @EventHandler
     public void onShear(PlayerShearEntityEvent event) {
         Player player = event.getPlayer();
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.FARMER) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.FARMER);
+        if (data == null) return;
 
         if (JobSources.FARMER_SHEARABLE.contains(event.getEntity().getType())) {
-            award(player, data, new SourceRef("animals", "shearing"));
+            award(player, Job.FARMER, data, new SourceRef("animals", "shearing"));
         }
     }
 
@@ -166,15 +177,14 @@ public class JobListener implements Listener {
         Player player = event.getPlayer();
         if (player.getInventory().getItemInMainHand().getType() != Material.BUCKET) return;
 
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.FARMER) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.FARMER);
+        if (data == null) return;
 
-        award(player, data, new SourceRef("animals", "milking"));
+        award(player, Job.FARMER, data, new SourceRef("animals", "milking"));
     }
 
     // -------------------------------------------------------------------------
     // FARMER — harvesting honey from beehives/bee nests
-    // (right-clicking a full hive with a glass bottle or shears)
     // -------------------------------------------------------------------------
 
     @EventHandler
@@ -186,7 +196,6 @@ public class JobListener implements Listener {
         if (block == null) return;
         if (block.getType() != Material.BEEHIVE && block.getType() != Material.BEE_NEST) return;
 
-        // Only award XP when the hive is full
         if (!(block.getBlockData() instanceof Beehive beehive)) return;
         if (beehive.getHoneyLevel() < 5) return;
 
@@ -194,9 +203,9 @@ public class JobListener implements Listener {
         if (held != Material.GLASS_BOTTLE && held != Material.SHEARS) return;
 
         Player player = event.getPlayer();
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != Job.FARMER) return;
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.FARMER);
+        if (data == null) return;
 
-        award(player, data, new SourceRef("animals", "honey"));
+        award(player, Job.FARMER, data, new SourceRef("animals", "honey"));
     }
 }

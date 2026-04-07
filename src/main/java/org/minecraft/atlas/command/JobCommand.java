@@ -18,6 +18,7 @@ import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JobRegistry;
+import org.minecraft.atlas.job.JobSettings;
 import org.minecraft.atlas.job.JobSource;
 import org.minecraft.atlas.job.PlayerJobData;
 
@@ -38,48 +39,86 @@ public class JobCommand {
     public static LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("job")
                 .requires(src -> src.getSender().hasPermission("atlas.job"))
-                // /job — open selection GUI
+                // /job — show help menu
                 .executes(ctx -> {
-                    Entity executor = ctx.getSource().getExecutor();
-                    if (!(executor instanceof Player player)) {
-                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                        return Command.SINGLE_SUCCESS;
-                    }
-                    if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
-                        player.sendMessage(error("You must join or create a faction before choosing a job."));
-                        return Command.SINGLE_SUCCESS;
-                    }
-                    if (JobManager.hasJob(player.getUniqueId())) {
-                        player.sendMessage(error("You already have a job. Use /job level to view your progress."));
-                        return Command.SINGLE_SUCCESS;
-                    }
-                    JobGui.open(player);
+                    ctx.getSource().getSender().sendMessage(buildHelp());
                     return Command.SINGLE_SUCCESS;
                 })
-                // /job remove [player]
-                .then(Commands.literal("remove")
-                        .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
+                // /job select — open job selection GUI
+                .then(Commands.literal("select")
                         .executes(ctx -> {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            doRemove(player, player);
+                            if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
+                                player.sendMessage(error("You must join or create a faction before choosing a job."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (!JobManager.canAddJob(player.getUniqueId())) {
+                                player.sendMessage(error("Master your current job(s) first to unlock an additional job slot."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            JobGui.open(player);
                             return Command.SINGLE_SUCCESS;
-                        })
-                        .then(Commands.argument("player", ArgumentTypes.player())
+                        }))
+                // /job remove all [player]
+                // /job remove <job> [player]
+                .then(Commands.literal("remove")
+                        .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
+                        .then(Commands.literal("all")
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
                                     if (!(executor instanceof Player player)) {
                                         ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
                                         return Command.SINGLE_SUCCESS;
                                     }
-                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
-                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
-                                    doRemove(player, target);
+                                    doRemoveAll(player, player);
                                     return Command.SINGLE_SUCCESS;
-                                })))
+                                })
+                                .then(Commands.argument("player", ArgumentTypes.player())
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                            Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                            doRemoveAll(player, target);
+                                            return Command.SINGLE_SUCCESS;
+                                        })))
+                        .then(Commands.argument("job", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    for (Job j : Job.values()) builder.suggest(j.name().toLowerCase());
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                    if (job == null) return Command.SINGLE_SUCCESS;
+                                    doRemoveJob(player, player, job);
+                                    return Command.SINGLE_SUCCESS;
+                                })
+                                .then(Commands.argument("player", ArgumentTypes.player())
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                            if (job == null) return Command.SINGLE_SUCCESS;
+                                            PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                            Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                            doRemoveJob(player, target, job);
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
                 // /job set <job> [player]
                 .then(Commands.literal("set")
                         .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
@@ -125,7 +164,7 @@ public class JobCommand {
                             ctx.getSource().getSender().sendMessage(msg);
                             return Command.SINGLE_SUCCESS;
                         }))
-                // /job info
+                // /job info [job]
                 .then(Commands.literal("info")
                         .executes(ctx -> {
                             Entity executor = ctx.getSource().getExecutor();
@@ -133,10 +172,31 @@ public class JobCommand {
                                 ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            showInfo(player);
+                            showInfo(player, null);
                             return Command.SINGLE_SUCCESS;
-                        }))
-                // /job level [add|set|remove <player> <amount> xp|level]
+                        })
+                        .then(Commands.argument("job", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (executor instanceof Player player) {
+                                        for (Job j : JobManager.getAllJobData(player.getUniqueId()).keySet()) {
+                                            builder.suggest(j.name().toLowerCase());
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                    if (job == null) return Command.SINGLE_SUCCESS;
+                                    showInfo(player, job);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                // /job level [add|set|remove <player> <job> <amount> level|xp]
                 .then(Commands.literal("level")
                         .executes(ctx -> {
                             Entity executor = ctx.getSource().getExecutor();
@@ -150,42 +210,109 @@ public class JobCommand {
                         .then(levelAdminBranch("add"))
                         .then(levelAdminBranch("set"))
                         .then(levelAdminBranch("remove")))
+                // /job settings <setting> <value>
+                .then(Commands.literal("settings")
+                        .then(Commands.literal("extra_levels")
+                                .then(Commands.literal("true")
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            JobManager.getSettings(player.getUniqueId()).setExtraLevels(true);
+                                            player.sendMessage(success("Extra levels enabled. You will now see XP and level progress beyond mastery."));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))
+                                .then(Commands.literal("false")
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            JobManager.getSettings(player.getUniqueId()).setExtraLevels(false);
+                                            player.sendMessage(success("Extra levels disabled. Mastered jobs will display as MAX level."));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
                 .build();
     }
 
     /**
      * Builds the add/set/remove branch under /job level.
-     * Structure: /job level <operation> <player> <amount> (xp|level)
+     * Structure: /job level <operation> <player> <job> <amount> (level|xp)
      */
     private static LiteralArgumentBuilder<CommandSourceStack> levelAdminBranch(String operation) {
         return Commands.literal(operation)
                 .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
                 .then(Commands.argument("player", ArgumentTypes.player())
-                        .then(Commands.argument("amount", IntegerArgumentType.integer(1))
-                                .then(Commands.literal("xp")
-                                        .executes(ctx -> {
-                                            Entity executor = ctx.getSource().getExecutor();
-                                            if (!(executor instanceof Player player)) {
-                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                                                return Command.SINGLE_SUCCESS;
-                                            }
-                                            PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
-                                            Player target = resolver.resolve(ctx.getSource()).getFirst();
-                                            doLevelOp(player, target, operation, "xp", IntegerArgumentType.getInteger(ctx, "amount"));
-                                            return Command.SINGLE_SUCCESS;
-                                        }))
-                                .then(Commands.literal("level")
-                                        .executes(ctx -> {
-                                            Entity executor = ctx.getSource().getExecutor();
-                                            if (!(executor instanceof Player player)) {
-                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                                                return Command.SINGLE_SUCCESS;
-                                            }
-                                            PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
-                                            Player target = resolver.resolve(ctx.getSource()).getFirst();
-                                            doLevelOp(player, target, operation, "level", IntegerArgumentType.getInteger(ctx, "amount"));
-                                            return Command.SINGLE_SUCCESS;
-                                        }))));
+                        .then(Commands.argument("job", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    try {
+                                        PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                        Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                        for (Job j : JobManager.getAllJobData(target.getUniqueId()).keySet()) {
+                                            builder.suggest(j.name().toLowerCase());
+                                        }
+                                    } catch (Exception ignored) {
+                                        for (Job j : Job.values()) builder.suggest(j.name().toLowerCase());
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .then(Commands.argument("amount", IntegerArgumentType.integer(1))
+                                        .then(Commands.literal("level")
+                                                .executes(ctx -> {
+                                                    Entity executor = ctx.getSource().getExecutor();
+                                                    if (!(executor instanceof Player player)) {
+                                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                                    Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                                    if (job == null) return Command.SINGLE_SUCCESS;
+                                                    doLevelOp(player, target, job, operation, "level", IntegerArgumentType.getInteger(ctx, "amount"));
+                                                    return Command.SINGLE_SUCCESS;
+                                                }))
+                                        .then(Commands.literal("xp")
+                                                .executes(ctx -> {
+                                                    Entity executor = ctx.getSource().getExecutor();
+                                                    if (!(executor instanceof Player player)) {
+                                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                                    Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                                    if (job == null) return Command.SINGLE_SUCCESS;
+                                                    doLevelOp(player, target, job, operation, "xp", IntegerArgumentType.getInteger(ctx, "amount"));
+                                                    return Command.SINGLE_SUCCESS;
+                                                })))));
+    }
+
+    // -------------------------------------------------------------------------
+    // Help
+    // -------------------------------------------------------------------------
+
+    private static Component buildHelp() {
+        return Component.text("--- Job Commands ---", NamedTextColor.GOLD)
+                .append(entry("/job select", "Open the job selection menu (requires faction; mastery unlocks additional slots)"))
+                .append(entry("/job list", "List all available jobs"))
+                .append(entry("/job info [job]", "View your job(s), level, XP, and source ACTIVE/LOCKED/EXPIRED status"))
+                .append(entry("/job level", "Quick view of your current level(s) and XP bar(s)"))
+                .append(entry("/job settings extra_levels <true|false>", "Toggle XP/level display and notifications beyond mastery (level 100)"))
+                .append(entry("/job remove all [player]", "Remove all jobs from a player (admin only)"))
+                .append(entry("/job remove <job> [player]", "Remove a specific job from a player (admin only)"))
+                .append(entry("/job set <job> [player]", "Set a player's job directly (admin only)"))
+                .append(entry("/job level add <player> <job> <amount> level|xp", "Add levels or XP to a player's job (admin only)"))
+                .append(entry("/job level set <player> <job> <amount> level|xp", "Set a player's level or XP (admin only)"))
+                .append(entry("/job level remove <player> <job> <amount> level|xp", "Remove levels or XP from a player (admin only)"));
+    }
+
+    private static Component entry(String command, String description) {
+        return Component.newline()
+                .append(Component.text(command, NamedTextColor.GOLD))
+                .append(Component.text(" — " + description, NamedTextColor.YELLOW));
     }
 
     // -------------------------------------------------------------------------
@@ -204,126 +331,181 @@ public class JobCommand {
         }
     }
 
-    private static void doRemove(Player executor, Player target) {
+    private static void doRemoveAll(Player executor, Player target) {
         if (JobManager.removeJob(target.getUniqueId())) {
-            executor.sendMessage(success("Removed " + target.getName() + "'s job."));
+            executor.sendMessage(success("Removed all of " + target.getName() + "'s jobs."));
             if (!executor.equals(target)) {
-                target.sendMessage(info("An admin removed your job. Use /job to select a new one."));
+                target.sendMessage(info("An admin removed all your jobs. Use /job select to choose a new one."));
             }
         } else {
-            executor.sendMessage(error(target.getName() + " does not have a job."));
+            executor.sendMessage(error(target.getName() + " does not have any jobs."));
+        }
+    }
+
+    private static void doRemoveJob(Player executor, Player target, Job job) {
+        if (JobManager.removeJob(target.getUniqueId(), job)) {
+            executor.sendMessage(success("Removed " + target.getName() + "'s " + job.getDisplayName() + " job."));
+            if (!executor.equals(target)) {
+                target.sendMessage(info("An admin removed your " + job.getDisplayName() + " job."));
+            }
+        } else {
+            executor.sendMessage(error(target.getName() + " does not have the " + job.getDisplayName() + " job."));
         }
     }
 
     private static void doAdminSet(Player executor, Player target, Job job) {
         JobManager.forceSetJob(target.getUniqueId(), job);
-        executor.sendMessage(success("Set " + target.getName() + "'s job to " + job.getDisplayName() + "."));
+        executor.sendMessage(success("Set " + target.getName() + "'s " + job.getDisplayName() + " job."));
         if (!executor.equals(target)) {
             target.sendMessage(info("An admin set your job to " + job.getDisplayName() + "."));
         }
     }
 
     private static void showLevel(Player player) {
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null) {
-            player.sendMessage(error("You don't have a job yet. Use /job to select one."));
+        Map<Job, PlayerJobData> allJobs = JobManager.getAllJobData(player.getUniqueId());
+        if (allJobs.isEmpty()) {
+            player.sendMessage(error("You don't have a job yet. Use /job select to choose one."));
             return;
         }
 
-        boolean maxed = data.getLevel() >= JobRegistry.getMaxLevel();
-        int xp = (int) data.getXp();
-        int required = data.getXpRequired();
+        JobSettings settings = JobManager.getSettings(player.getUniqueId());
+        boolean extraLevels = settings.isExtraLevels();
+        int maxLevel = JobRegistry.getMaxLevel();
         int barLength = 20;
-        int filled = maxed ? barLength : Math.min(barLength, (int) (data.getXp() / required * barLength));
 
-        Component bar = Component.text("[", NamedTextColor.DARK_GRAY)
-                .append(Component.text("█".repeat(filled), NamedTextColor.GREEN))
-                .append(Component.text("█".repeat(barLength - filled), NamedTextColor.DARK_GRAY))
-                .append(Component.text("]", NamedTextColor.DARK_GRAY));
+        Component msg = null;
+        for (PlayerJobData data : allJobs.values()) {
+            boolean mastered = data.isMastered();
+            int displayLevel = (!extraLevels && mastered) ? maxLevel : data.getLevel();
+            int filled;
+            Component xpText;
 
-        Component xpText = maxed
-                ? Component.text(" MAX", NamedTextColor.GOLD)
-                : Component.text(" " + fmt(xp) + "/" + fmt(required) + " XP", NamedTextColor.GRAY);
-
-        player.sendMessage(
-                Component.text("[", NamedTextColor.DARK_GRAY)
-                        .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
-                        .append(Component.text("] ", NamedTextColor.DARK_GRAY))
-                        .append(Component.text("Level " + data.getLevel(), NamedTextColor.YELLOW))
-                        .append(Component.newline())
-                        .append(Component.text("Progress: ", NamedTextColor.GRAY))
-                        .append(bar)
-                        .append(xpText)
-        );
-    }
-
-    private static void showInfo(Player player) {
-        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null) {
-            player.sendMessage(error("You don't have a job yet. Use /job to select one."));
-            return;
-        }
-
-        int level = data.getLevel();
-        boolean maxed = level >= JobRegistry.getMaxLevel();
-        int xp = (int) data.getXp();
-        int required = data.getXpRequired();
-
-        Component msg = Component.text("[Job: " + data.getJob().getDisplayName() + "]", data.getJob().getColor())
-                .append(Component.newline())
-                .append(Component.text("Level: " + level, NamedTextColor.YELLOW))
-                .append(maxed
-                        ? Component.text(" (MAX)", NamedTextColor.GOLD)
-                        : Component.text("  (XP: " + fmt(xp) + " / " + fmt(required) + ")", NamedTextColor.GRAY));
-
-        for (Map.Entry<String, Map<String, JobSource>> catEntry : JobRegistry.getCategories(data.getJob()).entrySet()) {
-            String categoryTitle = catEntry.getKey().substring(0, 1).toUpperCase() + catEntry.getKey().substring(1);
-            msg = msg.append(Component.newline())
-                    .append(Component.newline())
-                    .append(Component.text(categoryTitle + ":", NamedTextColor.GOLD));
-
-            for (JobSource source : catEntry.getValue().values()) {
-                msg = msg.append(Component.newline()).append(sourceEntry(source, level));
+            if (!extraLevels && mastered) {
+                filled = barLength;
+                xpText = Component.text(" MAX level", NamedTextColor.GOLD);
+            } else {
+                int xp = (int) data.getXp();
+                int required = data.getXpRequired();
+                filled = Math.min(barLength, (int) (data.getXp() / required * barLength));
+                xpText = Component.text(" " + fmt(xp) + "/" + fmt(required) + " XP", NamedTextColor.GRAY);
             }
+
+            Component bar = Component.text("[", NamedTextColor.DARK_GRAY)
+                    .append(Component.text("█".repeat(filled), NamedTextColor.GREEN))
+                    .append(Component.text("█".repeat(barLength - filled), NamedTextColor.DARK_GRAY))
+                    .append(Component.text("]", NamedTextColor.DARK_GRAY));
+
+            String levelLabel = "Level " + displayLevel + (mastered ? " ✦" : "");
+            Component line = Component.text("[", NamedTextColor.DARK_GRAY)
+                    .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
+                    .append(Component.text("] ", NamedTextColor.DARK_GRAY))
+                    .append(Component.text(levelLabel, NamedTextColor.YELLOW))
+                    .append(Component.newline())
+                    .append(Component.text("Progress: ", NamedTextColor.GRAY))
+                    .append(bar)
+                    .append(xpText);
+
+            msg = (msg == null) ? line : msg.append(Component.newline()).append(line);
         }
 
         player.sendMessage(msg);
     }
 
-    private static Component sourceEntry(JobSource source, int level) {
+    /**
+     * Shows job info. If {@code filter} is non-null, shows only that job;
+     * otherwise shows all of the player's jobs.
+     */
+    private static void showInfo(Player player, Job filter) {
+        Map<Job, PlayerJobData> allJobs = JobManager.getAllJobData(player.getUniqueId());
+        if (allJobs.isEmpty()) {
+            player.sendMessage(error("You don't have a job yet. Use /job select to choose one."));
+            return;
+        }
+
+        if (filter != null && !allJobs.containsKey(filter)) {
+            player.sendMessage(error("You don't have the " + filter.getDisplayName() + " job."));
+            return;
+        }
+
+        JobSettings settings = JobManager.getSettings(player.getUniqueId());
+        boolean extraLevels = settings.isExtraLevels();
+        int maxLevel = JobRegistry.getMaxLevel();
+
+        Component msg = null;
+        for (PlayerJobData data : allJobs.values()) {
+            if (filter != null && data.getJob() != filter) continue;
+            Component section = buildInfoSection(data, extraLevels, maxLevel);
+            msg = (msg == null) ? section : msg.append(Component.newline()).append(Component.newline()).append(section);
+        }
+
+        player.sendMessage(msg);
+    }
+
+    private static Component buildInfoSection(PlayerJobData data, boolean extraLevels, int maxLevel) {
+        int level = data.getLevel();
+        boolean mastered = data.isMastered();
+        int displayLevel = (!extraLevels && mastered) ? maxLevel : level;
+
+        Component section = Component.text("[Job: " + data.getJob().getDisplayName()
+                + (mastered ? " ✦" : "") + "]", data.getJob().getColor())
+                .append(Component.newline())
+                .append(Component.text("Level: " + displayLevel, NamedTextColor.YELLOW));
+
+        if (!extraLevels && mastered) {
+            section = section.append(Component.text(" (MAX level)", NamedTextColor.GOLD));
+        } else {
+            int xp = (int) data.getXp();
+            int required = data.getXpRequired();
+            section = section.append(Component.text("  (XP: " + fmt(xp) + " / " + fmt(required) + ")", NamedTextColor.GRAY));
+        }
+
+        for (Map.Entry<String, Map<String, JobSource>> catEntry : JobRegistry.getCategories(data.getJob()).entrySet()) {
+            String categoryTitle = catEntry.getKey().substring(0, 1).toUpperCase() + catEntry.getKey().substring(1);
+            section = section.append(Component.newline())
+                    .append(Component.newline())
+                    .append(Component.text(categoryTitle + ":", NamedTextColor.GOLD));
+
+            for (JobSource source : catEntry.getValue().values()) {
+                section = section.append(Component.newline()).append(sourceEntry(source, level, mastered));
+            }
+        }
+
+        return section;
+    }
+
+    private static Component sourceEntry(JobSource source, int level, boolean mastered) {
         if (source.isLocked(level)) {
             return Component.text("  • " + source.getDisplayName(), NamedTextColor.RED)
                     .append(Component.text(" [LOCKED – unlocks at lvl " + source.getUnlockLevel() + "]", NamedTextColor.DARK_RED));
         }
-        if (source.isExpired(level)) {
+        // Mastered players bypass cutoff, so expired sources show as active
+        if (!mastered && source.isExpired(level)) {
             return Component.text("  • " + source.getDisplayName() + " → " + fmtXp(source.getXp()) + " XP", NamedTextColor.DARK_GRAY)
                     .append(Component.text(" [EXPIRED]", NamedTextColor.DARK_GRAY));
         }
-        // ACTIVE
         return Component.text("  • " + source.getDisplayName() + " → " + fmtXp(source.getXp()) + " XP", NamedTextColor.GREEN)
                 .append(Component.text(" [ACTIVE]", NamedTextColor.GREEN));
     }
 
-    /** Formats a source XP value, dropping the decimal when it's a whole number (e.g. 0.5 → "0.5", 6.0 → "6"). */
     private static String fmtXp(double xp) {
         return xp == (int) xp ? String.valueOf((int) xp) : String.valueOf(xp);
     }
 
-    /** Formats an XP total with thousands separators (e.g. 10000 → "10,000"). */
     private static String fmt(int n) {
         return String.format("%,d", n);
     }
 
-    private static void doLevelOp(Player executor, Player target, String operation, String type, int amount) {
+    private static void doLevelOp(Player executor, Player target, Job job, String operation, String type, int amount) {
         boolean ok;
         String desc;
+        String jobName = job.getDisplayName();
 
         switch (operation) {
             case "add" -> {
                 if (type.equals("xp")) {
-                    PlayerJobData data = JobManager.getJobData(target.getUniqueId());
+                    PlayerJobData data = JobManager.getJobData(target.getUniqueId(), job);
                     if (data == null) {
-                        executor.sendMessage(error(target.getName() + " does not have a job."));
+                        executor.sendMessage(error(target.getName() + " does not have the " + jobName + " job."));
                         return;
                     }
                     int maxAddable = (int) (data.getXpRequired() - data.getXp());
@@ -332,29 +514,29 @@ public class JobCommand {
                                 + " can receive at most " + maxAddable + " XP before leveling up."));
                         return;
                     }
-                    ok = JobManager.adminAddXp(target.getUniqueId(), amount, target);
-                    desc = "Added " + amount + " XP to " + target.getName();
+                    ok = JobManager.adminAddXp(target.getUniqueId(), job, amount, target);
+                    desc = "Added " + amount + " XP to " + target.getName() + "'s " + jobName;
                 } else {
-                    ok = JobManager.adminAddLevel(target.getUniqueId(), amount);
-                    desc = "Added " + amount + " level(s) to " + target.getName();
+                    ok = JobManager.adminAddLevel(target.getUniqueId(), job, amount);
+                    desc = "Added " + amount + " level(s) to " + target.getName() + "'s " + jobName;
                 }
             }
             case "set" -> {
                 if (type.equals("xp")) {
-                    ok = JobManager.adminSetXp(target.getUniqueId(), amount);
-                    desc = "Set " + target.getName() + "'s XP to " + amount;
+                    ok = JobManager.adminSetXp(target.getUniqueId(), job, amount);
+                    desc = "Set " + target.getName() + "'s " + jobName + " XP to " + amount;
                 } else {
-                    ok = JobManager.adminSetLevel(target.getUniqueId(), amount);
-                    desc = "Set " + target.getName() + "'s level to " + amount;
+                    ok = JobManager.adminSetLevel(target.getUniqueId(), job, amount);
+                    desc = "Set " + target.getName() + "'s " + jobName + " level to " + amount;
                 }
             }
             case "remove" -> {
                 if (type.equals("xp")) {
-                    ok = JobManager.adminRemoveXp(target.getUniqueId(), amount);
-                    desc = "Removed " + amount + " XP from " + target.getName();
+                    ok = JobManager.adminRemoveXp(target.getUniqueId(), job, amount);
+                    desc = "Removed " + amount + " XP from " + target.getName() + "'s " + jobName;
                 } else {
-                    ok = JobManager.adminRemoveLevel(target.getUniqueId(), amount);
-                    desc = "Removed " + amount + " level(s) from " + target.getName();
+                    ok = JobManager.adminRemoveLevel(target.getUniqueId(), job, amount);
+                    desc = "Removed " + amount + " level(s) from " + target.getName() + "'s " + jobName;
                 }
             }
             default -> {
@@ -366,7 +548,7 @@ public class JobCommand {
         if (ok) {
             executor.sendMessage(success(desc + "."));
         } else {
-            executor.sendMessage(error(target.getName() + " does not have a job."));
+            executor.sendMessage(error(target.getName() + " does not have the " + jobName + " job."));
         }
     }
 }
