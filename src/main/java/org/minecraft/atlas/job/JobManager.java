@@ -2,6 +2,7 @@ package org.minecraft.atlas.job;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -51,7 +52,9 @@ public class JobManager {
         PlayerJobData data = playerJobs.get(playerUUID);
         if (data == null) return false;
 
-        if (data.addXp(amount)) {
+        boolean leveledUp = data.addXp(amount);
+
+        if (leveledUp) {
             boolean maxed = data.getLevel() >= JobRegistry.getMaxLevel();
             Component msg = Component.text("Your ", NamedTextColor.GOLD)
                     .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
@@ -59,9 +62,17 @@ public class JobManager {
                             ? Component.text(" job reached max level (" + data.getLevel() + ")!", NamedTextColor.GOLD)
                             : Component.text(" job advanced to level " + data.getLevel() + "!", NamedTextColor.GOLD));
             player.sendMessage(msg);
-            return true;
         }
-        return false;
+
+        // Action bar XP indicator (hidden at max level)
+        if (data.getLevel() < JobRegistry.getMaxLevel()) {
+            String xpText = String.format("%,d/%,d XP", (int) data.getXp(), data.getXpRequired());
+            player.sendActionBar(
+                    Component.text(xpText, data.getJob().getColor()).decorate(TextDecoration.BOLD)
+            );
+        }
+
+        return leveledUp;
     }
 
     // -------------------------------------------------------------------------

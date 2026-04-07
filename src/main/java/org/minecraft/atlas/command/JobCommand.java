@@ -243,7 +243,7 @@ public class JobCommand {
 
         Component xpText = maxed
                 ? Component.text(" MAX", NamedTextColor.GOLD)
-                : Component.text(" " + xp + "/" + required + " XP", NamedTextColor.GRAY);
+                : Component.text(" " + fmt(xp) + "/" + fmt(required) + " XP", NamedTextColor.GRAY);
 
         player.sendMessage(
                 Component.text("[", NamedTextColor.DARK_GRAY)
@@ -274,7 +274,7 @@ public class JobCommand {
                 .append(Component.text("Level: " + level, NamedTextColor.YELLOW))
                 .append(maxed
                         ? Component.text(" (MAX)", NamedTextColor.GOLD)
-                        : Component.text("  (XP: " + xp + " / " + required + ")", NamedTextColor.GRAY));
+                        : Component.text("  (XP: " + fmt(xp) + " / " + fmt(required) + ")", NamedTextColor.GRAY));
 
         for (Map.Entry<String, Map<String, JobSource>> catEntry : JobRegistry.getCategories(data.getJob()).entrySet()) {
             String categoryTitle = catEntry.getKey().substring(0, 1).toUpperCase() + catEntry.getKey().substring(1);
@@ -304,8 +304,14 @@ public class JobCommand {
                 .append(Component.text(" [ACTIVE]", NamedTextColor.GREEN));
     }
 
+    /** Formats a source XP value, dropping the decimal when it's a whole number (e.g. 0.5 → "0.5", 6.0 → "6"). */
     private static String fmtXp(double xp) {
         return xp == (int) xp ? String.valueOf((int) xp) : String.valueOf(xp);
+    }
+
+    /** Formats an XP total with thousands separators (e.g. 10000 → "10,000"). */
+    private static String fmt(int n) {
+        return String.format("%,d", n);
     }
 
     private static void doLevelOp(Player executor, Player target, String operation, String type, int amount) {
