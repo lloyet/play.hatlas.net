@@ -3,9 +3,12 @@ package org.minecraft.atlas.job;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -121,6 +124,52 @@ public class JobManager {
     }
 
     // -------------------------------------------------------------------------
+    // Milestone achievements (real Minecraft advancements, faction-scoped)
+    // -------------------------------------------------------------------------
+
+    private static final int[] MILESTONE_LEVELS = {25, 50, 75, 100};
+    private static final String[] MILESTONE_ROMAN = {"I", "II", "III", "IV"};
+
+    /** Grants all earned milestone and mastery advancements not yet obtained, then notifies faction. */
+    public static void checkMilestoneRewards(Player player, Job job) {
+        PlayerJobData data = getJobData(player.getUniqueId(), job);
+        if (data == null) return;
+        int level = data.getLevel();
+        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+
+        for (int i = 0; i < MILESTONE_LEVELS.length; i++) {
+            if (level >= MILESTONE_LEVELS[i] && !JobAdvancementManager.hasMilestone(player, job, i)) {
+                JobAdvancementManager.awardMilestone(player, job, i);
+                if (factionName != null) {
+                    broadcastAchievement(player, job, factionName,
+                            "Milestone " + MILESTONE_ROMAN[i] + " " + job.getDisplayName());
+                }
+            }
+        }
+
+        if (level >= JobRegistry.getMaxLevel() && !JobAdvancementManager.hasMastery(player, job)) {
+            JobAdvancementManager.awardMastery(player, job);
+            if (factionName != null) {
+                broadcastAchievement(player, job, factionName, "Master " + job.getDisplayName());
+            }
+        }
+    }
+
+    private static void broadcastAchievement(Player player, Job job, String factionName, String achieveName) {
+        Faction faction = FactionManager.getFaction(factionName);
+        if (faction == null) return;
+        Component message = Component.text("[", NamedTextColor.DARK_GRAY)
+                .append(Component.text(factionName, faction.getColor()))
+                .append(Component.text("] ", NamedTextColor.DARK_GRAY))
+                .append(Component.text(player.getName(), NamedTextColor.WHITE))
+                .append(Component.text(" earned ", NamedTextColor.GOLD))
+                .append(Component.text("[" + achieveName + "]", job.getColor())
+                        .decorate(TextDecoration.BOLD));
+        // Notify all online faction members (null = no exclusions, player included)
+        FactionManager.broadcastToFaction(factionName, message, null);
+    }
+
+    // -------------------------------------------------------------------------
     // XP (used by listeners)
     // -------------------------------------------------------------------------
 
@@ -136,6 +185,7 @@ public class JobManager {
         PlayerJobData data = jobs.get(job);
         if (data == null) return false;
 
+        int oldLevel = data.getLevel();
         boolean wasMastered = data.isMastered();
         boolean leveledUp = data.addXp(amount);
         boolean nowMastered = data.isMastered();
@@ -143,6 +193,13 @@ public class JobManager {
         boolean extraLevels = getSettings(uuid).isExtraLevels();
 
         if (leveledUp) {
+            try {
+                checkMilestoneRewards(player, job);
+            } catch (Exception e) {
+                Bukkit.getLogger().warning("[Atlas] checkMilestoneRewards failed for " + player.getName() + ": " + e.getMessage());
+            }
+            JobRewardManager.applyMinorRewards(player, job, oldLevel, data.getLevel());
+
             if (!wasMastered && nowMastered) {
                 // First-time mastery — always notify regardless of extra_levels
                 player.sendMessage(Component.text("Your ", NamedTextColor.GOLD)

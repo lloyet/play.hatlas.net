@@ -20,6 +20,10 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerShearEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JobRegistry;
@@ -29,6 +33,25 @@ import org.minecraft.atlas.job.JobSources.SourceRef;
 import org.minecraft.atlas.job.PlayerJobData;
 
 public class JobListener implements Listener {
+
+    // -------------------------------------------------------------------------
+    // Player-placed block tracking (XP exploit prevention)
+    // -------------------------------------------------------------------------
+
+    private static final Set<String> playerPlacedBlocks = new HashSet<>();
+    private static final Set<Material> XP_MATERIALS;
+
+    static {
+        Set<Material> mats = new HashSet<>();
+        mats.addAll(JobSources.MINER_BREAK.keySet());
+        mats.addAll(JobSources.LUMBERJACK_BREAK.keySet());
+        mats.addAll(JobSources.FARMER_BREAK.keySet());
+        XP_MATERIALS = Collections.unmodifiableSet(mats);
+    }
+
+    private static String blockKey(Block block) {
+        return block.getWorld().getUID() + ":" + block.getX() + ":" + block.getY() + ":" + block.getZ();
+    }
 
     // -------------------------------------------------------------------------
     // Shared helper
@@ -55,8 +78,10 @@ public class JobListener implements Listener {
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
-        Player player = event.getPlayer();
         Block block = event.getBlock();
+        if (playerPlacedBlocks.remove(blockKey(block))) return; // no XP for player-placed blocks
+
+        Player player = event.getPlayer();
         Material mat = block.getType();
 
         PlayerJobData minerData = JobManager.getJobData(player.getUniqueId(), Job.MINER);
@@ -107,11 +132,16 @@ public class JobListener implements Listener {
 
     @EventHandler
     public void onBlockPlace(BlockPlaceEvent event) {
+        Block placed = event.getBlockPlaced();
+        if (XP_MATERIALS.contains(placed.getType())) {
+            playerPlacedBlocks.add(blockKey(placed));
+        }
+
         Player player = event.getPlayer();
         PlayerJobData data = JobManager.getJobData(player.getUniqueId(), Job.LUMBERJACK);
         if (data == null) return;
 
-        if (JobSources.LUMBERJACK_SAPLINGS.contains(event.getBlockPlaced().getType())) {
+        if (JobSources.LUMBERJACK_SAPLINGS.contains(placed.getType())) {
             award(player, Job.LUMBERJACK, data, new SourceRef("extras", "saplings"));
         }
     }

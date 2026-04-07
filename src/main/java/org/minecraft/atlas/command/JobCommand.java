@@ -518,6 +518,7 @@ public class JobCommand {
                     desc = "Added " + amount + " XP to " + target.getName() + "'s " + jobName;
                 } else {
                     ok = JobManager.adminAddLevel(target.getUniqueId(), job, amount);
+                    if (ok) JobManager.checkMilestoneRewards(target, job);
                     desc = "Added " + amount + " level(s) to " + target.getName() + "'s " + jobName;
                 }
             }
@@ -527,6 +528,7 @@ public class JobCommand {
                     desc = "Set " + target.getName() + "'s " + jobName + " XP to " + amount;
                 } else {
                     ok = JobManager.adminSetLevel(target.getUniqueId(), job, amount);
+                    if (ok) JobManager.checkMilestoneRewards(target, job);
                     desc = "Set " + target.getName() + "'s " + jobName + " level to " + amount;
                 }
             }

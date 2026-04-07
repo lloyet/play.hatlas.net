@@ -12,9 +12,11 @@ import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.FactionListener;
 import org.minecraft.atlas.command.JobCommand;
+import org.minecraft.atlas.job.JobAdvancementManager;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JobRegistry;
+import org.minecraft.atlas.job.JobRewardManager;
 import org.minecraft.atlas.listener.JobListener;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -31,6 +33,8 @@ public final class Atlas extends JavaPlugin {
 
         saveDefaultConfig();
         JobRegistry.load(this);
+        JobRewardManager.load(this);
+        JobAdvancementManager.register();
         FactionManager.loadFactions(getConfig());
         JobManager.loadJobs(getConfig());
 
