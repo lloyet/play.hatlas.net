@@ -293,3 +293,429 @@ jobs:
         unlock: 50
         xp: 200
         cutoff: 100
+
+rewards:
+    MINER:
+      minor_rewards:
+        5:
+          items:
+            - type: COAL
+              amount: 16
+
+        10:
+          items:
+            - type: IRON_ORE
+              amount: 32
+
+        15:
+          potions:
+            - id: haste_potion_1
+              effect: HASTE
+              amplifier: 2
+              duration: 1200
+
+        20:
+          items:
+            - type: GOLD_ORE
+              amount: 16
+
+        30:
+          potions:
+            - id: haste_potion_2
+              effect: HASTE
+              amplifier: 3
+              duration: 1800
+
+        35:
+          items:
+            - type: LAPIS_BLOCK
+              amount: 8
+
+        40:
+          items:
+            - type: DIAMOND
+              amount: 4
+
+        45:
+          potions:
+            - id: haste_potion_2
+              effect: HASTE
+              amplifier: 3
+              duration: 1800
+
+        55:
+          items:
+            - type: GOLD_BLOCK
+              amount: 4
+
+        60:
+          potions:
+            - id: haste_potion_3
+              effect: HASTE
+              amplifier: 4
+              duration: 1800
+
+        65:
+          items:
+            - type: DIAMOND
+              amount: 8
+
+        70:
+          items:
+            - type: EMERALD
+              amount: 2
+
+        80:
+          potions:
+            - id: haste_potion_3
+              effect: HASTE
+              amplifier: 4
+              duration: 2700
+
+        85:
+          items:
+            - type: ANCIENT_DEBRIS
+              amount: 2
+
+        90:
+          items:
+            - type: DIAMOND
+              amount: 6
+
+        95:
+          potions:
+            - id: haste_potion_4
+              effect: HASTE
+              amplifier: 5
+              duration: 2700
+
+      milestones:
+        25: { }
+        50: { }
+        75: { }
+        100: { }
+
+    LUMBERJACK:
+      minor_rewards:
+        5:
+          items:
+            - type: OAK_LOG
+              amount: 32
+
+        10:
+          items:
+            - type: SPRUCE_LOG
+              amount: 16
+
+        15:
+          potions:
+            - id: haste_potion_1
+              effect: HASTE
+              amplifier: 2
+              duration: 1200
+
+        20:
+          items:
+            - type: JUNGLE_LOG
+              amount: 8
+
+        30:
+          potions:
+            - id: haste_potion_2
+              effect: HASTE
+              amplifier: 3
+              duration: 1800
+
+        35:
+          items:
+            - type: MANGROVE_LOG
+              amount: 8
+
+        40:
+          items:
+            - type: CHERRY_LOG
+              amount: 8
+
+        45:
+          potions:
+            - id: haste_potion_2
+              effect: HASTE
+              amplifier: 3
+              duration: 1800
+
+        55:
+          items:
+            - type: OAK_LOG
+              amount: 32
+            - type: SPRUCE_LOG
+              amount: 32
+
+        60:
+          potions:
+            - id: haste_potion_3
+              effect: HASTE
+              amplifier: 4
+              duration: 1800
+
+        65:
+          items:
+            - type: CRIMSON_STEM
+              amount: 16
+
+        70:
+          items:
+            - type: WARPED_STEM
+              amount: 16
+
+        80:
+          potions:
+            - id: haste_potion_3
+              effect: HASTE
+              amplifier: 4
+              duration: 2700
+
+        85:
+          items:
+            - type: MUSHROOM_STEM
+              amount: 8
+
+        90:
+          items:
+            - type: OAK_LOG
+              amount: 32
+
+        95:
+          potions:
+            - id: haste_potion_4
+              effect: HASTE
+              amplifier: 5
+              duration: 2700
+
+      milestones:
+        25: { }
+        50: { }
+        75: { }
+        100: { }
+
+    FARMER:
+      minor_rewards:
+        5:
+          items:
+            - type: WHEAT
+              amount: 32
+
+        10:
+          items:
+            - type: CARROT
+              amount: 32
+
+        15:
+          potions:
+            - id: hybrid_farm_potion_1
+              effects:
+                - type: SPEED
+                  amplifier: 1
+                - type: HASTE
+                  amplifier: 1
+              duration: 1200
+
+        20:
+          items:
+            - type: BEETROOT
+              amount: 16
+
+        30:
+          potions:
+            - id: speed_potion_2
+              effect: SPEED
+              amplifier: 2
+              duration: 1800
+
+        35:
+          items:
+            - type: MELON
+              amount: 8
+
+        40:
+          items:
+            - type: SUGAR_CANE
+              amount: 32
+
+        45:
+          potions:
+            - id: speed_potion_2
+              effect: SPEED
+              amplifier: 2
+              duration: 1800
+
+        55:
+          items:
+            - type: CACTUS
+              amount: 16
+
+        60:
+          potions:
+            - id: luck_potion_1
+              effect: LUCK
+              amplifier: 1
+              duration: 1800
+
+        65:
+          items:
+            - type: HONEY_BOTTLE
+              amount: 8
+
+        70:
+          items:
+            - type: WHEAT
+              amount: 32
+            - type: CARROT
+              amount: 32
+
+        80:
+          potions:
+            - id: luck_potion_1
+              effect: LUCK
+              amplifier: 1
+              duration: 2700
+
+        85:
+          items:
+            - type: NETHER_WART
+              amount: 16
+
+        90:
+          items:
+            - type: GOLDEN_CARROT
+              amount: 8
+
+        95:
+          potions:
+            - id: luck_potion_2
+              effect: LUCK
+              amplifier: 2
+              duration: 2700
+
+      milestones:
+        25: { }
+        50: { }
+        75: { }
+        100: { }
+
+    HUNTER:
+      minor_rewards:
+        5:
+          items:
+            - type: COOKED_CHICKEN
+              amount: 16
+
+        10:
+          items:
+            - type: COOKED_BEEF
+              amount: 16
+
+        15:
+          potions:
+            - id: speed_strength_potion_1
+              effects:
+                - type: SPEED
+                  amplifier: 1
+                - type: STRENGTH
+                  amplifier: 1
+              duration: 1200
+
+        20:
+          items:
+            - type: ARROW
+              amount: 16
+
+        30:
+          potions:
+            - id: speed_strength_potion_2
+              effects:
+                - type: SPEED
+                  amplifier: 2
+                - type: STRENGTH
+                  amplifier: 1
+              duration: 1800
+
+        35:
+          items:
+            - type: ARROW
+              amount: 32
+
+        40:
+          items:
+            - type: BOW
+              amount: 1
+
+        45:
+          potions:
+            - id: speed_strength_potion_2
+              effects:
+                - type: SPEED
+                  amplifier: 2
+                - type: STRENGTH
+                  amplifier: 1
+              duration: 1800
+
+        55:
+          items:
+            - type: ARROW
+              amount: 64
+
+        60:
+          potions:
+            - id: speed_strength_potion_3
+              effects:
+                - type: SPEED
+                  amplifier: 2
+                - type: STRENGTH
+                  amplifier: 2
+              duration: 1800
+
+        65:
+          items:
+            - type: ENDER_PEARL
+              amount: 16
+
+        70:
+          items:
+            - type: GOLDEN_APPLE
+              amount: 2
+
+        80:
+          potions:
+            - id: speed_strength_potion_3
+              effects:
+                - type: SPEED
+                  amplifier: 2
+                - type: STRENGTH
+                  amplifier: 2
+              duration: 2700
+
+        85:
+          items:
+            - type: ARROW
+              amount: 32
+
+        90:
+          items:
+            - type: GOLDEN_APPLE
+              amount: 4
+
+        95:
+          potions:
+            - id: speed_strength_potion_4
+              effects:
+                - type: SPEED
+                  amplifier: 3
+                - type: STRENGTH
+                  amplifier: 2
+              duration: 2700
+
+      milestones:
+        25: { }
+        50: { }
+        75: { }
+        100: { }
