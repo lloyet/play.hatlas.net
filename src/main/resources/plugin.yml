@@ -33,8 +33,14 @@ permissions:
   atlas.faction.kick:
     description: Kick members from a faction
     default: true
-  atlas.faction.delete:
-    description: Delete a faction
+  atlas.faction.disband:
+    description: Disband a faction
+    default: true
+  atlas.faction.transfer:
+    description: Transfer faction ownership
+    default: true
+  atlas.faction.info:
+    description: View faction information
     default: true
   atlas.faction.color:
     description: Change faction color
@@ -47,4 +53,13 @@ permissions:
     default: true
   atlas.faction.members:
     description: List members of your faction
+    default: true
+  atlas.faction.description:
+    description: View or set the faction description
+    default: true
+  atlas.faction.promote:
+    description: Promote a faction member to the next role
+    default: true
+  atlas.faction.demote:
+    description: Demote a faction member to the previous role
     default: true

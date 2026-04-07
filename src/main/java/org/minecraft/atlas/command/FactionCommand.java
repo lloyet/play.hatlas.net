@@ -13,15 +13,16 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.JobGui;
-import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.faction.FactionRole;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -43,6 +44,100 @@ public class FactionCommand {
         return Component.text(msg, NamedTextColor.GOLD);
     }
 
+    /**
+     * Returns the display name for a UUID, checking online players first then offline player cache.
+     */
+    private static String getPlayerName(UUID uuid) {
+        Player online = Bukkit.getPlayer(uuid);
+        if (online != null) return online.getName();
+        OfflinePlayer offline = Bukkit.getOfflinePlayer(uuid);
+        String name = offline.getName();
+        return name != null ? name : uuid.toString();
+    }
+
+    /**
+     * Builds the faction info Component. The detailed member list is only shown when isInsideFaction is true.
+     */
+    private static Component buildFactionInfo(Faction faction, boolean isInsideFaction) {
+        String colorName = NamedTextColor.NAMES.key(faction.getColor());
+        if (colorName == null) colorName = "white";
+        String desc = (faction.getDescription() == null || faction.getDescription().isBlank())
+                ? "No description set." : faction.getDescription();
+        String ownerName = getPlayerName(faction.getOwner());
+        int totalMembers = 1 + faction.getMembers().size();
+
+        Component msg = Component.text("--- " + faction.getName() + " ---", faction.getColor())
+                .append(Component.newline())
+                .append(Component.text("Color: ", NamedTextColor.GRAY))
+                .append(Component.text(colorName, faction.getColor()))
+                .append(Component.newline())
+                .append(Component.text("Description: ", NamedTextColor.GRAY))
+                .append(Component.text(desc, NamedTextColor.WHITE))
+                .append(Component.newline())
+                .append(Component.text("Owner: ", NamedTextColor.GRAY))
+                .append(Component.text(ownerName, NamedTextColor.YELLOW));
+
+        if (isInsideFaction) {
+            List<String> leaders = new ArrayList<>();
+            List<String> moderators = new ArrayList<>();
+            List<String> plainMembers = new ArrayList<>();
+
+            for (UUID uuid : faction.getMembers()) {
+                String name = getPlayerName(uuid);
+                switch (faction.getRole(uuid)) {
+                    case LEADER -> leaders.add(name);
+                    case MODERATOR -> moderators.add(name);
+                    case MEMBER -> plainMembers.add(name);
+                }
+            }
+
+            msg = msg.append(Component.newline())
+                    .append(Component.text("Leaders: ", NamedTextColor.GRAY))
+                    .append(Component.text(leaders.isEmpty() ? "None" : String.join(", ", leaders), NamedTextColor.GOLD))
+                    .append(Component.newline())
+                    .append(Component.text("Moderators: ", NamedTextColor.GRAY))
+                    .append(Component.text(moderators.isEmpty() ? "None" : String.join(", ", moderators), NamedTextColor.AQUA))
+                    .append(Component.newline())
+                    .append(Component.text("Members (" + totalMembers + "):", NamedTextColor.GRAY))
+                    .append(Component.newline())
+                    .append(Component.text("  " + ownerName, NamedTextColor.WHITE))
+                    .append(Component.text(" [Owner]", NamedTextColor.YELLOW));
+
+            for (String name : leaders) {
+                msg = msg.append(Component.newline())
+                        .append(Component.text("  " + name, NamedTextColor.WHITE))
+                        .append(Component.text(" [Leader]", NamedTextColor.GOLD));
+            }
+            for (String name : moderators) {
+                msg = msg.append(Component.newline())
+                        .append(Component.text("  " + name, NamedTextColor.WHITE))
+                        .append(Component.text(" [Moderator]", NamedTextColor.AQUA));
+            }
+            for (String name : plainMembers) {
+                msg = msg.append(Component.newline())
+                        .append(Component.text("  " + name, NamedTextColor.WHITE));
+            }
+        } else {
+            msg = msg.append(Component.newline())
+                    .append(Component.text("Members: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.valueOf(totalMembers), NamedTextColor.WHITE));
+        }
+
+        return msg;
+    }
+
+    /**
+     * Builds one help entry: gray "/faction " + gold subcommand + dark-aqua args + yellow " - description".
+     */
+    private static Component helpEntry(String sub, String args, String desc) {
+        Component line = Component.text("/faction ", NamedTextColor.GRAY)
+                .append(Component.text(sub, NamedTextColor.GOLD));
+        if (!args.isEmpty()) {
+            line = line.append(Component.text(" " + args, NamedTextColor.DARK_AQUA));
+        }
+        return line.append(Component.text(" - " + desc, NamedTextColor.YELLOW));
+    }
+
     // -------------------------------------------------------------------------
     // Command tree
     // -------------------------------------------------------------------------
@@ -53,28 +148,22 @@ public class FactionCommand {
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendMessage(
                             Component.text("--- Faction Commands ---", NamedTextColor.GOLD)
-                                    .append(Component.newline())
-                                    .append(info("/faction create <name>   ")).append(Component.text("- Create a new faction", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction invite <player> ")).append(Component.text("- Invite a player (owner only)", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction accept          ")).append(Component.text("- Accept a pending invitation", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction decline         ")).append(Component.text("- Decline a pending invitation", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction leave           ")).append(Component.text("- Leave your current faction", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction rename <name>   ")).append(Component.text("- Rename your faction (owner only)", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction color <color>   ")).append(Component.text("- Change faction color (owner only)", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction kick <player>   ")).append(Component.text("- Kick a member (owner only)", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction delete          ")).append(Component.text("- Delete your faction (owner only)", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction list            ")).append(Component.text("- List all factions", NamedTextColor.YELLOW))
-                                    .append(Component.newline())
-                                    .append(info("/faction members         ")).append(Component.text("- Show members of your faction", NamedTextColor.YELLOW))
+                                    .append(Component.newline()).append(helpEntry("create", "<name>", "Create a new faction"))
+                                    .append(Component.newline()).append(helpEntry("invite", "<player>", "Invite a player (moderator+)"))
+                                    .append(Component.newline()).append(helpEntry("accept", "", "Accept a pending invitation"))
+                                    .append(Component.newline()).append(helpEntry("decline", "", "Decline a pending invitation"))
+                                    .append(Component.newline()).append(helpEntry("leave", "", "Leave your current faction"))
+                                    .append(Component.newline()).append(helpEntry("rename", "<name>", "Rename your faction (leader+)"))
+                                    .append(Component.newline()).append(helpEntry("description", "[text]", "View or set description (leader+)"))
+                                    .append(Component.newline()).append(helpEntry("color", "<color>", "Change faction color (leader+)"))
+                                    .append(Component.newline()).append(helpEntry("promote", "<player>", "Promote a member (owner only)"))
+                                    .append(Component.newline()).append(helpEntry("demote", "<player>", "Demote a member (owner only)"))
+                                    .append(Component.newline()).append(helpEntry("transfer", "<player>", "Transfer ownership (owner only)"))
+                                    .append(Component.newline()).append(helpEntry("kick", "<player>", "Kick a member (owner only)"))
+                                    .append(Component.newline()).append(helpEntry("disband", "", "Delete your faction (owner only)"))
+                                    .append(Component.newline()).append(helpEntry("info", "[faction]", "Show faction information"))
+                                    .append(Component.newline()).append(helpEntry("list", "", "List all factions"))
+                                    .append(Component.newline()).append(helpEntry("members", "", "Show members of your faction"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
@@ -137,7 +226,7 @@ public class FactionCommand {
                                                                 .clickEvent(ClickEvent.runCommand("/faction decline")))
                                         );
                                     } else {
-                                        player.sendMessage(error("Could not invite " + target.getName() + ". Make sure you are the faction owner and the player is not already in a faction."));
+                                        player.sendMessage(error("Could not invite " + target.getName() + ". You must be at least a Moderator, and the player must not already be in a faction."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
@@ -200,7 +289,56 @@ public class FactionCommand {
                                                 info(player.getName() + " renamed the faction to '" + newName + "'."),
                                                 player.getUniqueId());
                                     } else {
-                                        player.sendMessage(error("Could not rename. Make sure you are the owner and the new name is not already taken."));
+                                        player.sendMessage(error("Could not rename. You must be a Leader or Owner, and the new name must not already be taken."));
+                                    }
+
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("description")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.description"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            Faction faction = FactionManager.getFaction(factionName);
+                            String desc = faction.getDescription();
+                            if (desc == null || desc.isBlank()) {
+                                player.sendMessage(info("Your faction has no description set."));
+                            } else {
+                                player.sendMessage(Component.text("--- " + factionName + " ---", faction.getColor())
+                                        .append(Component.newline())
+                                        .append(Component.text(desc, NamedTextColor.WHITE)));
+                            }
+
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    String text = StringArgumentType.getString(ctx, "text");
+
+                                    if (FactionManager.setFactionDescription(player.getUniqueId(), text)) {
+                                        player.sendMessage(success("Faction description updated."));
+                                        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                        FactionManager.broadcastToFaction(factionName,
+                                                info(player.getName() + " updated the faction description."),
+                                                player.getUniqueId());
+                                    } else {
+                                        player.sendMessage(error("Could not update description. You must be a Leader or Owner."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
@@ -239,7 +377,104 @@ public class FactionCommand {
                                                         .append(info(".")),
                                                 player.getUniqueId());
                                     } else {
-                                        player.sendMessage(error("Could not change color. Make sure you are the faction owner."));
+                                        player.sendMessage(error("Could not change color. You must be a Leader or Owner."));
+                                    }
+
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("promote")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.promote"))
+                        .then(Commands.argument("player", ArgumentTypes.player())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+
+                                    if (target.equals(player)) {
+                                        player.sendMessage(error("You cannot promote yourself."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (FactionManager.promotePlayer(player.getUniqueId(), target.getUniqueId())) {
+                                        FactionRole newRole = FactionManager.getPlayerRole(target.getUniqueId());
+                                        String roleName = newRole != null ? newRole.displayName() : "Leader";
+                                        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                        player.sendMessage(success(target.getName() + " has been promoted to " + roleName + "."));
+                                        target.sendMessage(info("You have been promoted to " + roleName + " in your faction."));
+                                        FactionManager.broadcastToFaction(factionName,
+                                                info(target.getName() + " has been promoted to " + roleName + "."),
+                                                player.getUniqueId());
+                                    } else {
+                                        player.sendMessage(error("Could not promote " + target.getName() + ". Only the Owner can promote, and the player must be in your faction and not already at the highest role."));
+                                    }
+
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("demote")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.demote"))
+                        .then(Commands.argument("player", ArgumentTypes.player())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+
+                                    if (target.equals(player)) {
+                                        player.sendMessage(error("You cannot demote yourself."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (FactionManager.demotePlayer(player.getUniqueId(), target.getUniqueId())) {
+                                        FactionRole newRole = FactionManager.getPlayerRole(target.getUniqueId());
+                                        String roleName = newRole != null ? newRole.displayName() : "Member";
+                                        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                        player.sendMessage(success(target.getName() + " has been demoted to " + roleName + "."));
+                                        target.sendMessage(info("You have been demoted to " + roleName + " in your faction."));
+                                        FactionManager.broadcastToFaction(factionName,
+                                                info(target.getName() + " has been demoted to " + roleName + "."),
+                                                player.getUniqueId());
+                                    } else {
+                                        player.sendMessage(error("Could not demote " + target.getName() + ". Only the Owner can demote, and the player must be in your faction and not already at the lowest role."));
+                                    }
+
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                .then(Commands.literal("transfer")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.transfer"))
+                        .then(Commands.argument("player", ArgumentTypes.player())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+
+                                    if (target.equals(player)) {
+                                        player.sendMessage(error("You cannot transfer ownership to yourself."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (FactionManager.transferOwnership(player.getUniqueId(), target.getUniqueId())) {
+                                        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                        player.sendMessage(success("Ownership of the faction has been transferred to " + target.getName() + "."));
+                                        target.sendMessage(info("You are now the Owner of faction '" + factionName + "'."));
+                                        FactionManager.broadcastToFaction(factionName,
+                                                info(target.getName() + " is now the Owner of the faction."),
+                                                player.getUniqueId());
+                                    } else {
+                                        player.sendMessage(error("Could not transfer ownership. You must be the Owner and the target must be a member of your faction."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
@@ -265,13 +500,13 @@ public class FactionCommand {
                                                 info(target.getName() + " has been kicked from the faction."),
                                                 player.getUniqueId());
                                     } else {
-                                        player.sendMessage(error("Could not kick " + target.getName() + ". Make sure you are the owner and that player is in your faction."));
+                                        player.sendMessage(error("Could not kick " + target.getName() + ". Make sure you are the Owner and that player is in your faction."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
-                .then(Commands.literal("delete")
-                        .requires(src -> src.getSender().hasPermission("atlas.faction.delete"))
+                .then(Commands.literal("disband")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.disband"))
                         .executes(ctx -> {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
@@ -279,19 +514,19 @@ public class FactionCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
 
-                            String factionNameForDelete = FactionManager.getPlayerFaction(player.getUniqueId());
-                            Faction grpForDelete = factionNameForDelete != null
-                                    ? FactionManager.getFaction(factionNameForDelete) : null;
-                            if (grpForDelete != null && grpForDelete.getOwner().equals(player.getUniqueId())) {
-                                FactionManager.broadcastToFaction(factionNameForDelete,
+                            String factionNameForDisband = FactionManager.getPlayerFaction(player.getUniqueId());
+                            Faction grpForDisband = factionNameForDisband != null
+                                    ? FactionManager.getFaction(factionNameForDisband) : null;
+                            if (grpForDisband != null && grpForDisband.getOwner().equals(player.getUniqueId())) {
+                                FactionManager.broadcastToFaction(factionNameForDisband,
                                         error("The faction has been disbanded by " + player.getName() + "."),
                                         player.getUniqueId());
                             }
 
                             if (FactionManager.deleteFaction(player.getUniqueId())) {
-                                player.sendMessage(success("Your faction has been deleted."));
+                                player.sendMessage(success("Your faction has been disbanded."));
                             } else {
-                                player.sendMessage(error("Could not delete faction. Make sure you are the owner."));
+                                player.sendMessage(error("Could not disband faction. Make sure you are the Owner."));
                             }
 
                             return Command.SINGLE_SUCCESS;
@@ -317,11 +552,54 @@ public class FactionCommand {
                                         info(player.getName() + " left the faction."),
                                         player.getUniqueId());
                             } else {
-                                player.sendMessage(error("You are the owner — use /faction delete to disband the faction instead."));
+                                player.sendMessage(error("You are the Owner — use /faction disband to disband the faction instead."));
                             }
 
                             return Command.SINGLE_SUCCESS;
                         }))
+                .then(Commands.literal("info")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.info"))
+                        .executes(ctx -> {
+                            // No argument: show the player's own faction
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String ownFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (ownFaction == null) {
+                                player.sendMessage(error("You are not in any faction. Use /faction info <name> to look up a faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            player.sendMessage(buildFactionInfo(FactionManager.getFaction(ownFaction), true));
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    FactionManager.getFactions().keySet().forEach(builder::suggest);
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    String targetFactionName = StringArgumentType.getString(ctx, "faction");
+                                    Faction faction = FactionManager.getFaction(targetFactionName);
+
+                                    if (faction == null) {
+                                        player.sendMessage(error("Faction '" + targetFactionName + "' does not exist."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    boolean isInsideFaction = targetFactionName.equals(
+                                            FactionManager.getPlayerFaction(player.getUniqueId()));
+
+                                    player.sendMessage(buildFactionInfo(faction, isInsideFaction));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
                 .then(Commands.literal("list")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.list"))
                         .executes(ctx -> {
@@ -339,10 +617,13 @@ public class FactionCommand {
 
                             Component list = Component.text("--- Factions (" + factions.size() + ") ---", NamedTextColor.GOLD);
                             for (Faction g : factions.values()) {
-                                int total = 1 + g.getMembers().size(); // owner + members
+                                int total = 1 + g.getMembers().size();
+                                String desc = (g.getDescription() == null || g.getDescription().isBlank())
+                                        ? "No description set." : g.getDescription();
                                 list = list.append(Component.newline())
                                         .append(Component.text(g.getName(), g.getColor()))
-                                        .append(Component.text(" (" + total + " member" + (total == 1 ? "" : "s") + ")", NamedTextColor.GRAY));
+                                        .append(Component.text(" (" + total + " member" + (total == 1 ? "" : "s") + ")", NamedTextColor.GRAY))
+                                        .append(Component.text(" - " + desc, NamedTextColor.DARK_GRAY));
                             }
                             player.sendMessage(list);
                             return Command.SINGLE_SUCCESS;
@@ -371,9 +652,22 @@ public class FactionCommand {
                                 Player member = Bukkit.getPlayer(uuid);
                                 String name = member != null ? member.getName() : uuid.toString();
                                 boolean online = member != null;
+
+                                Component roleTag;
+                                if (isOwner) {
+                                    roleTag = Component.text(" [Owner]", NamedTextColor.YELLOW);
+                                } else {
+                                    FactionRole role = grp.getRole(uuid);
+                                    roleTag = switch (role) {
+                                        case LEADER -> Component.text(" [Leader]", NamedTextColor.GOLD);
+                                        case MODERATOR -> Component.text(" [Moderator]", NamedTextColor.AQUA);
+                                        case MEMBER -> Component.empty();
+                                    };
+                                }
+
                                 list = list.append(Component.newline())
                                         .append(Component.text(name, online ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY))
-                                        .append(Component.text(isOwner ? " [Owner]" : "", NamedTextColor.YELLOW))
+                                        .append(roleTag)
                                         .append(Component.text(online ? "" : " (offline)", NamedTextColor.DARK_GRAY));
                             }
                             player.sendMessage(list);
