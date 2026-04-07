@@ -183,6 +183,33 @@ public class FactionManager {
     }
 
     /**
+     * Transfers ownership to a current member. The old owner becomes a Leader.
+     * Only the current owner can do this, and the target must be in the members list.
+     */
+    public static boolean transferOwnership(UUID ownerUUID, UUID targetUUID) {
+        String factionName = playerFaction.get(ownerUUID);
+
+        if (factionName == null) return false;
+
+        Faction faction = factions.get(factionName);
+
+        if (!faction.getOwner().equals(ownerUUID)) return false;
+        if (!faction.getMembers().contains(targetUUID)) return false;
+
+        // Target leaves the members list and becomes the new owner (no role)
+        faction.removeMember(targetUUID);
+        faction.removeRole(targetUUID);
+
+        // Old owner joins the members list as Leader
+        faction.addMember(ownerUUID);
+        faction.setRole(ownerUUID, FactionRole.LEADER);
+
+        faction.setOwner(targetUUID);
+
+        return true;
+    }
+
+    /**
      * Demotes a member to the previous role (LEADER → MODERATOR → MEMBER). Only the owner can demote.
      */
     public static boolean demotePlayer(UUID ownerUUID, UUID targetUUID) {

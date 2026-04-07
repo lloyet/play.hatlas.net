@@ -11,7 +11,7 @@ import java.util.UUID;
 public class Faction {
 
     private String name;
-    private final UUID owner;
+    private UUID owner;
     private final List<UUID> members = new ArrayList<>();
     private NamedTextColor color = NamedTextColor.WHITE;
     private String description = "";
@@ -25,6 +25,10 @@ public class Faction {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public UUID getOwner() { return owner; }
+
+    public void setOwner(UUID owner) {
+        this.owner = owner;
+    }
     public List<UUID> getMembers() { return members; }
     public void addMember(UUID uuid) { members.add(uuid); }
     public void removeMember(UUID uuid) { members.remove(uuid); }
