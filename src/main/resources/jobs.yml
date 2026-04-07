@@ -1,0 +1,295 @@
+xp-curve:
+  base: 100
+  multiplier: 1.09
+  max-level: 100
+
+jobs:
+  MINER:
+    mining:
+      stone:
+        display: "Stone"
+        unlock: 1
+        xp: 1
+        cutoff: 25
+      granite_diorite_andesite:
+        display: "Granite/Diorite/Andesite"
+        unlock: 1
+        xp: 1
+        cutoff: 25
+      coal:
+        display: "Coal"
+        unlock: 3
+        xp: 3
+        cutoff: 45
+      copper:
+        display: "Copper"
+        unlock: 5
+        xp: 4
+        cutoff: 50
+      iron:
+        display: "Iron"
+        unlock: 10
+        xp: 6
+        cutoff: 65
+      redstone:
+        display: "Redstone"
+        unlock: 20
+        xp: 8
+        cutoff: 80
+      lapis:
+        display: "Lapis Lazuli"
+        unlock: 20
+        xp: 10
+        cutoff: 80
+      gold:
+        display: "Gold"
+        unlock: 30
+        xp: 12
+        cutoff: 90
+      quartz:
+        display: "Quartz"
+        unlock: 30
+        xp: 10
+        cutoff: 85
+      obsidian:
+        display: "Obsidian"
+        unlock: 35
+        xp: 15
+        cutoff: 100
+      diamond:
+        display: "Diamond"
+        unlock: 40
+        xp: 25
+        cutoff: 100
+      emerald:
+        display: "Emerald"
+        unlock: 50
+        xp: 40
+        cutoff: 100
+    smelting:
+      charcoal:
+        display: "Charcoal"
+        unlock: 1
+        xp: 2
+        cutoff: 30
+      nether_brick:
+        display: "Nether Brick"
+        unlock: 1
+        xp: 2
+        cutoff: 30
+      copper_ingot:
+        display: "Copper Ingot"
+        unlock: 5
+        xp: 4
+        cutoff: 55
+      iron_ingot:
+        display: "Iron Ingot"
+        unlock: 10
+        xp: 6
+        cutoff: 70
+      gold_ingot:
+        display: "Gold Ingot"
+        unlock: 30
+        xp: 8
+        cutoff: 90
+      netherite_scrap:
+        display: "Netherite Scrap"
+        unlock: 50
+        xp: 25
+        cutoff: 100
+
+  LUMBERJACK:
+    logging:
+      oak_spruce_birch:
+        display: "Oak/Spruce/Birch Logs"
+        unlock: 1
+        xp: 1
+        cutoff: 25
+      jungle_acacia:
+        display: "Jungle/Acacia Logs"
+        unlock: 5
+        xp: 2
+        cutoff: 40
+      dark_oak:
+        display: "Dark Oak Logs"
+        unlock: 10
+        xp: 3
+        cutoff: 55
+      mangrove:
+        display: "Mangrove Logs"
+        unlock: 15
+        xp: 4
+        cutoff: 65
+      cherry:
+        display: "Cherry Logs"
+        unlock: 20
+        xp: 5
+        cutoff: 75
+      crimson_warped:
+        display: "Crimson/Warped Stems"
+        unlock: 25
+        xp: 6
+        cutoff: 85
+      mushroom_stem:
+        display: "Mushroom Stem"
+        unlock: 30
+        xp: 8
+        cutoff: 100
+    extras:
+      leaves:
+        display: "Breaking Leaves"
+        unlock: 1
+        xp: 0.5
+        cutoff: 20
+      saplings:
+        display: "Planting Saplings"
+        unlock: 1
+        xp: 1
+        cutoff: 40
+
+  FARMER:
+    crops:
+      wheat_carrot_potato:
+        display: "Wheat/Carrot/Potato"
+        unlock: 1
+        xp: 2
+        cutoff: 30
+      beetroot:
+        display: "Beetroot"
+        unlock: 5
+        xp: 3
+        cutoff: 40
+      melon_pumpkin:
+        display: "Melon/Pumpkin"
+        unlock: 10
+        xp: 4
+        cutoff: 55
+      sugar_cane:
+        display: "Sugar Cane"
+        unlock: 15
+        xp: 5
+        cutoff: 65
+      bamboo:
+        display: "Bamboo"
+        unlock: 20
+        xp: 5
+        cutoff: 70
+      cactus:
+        display: "Cactus"
+        unlock: 25
+        xp: 6
+        cutoff: 75
+      cocoa_beans:
+        display: "Cocoa Beans"
+        unlock: 30
+        xp: 6
+        cutoff: 80
+      nether_wart:
+        display: "Nether Wart"
+        unlock: 35
+        xp: 8
+        cutoff: 90
+    animals:
+      breeding:
+        display: "Breeding Animals"
+        unlock: 5
+        xp: 5
+        cutoff: 70
+      shearing:
+        display: "Shearing Sheep"
+        unlock: 10
+        xp: 4
+        cutoff: 60
+      milking:
+        display: "Milking Cows"
+        unlock: 10
+        xp: 3
+        cutoff: 50
+      honey:
+        display: "Harvesting Honey"
+        unlock: 20
+        xp: 6
+        cutoff: 80
+
+  HUNTER:
+    kills:
+      chicken:
+        display: "Chicken"
+        unlock: 1
+        xp: 1
+        cutoff: 20
+      cow:
+        display: "Cow"
+        unlock: 1
+        xp: 2
+        cutoff: 25
+      sheep:
+        display: "Sheep"
+        unlock: 1
+        xp: 2
+        cutoff: 25
+      pig:
+        display: "Pig"
+        unlock: 1
+        xp: 2
+        cutoff: 25
+      fish:
+        display: "Fish"
+        unlock: 5
+        xp: 2
+        cutoff: 30
+      zombie:
+        display: "Zombie"
+        unlock: 5
+        xp: 3
+        cutoff: 40
+      skeleton:
+        display: "Skeleton"
+        unlock: 5
+        xp: 3
+        cutoff: 40
+      spider:
+        display: "Spider"
+        unlock: 5
+        xp: 3
+        cutoff: 40
+      creeper:
+        display: "Creeper"
+        unlock: 10
+        xp: 5
+        cutoff: 55
+      enderman:
+        display: "Enderman"
+        unlock: 20
+        xp: 8
+        cutoff: 70
+      blaze:
+        display: "Blaze"
+        unlock: 25
+        xp: 10
+        cutoff: 80
+      witch:
+        display: "Witch"
+        unlock: 30
+        xp: 12
+        cutoff: 85
+      piglin_brute:
+        display: "Piglin/Brute"
+        unlock: 35
+        xp: 14
+        cutoff: 90
+      wither_skeleton:
+        display: "Wither Skeleton"
+        unlock: 40
+        xp: 16
+        cutoff: 100
+      wither:
+        display: "Wither"
+        unlock: 50
+        xp: 150
+        cutoff: 100
+      ender_dragon:
+        display: "Ender Dragon"
+        unlock: 50
+        xp: 200
+        cutoff: 100

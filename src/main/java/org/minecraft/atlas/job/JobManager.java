@@ -22,9 +22,7 @@ public class JobManager {
         return playerJobs.get(playerUUID);
     }
 
-    /**
-     * Assigns a job to a player. Jobs are permanent — returns false if one is already set.
-     */
+    /** Assigns a job to a player. Jobs are permanent — returns false if one is already set. */
     public static boolean setJob(UUID playerUUID, Job job) {
         if (playerJobs.containsKey(playerUUID)) return false;
         playerJobs.put(playerUUID, new PlayerJobData(job));
@@ -40,6 +38,35 @@ public class JobManager {
     public static void forceSetJob(UUID playerUUID, Job job) {
         playerJobs.put(playerUUID, new PlayerJobData(job));
     }
+
+    // -------------------------------------------------------------------------
+    // XP (used by listeners)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Awards XP to a player and sends a level-up message if applicable.
+     * @return true if the player leveled up.
+     */
+    public static boolean addXp(UUID playerUUID, double amount, Player player) {
+        PlayerJobData data = playerJobs.get(playerUUID);
+        if (data == null) return false;
+
+        if (data.addXp(amount)) {
+            boolean maxed = data.getLevel() >= JobRegistry.getMaxLevel();
+            Component msg = Component.text("Your ", NamedTextColor.GOLD)
+                    .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
+                    .append(maxed
+                            ? Component.text(" job reached max level (" + data.getLevel() + ")!", NamedTextColor.GOLD)
+                            : Component.text(" job advanced to level " + data.getLevel() + "!", NamedTextColor.GOLD));
+            player.sendMessage(msg);
+            return true;
+        }
+        return false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Admin — level
+    // -------------------------------------------------------------------------
 
     public static boolean adminSetLevel(UUID playerUUID, int level) {
         PlayerJobData data = playerJobs.get(playerUUID);
@@ -62,42 +89,31 @@ public class JobManager {
         return true;
     }
 
-    public static boolean adminSetXp(UUID playerUUID, int xp) {
+    // -------------------------------------------------------------------------
+    // Admin — XP
+    // -------------------------------------------------------------------------
+
+    public static boolean adminSetXp(UUID playerUUID, double xp) {
         PlayerJobData data = playerJobs.get(playerUUID);
         if (data == null) return false;
-        data.setProgress(xp);
+        data.setXp(xp);
         return true;
     }
 
-    public static boolean adminAddXp(UUID playerUUID, int amount, Player player) {
-        return addProgress(playerUUID, amount, player);
+    public static boolean adminAddXp(UUID playerUUID, double amount, Player player) {
+        return addXp(playerUUID, amount, player);
     }
 
-    public static boolean adminRemoveXp(UUID playerUUID, int amount) {
+    public static boolean adminRemoveXp(UUID playerUUID, double amount) {
         PlayerJobData data = playerJobs.get(playerUUID);
         if (data == null) return false;
-        data.setProgress(data.getProgress() - amount);
+        data.setXp(data.getXp() - amount);
         return true;
     }
 
-    /**
-     * Adds progression progress for a player and sends a level-up notification if applicable.
-     * @return true if the player leveled up.
-     */
-    public static boolean addProgress(UUID playerUUID, int amount, Player player) {
-        PlayerJobData data = playerJobs.get(playerUUID);
-        if (data == null) return false;
-
-        if (data.addProgress(amount)) {
-            player.sendMessage(
-                Component.text("You leveled up your ", NamedTextColor.GOLD)
-                    .append(Component.text(data.getJob().getDisplayName(), data.getJob().getColor()))
-                    .append(Component.text(" job to level " + data.getLevel() + "!", NamedTextColor.GOLD))
-            );
-            return true;
-        }
-        return false;
-    }
+    // -------------------------------------------------------------------------
+    // Persistence
+    // -------------------------------------------------------------------------
 
     public static void saveJobs(FileConfiguration config) {
         config.set("jobs", null);
@@ -108,7 +124,7 @@ public class JobManager {
             PlayerJobData data = entry.getValue();
             s.set("job", data.getJob().name());
             s.set("level", data.getLevel());
-            s.set("progress", data.getProgress());
+            s.set("xp", data.getXp());
         }
     }
 
@@ -126,9 +142,9 @@ public class JobManager {
 
             try {
                 Job job = Job.valueOf(jobName);
-                int level = s.getInt("level", 0);
-                int progress = s.getInt("progress", 0);
-                playerJobs.put(UUID.fromString(uuidStr), new PlayerJobData(job, level, progress));
+                int level = s.getInt("level", 1);
+                double xp = s.getDouble("xp", 0.0);
+                playerJobs.put(UUID.fromString(uuidStr), new PlayerJobData(job, level, xp));
             } catch (IllegalArgumentException ignored) {}
         }
     }

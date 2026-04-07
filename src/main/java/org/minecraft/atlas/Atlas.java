@@ -15,6 +15,7 @@ import org.minecraft.atlas.command.HelpCommand;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.job.JobRegistry;
 import org.minecraft.atlas.listener.JobListener;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -30,6 +31,7 @@ public final class Atlas extends JavaPlugin {
         instance = this;
 
         saveDefaultConfig();
+        JobRegistry.load(this);
         FactionManager.loadFactions(getConfig());
         JobManager.loadJobs(getConfig());
 

@@ -17,9 +17,12 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.job.JobRegistry;
+import org.minecraft.atlas.job.JobSource;
 import org.minecraft.atlas.job.PlayerJobData;
 
 import java.util.Arrays;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 public class JobCommand {
@@ -122,6 +125,17 @@ public class JobCommand {
                             ctx.getSource().getSender().sendMessage(msg);
                             return Command.SINGLE_SUCCESS;
                         }))
+                // /job info
+                .then(Commands.literal("info")
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            showInfo(player);
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 // /job level [add|set|remove <player> <amount> xp|level]
                 .then(Commands.literal("level")
                         .executes(ctx -> {
@@ -216,15 +230,20 @@ public class JobCommand {
             return;
         }
 
-        int progress = data.getProgress();
-        int required = data.getProgressRequired();
+        boolean maxed = data.getLevel() >= JobRegistry.getMaxLevel();
+        int xp = (int) data.getXp();
+        int required = data.getXpRequired();
         int barLength = 20;
-        int filled = Math.min(barLength, (int) ((double) progress / required * barLength));
+        int filled = maxed ? barLength : Math.min(barLength, (int) (data.getXp() / required * barLength));
 
         Component bar = Component.text("[", NamedTextColor.DARK_GRAY)
                 .append(Component.text("█".repeat(filled), NamedTextColor.GREEN))
                 .append(Component.text("█".repeat(barLength - filled), NamedTextColor.DARK_GRAY))
                 .append(Component.text("]", NamedTextColor.DARK_GRAY));
+
+        Component xpText = maxed
+                ? Component.text(" MAX", NamedTextColor.GOLD)
+                : Component.text(" " + xp + "/" + required + " XP", NamedTextColor.GRAY);
 
         player.sendMessage(
                 Component.text("[", NamedTextColor.DARK_GRAY)
@@ -234,8 +253,59 @@ public class JobCommand {
                         .append(Component.newline())
                         .append(Component.text("Progress: ", NamedTextColor.GRAY))
                         .append(bar)
-                        .append(Component.text(" " + progress + "/" + required + " XP", NamedTextColor.GRAY))
+                        .append(xpText)
         );
+    }
+
+    private static void showInfo(Player player) {
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
+        if (data == null) {
+            player.sendMessage(error("You don't have a job yet. Use /job to select one."));
+            return;
+        }
+
+        int level = data.getLevel();
+        boolean maxed = level >= JobRegistry.getMaxLevel();
+        int xp = (int) data.getXp();
+        int required = data.getXpRequired();
+
+        Component msg = Component.text("[Job: " + data.getJob().getDisplayName() + "]", data.getJob().getColor())
+                .append(Component.newline())
+                .append(Component.text("Level: " + level, NamedTextColor.YELLOW))
+                .append(maxed
+                        ? Component.text(" (MAX)", NamedTextColor.GOLD)
+                        : Component.text("  (XP: " + xp + " / " + required + ")", NamedTextColor.GRAY));
+
+        for (Map.Entry<String, Map<String, JobSource>> catEntry : JobRegistry.getCategories(data.getJob()).entrySet()) {
+            String categoryTitle = catEntry.getKey().substring(0, 1).toUpperCase() + catEntry.getKey().substring(1);
+            msg = msg.append(Component.newline())
+                    .append(Component.newline())
+                    .append(Component.text(categoryTitle + ":", NamedTextColor.GOLD));
+
+            for (JobSource source : catEntry.getValue().values()) {
+                msg = msg.append(Component.newline()).append(sourceEntry(source, level));
+            }
+        }
+
+        player.sendMessage(msg);
+    }
+
+    private static Component sourceEntry(JobSource source, int level) {
+        if (source.isLocked(level)) {
+            return Component.text("  • " + source.getDisplayName(), NamedTextColor.RED)
+                    .append(Component.text(" [LOCKED – unlocks at lvl " + source.getUnlockLevel() + "]", NamedTextColor.DARK_RED));
+        }
+        if (source.isExpired(level)) {
+            return Component.text("  • " + source.getDisplayName() + " → " + fmtXp(source.getXp()) + " XP", NamedTextColor.DARK_GRAY)
+                    .append(Component.text(" [EXPIRED]", NamedTextColor.DARK_GRAY));
+        }
+        // ACTIVE
+        return Component.text("  • " + source.getDisplayName() + " → " + fmtXp(source.getXp()) + " XP", NamedTextColor.GREEN)
+                .append(Component.text(" [ACTIVE]", NamedTextColor.GREEN));
+    }
+
+    private static String fmtXp(double xp) {
+        return xp == (int) xp ? String.valueOf((int) xp) : String.valueOf(xp);
     }
 
     private static void doLevelOp(Player executor, Player target, String operation, String type, int amount) {
@@ -250,7 +320,7 @@ public class JobCommand {
                         executor.sendMessage(error(target.getName() + " does not have a job."));
                         return;
                     }
-                    int maxAddable = data.getProgressRequired() - data.getProgress();
+                    int maxAddable = (int) (data.getXpRequired() - data.getXp());
                     if (amount > maxAddable) {
                         executor.sendMessage(error("Cannot add " + amount + " XP — " + target.getName()
                                 + " can receive at most " + maxAddable + " XP before leveling up."));
