@@ -38,6 +38,7 @@ public class FactionManager {
 
         if (!faction.getOwner().equals(requesterUUID)) return false;
 
+        AtlasCrystalManager.removeAllForFaction(factionName);
         faction.getMembers().forEach(playerFaction::remove);
         playerFaction.remove(requesterUUID);
         factions.remove(factionName);
@@ -276,7 +277,9 @@ public class FactionManager {
         return factions.get(factionName);
     }
 
-    /** Sends a message to every online member of a faction, optionally excluding one player. */
+    /**
+     * Sends a message to every online member of a faction, optionally excluding one player (pass null to include all).
+     */
     public static void broadcastToFaction(String factionName, net.kyori.adventure.text.Component message, UUID exclude) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
@@ -291,6 +294,19 @@ public class FactionManager {
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null) member.sendMessage(message);
         }
+    }
+
+    /**
+     * Disbands a faction by name without requiring the owner UUID. Used when an atlas crystal is destroyed.
+     */
+    public static void disbandFaction(String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        AtlasCrystalManager.removeAllForFaction(factionName);
+        faction.getMembers().forEach(playerFaction::remove);
+        playerFaction.remove(faction.getOwner());
+        factions.remove(factionName);
     }
 
     /**
@@ -324,6 +340,8 @@ public class FactionManager {
             String colorName = NamedTextColor.NAMES.key(faction.getColor());
             s.set("color", colorName != null ? colorName : "white");
             s.set("description", faction.getDescription());
+
+            s.set("level", faction.getLevel());
 
             Map<UUID, FactionRole> roles = faction.getRoles();
             if (!roles.isEmpty()) {
@@ -363,6 +381,8 @@ public class FactionManager {
                 faction.addMember(memberUUID);
                 playerFaction.put(memberUUID, factionName);
             }
+
+            faction.setLevel(s.getInt("level", 0));
 
             ConfigurationSection rolesSection = s.getConfigurationSection("roles");
             if (rolesSection != null) {

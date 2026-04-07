@@ -16,6 +16,8 @@ public class Faction {
     private NamedTextColor color = NamedTextColor.WHITE;
     private String description = "";
     private final Map<UUID, FactionRole> roles = new HashMap<>();
+    private int level = 0;
+    private int exp = 0;
 
     public Faction(String name, UUID owner) {
         this.name = name;
@@ -41,6 +43,26 @@ public class Faction {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
+    }
+
+    public int getExp() {
+        return exp;
+    }
+
+    public void setExp(int exp) {
+        this.exp = exp;
+    }
+
+    public void addExp(int exp) {
+        this.exp += exp;
     }
 
     public FactionRole getRole(UUID uuid) {

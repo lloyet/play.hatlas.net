@@ -8,16 +8,22 @@ import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.minecraft.atlas.faction.AtlasCrystal;
+import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
@@ -164,6 +170,7 @@ public class FactionCommand {
                                     .append(Component.newline()).append(helpEntry("info", "[faction]", "Show faction information"))
                                     .append(Component.newline()).append(helpEntry("list", "", "List all factions"))
                                     .append(Component.newline()).append(helpEntry("members", "", "Show members of your faction"))
+                                    .append(Component.newline()).append(helpEntry("home", "", "Teleport to faction home"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
@@ -186,8 +193,17 @@ public class FactionCommand {
                                         ItemMeta meta = crystal.getItemMeta();
                                         meta.displayName(Component.text("Crystal of the End", NamedTextColor.LIGHT_PURPLE)
                                                 .decoration(TextDecoration.ITALIC, false));
+                                        meta.getPersistentDataContainer().set(
+                                                AtlasCrystalManager.getKeyFaction(),
+                                                PersistentDataType.STRING, name);
                                         crystal.setItemMeta(meta);
-                                        player.getInventory().setItemInOffHand(crystal);
+
+                                        ItemStack itemMainHand = player.getInventory().getItemInMainHand();
+                                        if (!(itemMainHand.equals(new ItemStack(Material.AIR)))) {
+                                            player.getWorld().dropItemNaturally(player.getLocation(), itemMainHand);
+                                        }
+
+                                        player.getInventory().setItemInMainHand(crystal);
                                     } else {
                                         player.sendMessage(error("Could not create faction. You may already be in one, or that name is taken."));
                                     }
@@ -515,20 +531,49 @@ public class FactionCommand {
                             }
 
                             String factionNameForDisband = FactionManager.getPlayerFaction(player.getUniqueId());
-                            Faction grpForDisband = factionNameForDisband != null
-                                    ? FactionManager.getFaction(factionNameForDisband) : null;
-                            if (grpForDisband != null && grpForDisband.getOwner().equals(player.getUniqueId())) {
-                                FactionManager.broadcastToFaction(factionNameForDisband,
-                                        error("The faction has been disbanded by " + player.getName() + "."),
-                                        player.getUniqueId());
+                            if (factionNameForDisband == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Faction grpForDisband = FactionManager.getFaction(factionNameForDisband);
+                            if (!grpForDisband.getOwner().equals(player.getUniqueId())) {
+                                player.sendMessage(error("Only the Owner can disband the faction."));
+                                return Command.SINGLE_SUCCESS;
                             }
 
-                            if (FactionManager.deleteFaction(player.getUniqueId())) {
-                                player.sendMessage(success("Your faction has been disbanded."));
-                            } else {
-                                player.sendMessage(error("Could not disband faction. Make sure you are the Owner."));
-                            }
+                            ClickCallback.Options singleUse = ClickCallback.Options.builder().uses(1).build();
 
+                            Component confirmMsg = Component.text("Disband '", NamedTextColor.YELLOW)
+                                    .append(Component.text(factionNameForDisband, grpForDisband.getColor()))
+                                    .append(Component.text("'? This cannot be undone!  ", NamedTextColor.YELLOW))
+                                    .append(Component.text("[Confirm]", NamedTextColor.GREEN)
+                                            .decorate(TextDecoration.BOLD)
+                                            .clickEvent(ClickEvent.callback(audience -> {
+                                                if (!(audience instanceof Player p)) return;
+                                                String fn = FactionManager.getPlayerFaction(p.getUniqueId());
+                                                if (fn == null) {
+                                                    p.sendMessage(error("You are no longer in a faction."));
+                                                    return;
+                                                }
+                                                Faction f = FactionManager.getFaction(fn);
+                                                if (!f.getOwner().equals(p.getUniqueId())) {
+                                                    p.sendMessage(error("You are no longer the Owner."));
+                                                    return;
+                                                }
+                                                FactionManager.broadcastToFaction(fn,
+                                                        error("The faction has been disbanded by " + p.getName() + "."),
+                                                        p.getUniqueId());
+                                                FactionManager.deleteFaction(p.getUniqueId());
+                                                p.sendMessage(success("Your faction has been disbanded."));
+                                            }, singleUse)))
+                                    .append(Component.text("  [Cancel]", NamedTextColor.RED)
+                                            .decorate(TextDecoration.BOLD)
+                                            .clickEvent(ClickEvent.callback(audience -> {
+                                                if (!(audience instanceof Player p)) return;
+                                                p.sendMessage(info("Disband cancelled."));
+                                            }, singleUse)));
+
+                            player.sendMessage(confirmMsg);
                             return Command.SINGLE_SUCCESS;
                         }))
                 .then(Commands.literal("leave")
@@ -673,6 +718,64 @@ public class FactionCommand {
                             player.sendMessage(list);
                             return Command.SINGLE_SUCCESS;
                         }))
+                .then(Commands.literal("home")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.home"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Location home = AtlasCrystalManager.getFirstHome(factionName);
+                            if (home == null) {
+                                player.sendMessage(error("Your faction has no home. Place the Atlas Crystal to set one."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            HomeTeleportManager.startTeleport(player, home, "faction home");
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.argument("crystal", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    Entity exec = ctx.getSource().getExecutor();
+                                    if (exec instanceof Player p) {
+                                        String fn = FactionManager.getPlayerFaction(p.getUniqueId());
+                                        if (fn != null) {
+                                            AtlasCrystalManager.getFactionCrystals(fn)
+                                                    .forEach(c -> builder.suggest(c.getName()));
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (factionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String crystalName = StringArgumentType.getString(ctx, "crystal");
+                                    AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(factionName, crystalName);
+                                    if (crystal == null) {
+                                        player.sendMessage(error("No crystal named '" + crystalName + "' found in your faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Location home = crystal.getHome();
+                                    if (home == null) {
+                                        player.sendMessage(error("Crystal '" + crystalName + "' has no home set."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    HomeTeleportManager.startTeleport(player, home, crystalName);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
                 .build();
     }
 }
