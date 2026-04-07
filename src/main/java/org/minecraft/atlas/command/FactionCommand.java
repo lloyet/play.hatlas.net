@@ -12,12 +12,15 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
+import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
@@ -164,6 +167,7 @@ public class FactionCommand {
                                     .append(Component.newline()).append(helpEntry("info", "[faction]", "Show faction information"))
                                     .append(Component.newline()).append(helpEntry("list", "", "List all factions"))
                                     .append(Component.newline()).append(helpEntry("members", "", "Show members of your faction"))
+                                    .append(Component.newline()).append(helpEntry("home", "", "Teleport to faction home"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
@@ -186,6 +190,9 @@ public class FactionCommand {
                                         ItemMeta meta = crystal.getItemMeta();
                                         meta.displayName(Component.text("Crystal of the End", NamedTextColor.LIGHT_PURPLE)
                                                 .decoration(TextDecoration.ITALIC, false));
+                                        meta.getPersistentDataContainer().set(
+                                                AtlasCrystalManager.getKeyFaction(),
+                                                PersistentDataType.STRING, name);
                                         crystal.setItemMeta(meta);
                                         player.getInventory().setItemInOffHand(crystal);
                                     } else {
@@ -671,6 +678,31 @@ public class FactionCommand {
                                         .append(Component.text(online ? "" : " (offline)", NamedTextColor.DARK_GRAY));
                             }
                             player.sendMessage(list);
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                .then(Commands.literal("home")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.home"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            Location home = FactionManager.getFaction(factionName).getHome();
+                            if (home == null) {
+                                player.sendMessage(error("Your faction has no home. Place the Atlas Crystal to set one."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            player.teleport(home);
+                            player.sendMessage(success("Teleported to faction home."));
                             return Command.SINGLE_SUCCESS;
                         }))
                 .build();

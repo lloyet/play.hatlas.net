@@ -1,6 +1,7 @@
 package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Location;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -16,6 +17,8 @@ public class Faction {
     private NamedTextColor color = NamedTextColor.WHITE;
     private String description = "";
     private final Map<UUID, FactionRole> roles = new HashMap<>();
+    private Location home = null;
+    private int level = 0;
 
     public Faction(String name, UUID owner) {
         this.name = name;
@@ -41,6 +44,22 @@ public class Faction {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public Location getHome() {
+        return home;
+    }
+
+    public void setHome(Location home) {
+        this.home = home;
+    }
+
+    public int getLevel() {
+        return level;
+    }
+
+    public void setLevel(int level) {
+        this.level = level;
     }
 
     public FactionRole getRole(UUID uuid) {

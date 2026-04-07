@@ -6,6 +6,7 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.jspecify.annotations.NonNull;
 import org.minecraft.atlas.command.FactionCommand;
+import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.FactionListener;
@@ -39,6 +40,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JobGui(), this);
         // Scheduler with ticks
         GolemListener.schedule(this);
+        AtlasCrystalManager.schedule(this);
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 new LifecycleEventHandler<ReloadableRegistrarEvent<Commands>>() {

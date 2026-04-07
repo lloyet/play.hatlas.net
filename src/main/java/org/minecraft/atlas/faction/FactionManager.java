@@ -2,6 +2,8 @@ package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
@@ -276,21 +278,35 @@ public class FactionManager {
         return factions.get(factionName);
     }
 
-    /** Sends a message to every online member of a faction, optionally excluding one player. */
+    /**
+     * Sends a message to every online member of a faction, optionally excluding one player (pass null to include all).
+     */
     public static void broadcastToFaction(String factionName, net.kyori.adventure.text.Component message, UUID exclude) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
 
-        if (!faction.getOwner().equals(exclude)) {
+        if (exclude == null || !faction.getOwner().equals(exclude)) {
             Player owner = Bukkit.getPlayer(faction.getOwner());
             if (owner != null) owner.sendMessage(message);
         }
 
         for (UUID memberUUID : faction.getMembers()) {
-            if (memberUUID.equals(exclude)) continue;
+            if (exclude != null && memberUUID.equals(exclude)) continue;
             Player member = Bukkit.getPlayer(memberUUID);
             if (member != null) member.sendMessage(message);
         }
+    }
+
+    /**
+     * Disbands a faction by name without requiring the owner UUID. Used when an atlas crystal is destroyed.
+     */
+    public static void disbandFaction(String factionName) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return;
+
+        faction.getMembers().forEach(playerFaction::remove);
+        playerFaction.remove(faction.getOwner());
+        factions.remove(factionName);
     }
 
     /**
@@ -324,6 +340,19 @@ public class FactionManager {
             String colorName = NamedTextColor.NAMES.key(faction.getColor());
             s.set("color", colorName != null ? colorName : "white");
             s.set("description", faction.getDescription());
+
+            s.set("level", faction.getLevel());
+
+            if (faction.getHome() != null) {
+                Location home = faction.getHome();
+                ConfigurationSection homeSection = s.createSection("home");
+                homeSection.set("world", home.getWorld().getName());
+                homeSection.set("x", home.getX());
+                homeSection.set("y", home.getY());
+                homeSection.set("z", home.getZ());
+                homeSection.set("yaw", (double) home.getYaw());
+                homeSection.set("pitch", (double) home.getPitch());
+            }
 
             Map<UUID, FactionRole> roles = faction.getRoles();
             if (!roles.isEmpty()) {
@@ -362,6 +391,24 @@ public class FactionManager {
                 UUID memberUUID = UUID.fromString(memberStr);
                 faction.addMember(memberUUID);
                 playerFaction.put(memberUUID, factionName);
+            }
+
+            faction.setLevel(s.getInt("level", 0));
+
+            ConfigurationSection homeSection = s.getConfigurationSection("home");
+            if (homeSection != null) {
+                String worldName = homeSection.getString("world");
+                if (worldName != null) {
+                    World world = Bukkit.getWorld(worldName);
+                    if (world != null) {
+                        faction.setHome(new Location(world,
+                                homeSection.getDouble("x"),
+                                homeSection.getDouble("y"),
+                                homeSection.getDouble("z"),
+                                (float) homeSection.getDouble("yaw"),
+                                (float) homeSection.getDouble("pitch")));
+                    }
+                }
             }
 
             ConfigurationSection rolesSection = s.getConfigurationSection("roles");

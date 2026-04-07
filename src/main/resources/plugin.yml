@@ -63,3 +63,6 @@ permissions:
   atlas.faction.demote:
     description: Demote a faction member to the previous role
     default: true
+  atlas.faction.home:
+    description: Teleport to the faction home
+    default: true
