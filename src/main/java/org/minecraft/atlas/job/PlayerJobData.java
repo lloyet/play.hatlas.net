@@ -28,8 +28,8 @@ public class PlayerJobData {
     }
 
     /** XP required to advance from the current level to the next. Scales exponentially forever. */
-    public int getXpRequired() {
-        return (int) Math.round(JobRegistry.getXpBase() * Math.pow(JobRegistry.getXpMultiplier(), level - 1));
+    public long getXpRequired() {
+        return Math.round(JobRegistry.getXpBase() * Math.pow(JobRegistry.getXpMultiplier(), level - 1));
     }
 
     /** Direct setters for admin use. Level is clamped to a minimum of 1. */

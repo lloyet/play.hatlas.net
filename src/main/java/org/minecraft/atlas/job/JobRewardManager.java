@@ -2,6 +2,7 @@ package org.minecraft.atlas.job;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -10,6 +11,7 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.PotionMeta;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -26,7 +28,7 @@ import java.util.TreeMap;
 
 public class JobRewardManager {
 
-    public record LevelReward(List<ItemStack> items, List<PotionEffect> potions) {}
+    public record LevelReward(List<ItemStack> items, List<ItemStack> potions) {}
 
     // Job → (level → reward), sorted so subMap works correctly
     private static final Map<Job, NavigableMap<Integer, LevelReward>> rewards = new EnumMap<>(Job.class);
@@ -76,7 +78,7 @@ public class JobRewardManager {
                 if (levelSection == null) continue;
 
                 List<ItemStack> items = loadItems(levelSection, plugin);
-                List<PotionEffect> potions = loadPotions(levelSection, plugin);
+                List<ItemStack> potions = loadPotions(levelSection, plugin);
 
                 if (!items.isEmpty() || !potions.isEmpty()) {
                     jobRewards.put(level, new LevelReward(items, potions));
@@ -84,7 +86,7 @@ public class JobRewardManager {
             }
 
             rewards.put(job, jobRewards);
-    //      plugin.getLogger().info("[JobRewardManager] Loaded " + jobRewards.size() + " minor rewards for " + job.getDisplayName());
+            plugin.getLogger().info("[JobRewardManager] Loaded " + jobRewards.size() + " minor rewards for " + job.getDisplayName());
         }
     }
 
@@ -118,11 +120,17 @@ public class JobRewardManager {
                     NamedTextColor.YELLOW));
         }
 
-        for (PotionEffect effect : reward.potions()) {
-            player.addPotionEffect(effect);
-            player.sendMessage(Component.text(
-                    "  + " + titleCase(effect.getType().getKey().getKey()) + " for " + (effect.getDuration() / 20) + "s",
-                    NamedTextColor.AQUA));
+        for (ItemStack potion : reward.potions()) {
+            Map<Integer, ItemStack> leftover = player.getInventory().addItem(potion.clone());
+            leftover.values().forEach(stack -> player.getWorld().dropItem(player.getLocation(), stack));
+            String dropped = leftover.isEmpty() ? "" : " (dropped — inventory full)";
+            PotionMeta meta = (PotionMeta) potion.getItemMeta();
+            Component name = (meta != null && meta.hasDisplayName())
+                    ? meta.displayName()
+                    : Component.text("Potion", NamedTextColor.AQUA);
+            player.sendMessage(Component.text("  + ", NamedTextColor.AQUA)
+                    .append(name)
+                    .append(Component.text(dropped, NamedTextColor.AQUA)));
         }
     }
 
@@ -136,7 +144,7 @@ public class JobRewardManager {
         if (raw == null) return result;
 
         for (Object obj : raw) {
-            String typeName = null;
+            String typeName;
             int amount = 1;
 
             if (obj instanceof Map<?, ?> map) {
@@ -163,25 +171,27 @@ public class JobRewardManager {
         return result;
     }
 
-    private static List<PotionEffect> loadPotions(ConfigurationSection section, Plugin plugin) {
-        List<PotionEffect> result = new ArrayList<>();
+    /** Loads potion entries from YAML and returns them as drinkable PotionItems. */
+    private static List<ItemStack> loadPotions(ConfigurationSection section, Plugin plugin) {
+        List<ItemStack> result = new ArrayList<>();
         List<?> raw = section.getList("potions");
         if (raw == null) return result;
 
         for (Object obj : raw) {
             if (!(obj instanceof Map<?, ?> map)) continue;
 
+            String id = map.containsKey("id") ? map.get("id").toString() : "potion";
             int duration = map.containsKey("duration") ? asInt(map.get("duration"), 600) : 600;
 
+            List<PotionEffect> effects = new ArrayList<>();
+
             if (map.containsKey("effect")) {
-                // Single-effect entry
                 PotionEffectType type = parseEffect(map.get("effect").toString(), plugin);
                 if (type == null) continue;
                 int amp = asInt(map.get("amplifier"), 0);
-                result.add(new PotionEffect(type, duration, amp));
+                effects.add(new PotionEffect(type, duration, amp));
 
             } else if (map.containsKey("effects")) {
-                // Multi-effect entry — each effect gets the same duration
                 Object effectsObj = map.get("effects");
                 if (!(effectsObj instanceof List<?> effectsList)) continue;
                 for (Object effectObj : effectsList) {
@@ -191,16 +201,31 @@ public class JobRewardManager {
                     PotionEffectType type = parseEffect(typeVal.toString(), plugin);
                     if (type == null) continue;
                     int amp = asInt(effectMap.get("amplifier"), 0);
-                    result.add(new PotionEffect(type, duration, amp));
+                    effects.add(new PotionEffect(type, duration, amp));
                 }
+            }
+
+            if (!effects.isEmpty()) {
+                result.add(buildPotionItem(effects, id));
             }
         }
         return result;
     }
 
+    private static ItemStack buildPotionItem(List<PotionEffect> effects, String id) {
+        ItemStack item = new ItemStack(Material.POTION);
+        PotionMeta meta = (PotionMeta) item.getItemMeta();
+        for (PotionEffect effect : effects) {
+            meta.addCustomEffect(effect, true);
+        }
+        meta.displayName(Component.text(titleCase(id), NamedTextColor.AQUA)
+                .decoration(TextDecoration.ITALIC, false));
+        item.setItemMeta(meta);
+        return item;
+    }
+
     @SuppressWarnings("deprecation")
     private static PotionEffectType parseEffect(String name, Plugin plugin) {
-        // Try modern registry first, fall back to legacy name lookup
         PotionEffectType type = Registry.EFFECT.get(NamespacedKey.minecraft(name.toLowerCase()));
         if (type == null) type = PotionEffectType.getByName(name);
         if (type == null) plugin.getLogger().warning("[JobRewardManager] Unknown potion effect: " + name);

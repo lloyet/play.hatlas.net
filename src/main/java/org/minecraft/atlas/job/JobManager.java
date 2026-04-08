@@ -217,7 +217,7 @@ public class JobManager {
 
         // Action bar XP indicator — suppressed for mastered jobs when extra_levels is off
         if (!nowMastered || extraLevels) {
-            String xpText = String.format("%,d/%,d XP", (int) data.getXp(), data.getXpRequired());
+            String xpText = String.format("%,d/%,d XP", (long) data.getXp(), data.getXpRequired());
             player.sendActionBar(
                     Component.text(xpText, data.getJob().getColor()).decorate(TextDecoration.BOLD)
             );

@@ -385,8 +385,8 @@ public class JobCommand {
                 filled = barLength;
                 xpText = Component.text(" MAX level", NamedTextColor.GOLD);
             } else {
-                int xp = (int) data.getXp();
-                int required = data.getXpRequired();
+                long xp = (long) data.getXp();
+                long required = data.getXpRequired();
                 filled = Math.min(barLength, (int) (data.getXp() / required * barLength));
                 xpText = Component.text(" " + fmt(xp) + "/" + fmt(required) + " XP", NamedTextColor.GRAY);
             }
@@ -455,8 +455,8 @@ public class JobCommand {
         if (!extraLevels && mastered) {
             section = section.append(Component.text(" (MAX level)", NamedTextColor.GOLD));
         } else {
-            int xp = (int) data.getXp();
-            int required = data.getXpRequired();
+            long xp = (long) data.getXp();
+            long required = data.getXpRequired();
             section = section.append(Component.text("  (XP: " + fmt(xp) + " / " + fmt(required) + ")", NamedTextColor.GRAY));
         }
 
@@ -492,7 +492,7 @@ public class JobCommand {
         return xp == (int) xp ? String.valueOf((int) xp) : String.valueOf(xp);
     }
 
-    private static String fmt(int n) {
+    private static String fmt(long n) {
         return String.format("%,d", n);
     }
 
@@ -509,7 +509,7 @@ public class JobCommand {
                         executor.sendMessage(error(target.getName() + " does not have the " + jobName + " job."));
                         return;
                     }
-                    int maxAddable = (int) (data.getXpRequired() - data.getXp());
+                    long maxAddable = (long) (data.getXpRequired() - data.getXp());
                     if (amount > maxAddable) {
                         executor.sendMessage(error("Cannot add " + amount + " XP — " + target.getName()
                                 + " can receive at most " + maxAddable + " XP before leveling up."));
