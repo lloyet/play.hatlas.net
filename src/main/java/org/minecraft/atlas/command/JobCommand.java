@@ -18,6 +18,7 @@ import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JobRegistry;
+import org.minecraft.atlas.job.JobRewardManager;
 import org.minecraft.atlas.job.JobSettings;
 import org.minecraft.atlas.job.JobSource;
 import org.minecraft.atlas.job.PlayerJobData;
@@ -517,8 +518,13 @@ public class JobCommand {
                     ok = JobManager.adminAddXp(target.getUniqueId(), job, amount, target);
                     desc = "Added " + amount + " XP to " + target.getName() + "'s " + jobName;
                 } else {
+                    PlayerJobData addData = JobManager.getJobData(target.getUniqueId(), job);
+                    int addOldLevel = addData != null ? addData.getLevel() : 0;
                     ok = JobManager.adminAddLevel(target.getUniqueId(), job, amount);
-                    if (ok) JobManager.checkMilestoneRewards(target, job);
+                    if (ok) {
+                        JobManager.checkMilestoneRewards(target, job);
+                        JobRewardManager.applyMinorRewards(target, job, addOldLevel, addData.getLevel());
+                    }
                     desc = "Added " + amount + " level(s) to " + target.getName() + "'s " + jobName;
                 }
             }
@@ -527,8 +533,15 @@ public class JobCommand {
                     ok = JobManager.adminSetXp(target.getUniqueId(), job, amount);
                     desc = "Set " + target.getName() + "'s " + jobName + " XP to " + amount;
                 } else {
+                    PlayerJobData setData = JobManager.getJobData(target.getUniqueId(), job);
+                    int setOldLevel = setData != null ? setData.getLevel() : 0;
                     ok = JobManager.adminSetLevel(target.getUniqueId(), job, amount);
-                    if (ok) JobManager.checkMilestoneRewards(target, job);
+                    if (ok) {
+                        JobManager.checkMilestoneRewards(target, job);
+                        if (setData != null && setData.getLevel() > setOldLevel) {
+                            JobRewardManager.applyMinorRewards(target, job, setOldLevel, setData.getLevel());
+                        }
+                    }
                     desc = "Set " + target.getName() + "'s " + jobName + " level to " + amount;
                 }
             }

@@ -304,7 +304,7 @@ rewards:
 
         10:
           items:
-            - type: IRON_ORE
+            - type: RAW_IRON
               amount: 32
 
         15:
@@ -316,7 +316,7 @@ rewards:
 
         20:
           items:
-            - type: GOLD_ORE
+            - type: RAW_GOLD
               amount: 16
 
         30:

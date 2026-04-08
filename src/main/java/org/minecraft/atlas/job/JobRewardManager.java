@@ -15,6 +15,8 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
@@ -39,6 +41,19 @@ public class JobRewardManager {
         FileConfiguration config = YamlConfiguration.loadConfiguration(file);
 
         ConfigurationSection rewardsSection = config.getConfigurationSection("rewards");
+
+        // If the data-folder file predates the rewards section, fall back to the bundled resource
+        if (rewardsSection == null) {
+            InputStream bundled = plugin.getResource("jobs.yml");
+            if (bundled != null) {
+                try (InputStreamReader reader = new InputStreamReader(bundled)) {
+                    rewardsSection = YamlConfiguration.loadConfiguration(reader).getConfigurationSection("rewards");
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[JobRewardManager] Failed to read bundled jobs.yml: " + e.getMessage());
+                }
+            }
+        }
+
         if (rewardsSection == null) {
             plugin.getLogger().warning("[JobRewardManager] No 'rewards' section found in jobs.yml");
             return;
@@ -69,7 +84,7 @@ public class JobRewardManager {
             }
 
             rewards.put(job, jobRewards);
-            plugin.getLogger().info("[JobRewardManager] Loaded " + jobRewards.size() + " minor rewards for " + job.getDisplayName());
+    //      plugin.getLogger().info("[JobRewardManager] Loaded " + jobRewards.size() + " minor rewards for " + job.getDisplayName());
         }
     }
 
