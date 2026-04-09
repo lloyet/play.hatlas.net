@@ -54,7 +54,7 @@ public class AtlasCrystal {
 
     /** Directly sets HP (clamped to [0, maxHp]). Does NOT record an attack timestamp. */
     public void setHp(double hp) {
-        this.hp = Math.min(maxHp, Math.max(0, hp));
+        this.hp = Math.clamp(hp, 0, maxHp);
         updateNametag();
     }
 

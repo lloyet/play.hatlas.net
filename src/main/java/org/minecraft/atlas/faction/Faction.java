@@ -49,7 +49,7 @@ public class Faction {
     public int getLevel() { return level; }
 
     public void setLevel(int level) {
-        this.level = Math.max(0, Math.min(FactionLevelManager.MAX_LEVEL, level));
+        this.level = Math.clamp(level, 0, FactionLevelManager.MAX_LEVEL);
     }
 
     public int getExp() { return exp; }
