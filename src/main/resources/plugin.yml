@@ -66,6 +66,12 @@ permissions:
   atlas.faction.home:
     description: Teleport to the faction home
     default: true
+  atlas.faction.upgrade:
+    description: Apply upgrade bonuses to Atlas Crystals (owner/leader)
+    default: true
+  atlas.faction.debug:
+    description: Debug commands - /faction level set, /faction exp set/add
+    default: op
   atlas.crystal:
     description: Access to /crystal commands
     default: true

@@ -17,6 +17,11 @@ public class FactionManager {
     // invitedUUID -> factionName (pending invitations)
     private static final Map<UUID, String> pendingInvitations = new HashMap<>();
 
+    /** Result type for applyUpgrade. */
+    public enum ApplyUpgradeResult {
+        SUCCESS, NOT_IN_FACTION, NO_PERMISSION, UPGRADE_NOT_PENDING, CRYSTAL_NOT_FOUND
+    }
+
     /** Creates a new faction. Returns false if the name is taken or the owner is already in a faction. */
     public static boolean createFaction(String factionName, UUID ownerUUID) {
         if (factions.containsKey(factionName)) return false;
@@ -46,9 +51,7 @@ public class FactionManager {
         return true;
     }
 
-    /**
-     * Renames a faction. Owner or Leaders can do this. Returns false if the new name is already taken.
-     */
+    /** Renames a faction. Owner or Leaders can do this. Returns false if the new name is already taken. */
     public static boolean renameFaction(String newName, UUID requesterUUID) {
         String oldName = playerFaction.get(requesterUUID);
 
@@ -116,7 +119,7 @@ public class FactionManager {
         if (factionName == null) return false;
 
         Faction faction = factions.get(factionName);
-        if (faction.getOwner().equals(playerUUID)) return false; // owner must delete, not leave
+        if (faction.getOwner().equals(playerUUID)) return false;
 
         faction.removeMember(playerUUID);
         faction.removeRole(playerUUID);
@@ -143,9 +146,7 @@ public class FactionManager {
         return true;
     }
 
-    /**
-     * Sets the faction description. Owner or Leaders can do this.
-     */
+    /** Sets the faction description. Owner or Leaders can do this. */
     public static boolean setFactionDescription(UUID requesterUUID, String description) {
         String factionName = playerFaction.get(requesterUUID);
 
@@ -161,9 +162,7 @@ public class FactionManager {
         return true;
     }
 
-    /**
-     * Promotes a member to the next role (MEMBER → MODERATOR → LEADER). Only the owner can promote.
-     */
+    /** Promotes a member to the next role (MEMBER → MODERATOR → LEADER). Only the owner can promote. */
     public static boolean promotePlayer(UUID ownerUUID, UUID targetUUID) {
         String factionName = playerFaction.get(ownerUUID);
 
@@ -176,17 +175,14 @@ public class FactionManager {
         if (faction.getOwner().equals(targetUUID)) return false;
 
         FactionRole current = faction.getRole(targetUUID);
-        if (current == FactionRole.LEADER) return false; // already at highest role
+        if (current == FactionRole.LEADER) return false;
 
         FactionRole[] values = FactionRole.values();
         faction.setRole(targetUUID, values[current.ordinal() + 1]);
         return true;
     }
 
-    /**
-     * Transfers ownership to a current member. The old owner becomes a Leader.
-     * Only the current owner can do this, and the target must be in the members list.
-     */
+    /** Transfers ownership to a current member. The old owner becomes a Leader. */
     public static boolean transferOwnership(UUID ownerUUID, UUID targetUUID) {
         String factionName = playerFaction.get(ownerUUID);
 
@@ -197,11 +193,9 @@ public class FactionManager {
         if (!faction.getOwner().equals(ownerUUID)) return false;
         if (!faction.getMembers().contains(targetUUID)) return false;
 
-        // Target leaves the members list and becomes the new owner (no role)
         faction.removeMember(targetUUID);
         faction.removeRole(targetUUID);
 
-        // Old owner joins the members list as Leader
         faction.addMember(ownerUUID);
         faction.setRole(ownerUUID, FactionRole.LEADER);
 
@@ -210,9 +204,7 @@ public class FactionManager {
         return true;
     }
 
-    /**
-     * Demotes a member to the previous role (LEADER → MODERATOR → MEMBER). Only the owner can demote.
-     */
+    /** Demotes a member to the previous role (LEADER → MODERATOR → MEMBER). Only the owner can demote. */
     public static boolean demotePlayer(UUID ownerUUID, UUID targetUUID) {
         String factionName = playerFaction.get(ownerUUID);
 
@@ -225,16 +217,14 @@ public class FactionManager {
         if (faction.getOwner().equals(targetUUID)) return false;
 
         FactionRole current = faction.getRole(targetUUID);
-        if (current == FactionRole.MEMBER) return false; // already at lowest role
+        if (current == FactionRole.MEMBER) return false;
 
         FactionRole[] values = FactionRole.values();
         faction.setRole(targetUUID, values[current.ordinal() - 1]);
         return true;
     }
 
-    /**
-     * Returns the role of a player in their faction, or null if they are the owner or not in any faction.
-     */
+    /** Returns the role of a player in their faction, or null if they are the owner or not in any faction. */
     public static FactionRole getPlayerRole(UUID playerUUID) {
         String factionName = playerFaction.get(playerUUID);
         if (factionName == null) return null;
@@ -277,9 +267,7 @@ public class FactionManager {
         return factions.get(factionName);
     }
 
-    /**
-     * Sends a message to every online member of a faction, optionally excluding one player (pass null to include all).
-     */
+    /** Sends a message to every online member of a faction, optionally excluding one player. */
     public static void broadcastToFaction(String factionName, net.kyori.adventure.text.Component message, UUID exclude) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
@@ -296,9 +284,7 @@ public class FactionManager {
         }
     }
 
-    /**
-     * Disbands a faction by name without requiring the owner UUID. Used when an atlas crystal is destroyed.
-     */
+    /** Disbands a faction by name without requiring the owner UUID. Used when all crystals are destroyed. */
     public static void disbandFaction(String factionName) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
@@ -309,9 +295,7 @@ public class FactionManager {
         factions.remove(factionName);
     }
 
-    /**
-     * Changes the color of the faction. Owner or Leaders can do this.
-     */
+    /** Changes the color of the faction. Owner or Leaders can do this. */
     public static boolean setFactionColor(UUID requesterUUID, NamedTextColor color) {
         String factionName = playerFaction.get(requesterUUID);
 
@@ -328,6 +312,80 @@ public class FactionManager {
         return true;
     }
 
+    // -------------------------------------------------------------------------
+    // Level / EXP system
+    // -------------------------------------------------------------------------
+
+    /**
+     * Adds exp to a faction and processes any resulting level-ups.
+     * Reached checkpoint levels are queued in the faction as pending upgrades.
+     * Returns the list of checkpoint levels newly reached (may be empty).
+     */
+    public static List<Integer> addExpToFaction(String factionName, int amount) {
+        Faction faction = factions.get(factionName);
+        if (faction == null || faction.getLevel() >= FactionLevelManager.MAX_LEVEL) return List.of();
+
+        faction.addExp(amount);
+        List<Integer> reached = new ArrayList<>();
+
+        while (faction.getLevel() < FactionLevelManager.MAX_LEVEL) {
+            int required = FactionLevelManager.getExpRequiredForLevel(faction.getLevel() + 1);
+            if (faction.getExp() >= required) {
+                faction.setExp(faction.getExp() - required);
+                faction.setLevel(faction.getLevel() + 1);
+                int newLevel = faction.getLevel();
+                if (FactionLevelManager.isCheckpoint(newLevel)) {
+                    reached.add(newLevel);
+                    faction.addPendingUpgrade(newLevel);
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Refresh all crystal nametags to show the updated level
+        for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(factionName)) {
+            crystal.updateNametag();
+        }
+
+        return reached;
+    }
+
+    /**
+     * Applies the specified checkpoint upgrade HP to the named crystal.
+     * The checkpointLevel must be in the faction's pending upgrades list.
+     * Only the Owner or a Leader may do this.
+     */
+    public static ApplyUpgradeResult applyUpgrade(UUID playerUUID, int checkpointLevel, String crystalName) {
+        String factionName = playerFaction.get(playerUUID);
+        if (factionName == null) return ApplyUpgradeResult.NOT_IN_FACTION;
+
+        Faction faction = factions.get(factionName);
+        boolean isOwner = faction.getOwner().equals(playerUUID);
+        boolean isLeader = !isOwner && faction.getRole(playerUUID) == FactionRole.LEADER;
+        if (!isOwner && !isLeader) return ApplyUpgradeResult.NO_PERMISSION;
+
+        if (!faction.removePendingUpgrade(checkpointLevel)) return ApplyUpgradeResult.UPGRADE_NOT_PENDING;
+
+        AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(factionName, crystalName);
+        if (crystal == null) {
+            // Put the upgrade back since we couldn't apply it
+            faction.addPendingUpgrade(checkpointLevel);
+            return ApplyUpgradeResult.CRYSTAL_NOT_FOUND;
+        }
+
+        double upgradeHp = FactionLevelManager.getUpgradeHp(checkpointLevel);
+        crystal.addUpgrade(checkpointLevel, upgradeHp);
+        AtlasCrystalManager.persistCrystalState(crystal);
+        crystal.updateNametag();
+
+        return ApplyUpgradeResult.SUCCESS;
+    }
+
+    // -------------------------------------------------------------------------
+    // Persistence
+    // -------------------------------------------------------------------------
+
     /** Serializes all factions into config.yml under the "factions" key. */
     public static void saveFactions(FileConfiguration config) {
         config.set("factions", null);
@@ -340,8 +398,12 @@ public class FactionManager {
             String colorName = NamedTextColor.NAMES.key(faction.getColor());
             s.set("color", colorName != null ? colorName : "white");
             s.set("description", faction.getDescription());
-
             s.set("level", faction.getLevel());
+            s.set("exp", faction.getExp());
+
+            if (!faction.getPendingUpgrades().isEmpty()) {
+                s.set("pending_upgrades", faction.getPendingUpgrades());
+            }
 
             Map<UUID, FactionRole> roles = faction.getRoles();
             if (!roles.isEmpty()) {
@@ -383,6 +445,11 @@ public class FactionManager {
             }
 
             faction.setLevel(s.getInt("level", 0));
+            faction.setExp(s.getInt("exp", 0));
+
+            for (int cp : s.getIntegerList("pending_upgrades")) {
+                faction.addPendingUpgrade(cp);
+            }
 
             ConfigurationSection rolesSection = s.getConfigurationSection("roles");
             if (rolesSection != null) {

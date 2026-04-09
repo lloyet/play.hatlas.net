@@ -18,6 +18,11 @@ public class Faction {
     private final Map<UUID, FactionRole> roles = new HashMap<>();
     private int level = 0;
     private int exp = 0;
+    /**
+     * Checkpoint levels reached but whose crystal HP upgrade has not yet been applied
+     * via /faction upgrade apply. Persisted across restarts.
+     */
+    private final List<Integer> pendingUpgrades = new ArrayList<>();
 
     public Faction(String name, UUID owner) {
         this.name = name;
@@ -31,38 +36,30 @@ public class Faction {
     public void setOwner(UUID owner) {
         this.owner = owner;
     }
+
     public List<UUID> getMembers() { return members; }
     public void addMember(UUID uuid) { members.add(uuid); }
     public void removeMember(UUID uuid) { members.remove(uuid); }
     public NamedTextColor getColor() { return color; }
     public void setColor(NamedTextColor color) { this.color = color; }
 
-    public String getDescription() {
-        return description;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public int getLevel() {
-        return level;
-    }
+    public int getLevel() { return level; }
 
     public void setLevel(int level) {
-        this.level = level;
+        this.level = Math.clamp(level, 0, FactionLevelManager.MAX_LEVEL);
     }
 
-    public int getExp() {
-        return exp;
-    }
+    public int getExp() { return exp; }
 
     public void setExp(int exp) {
-        this.exp = exp;
+        this.exp = Math.max(0, exp);
     }
 
-    public void addExp(int exp) {
-        this.exp += exp;
+    public void addExp(int amount) {
+        this.exp += amount;
     }
 
     public FactionRole getRole(UUID uuid) {
@@ -79,5 +76,25 @@ public class Faction {
 
     public Map<UUID, FactionRole> getRoles() {
         return roles;
+    }
+
+    public List<Integer> getPendingUpgrades() {
+        return pendingUpgrades;
+    }
+
+    public void addPendingUpgrade(int checkpointLevel) {
+        pendingUpgrades.add(checkpointLevel);
+    }
+
+    /**
+     * Removes the specific upgrade level from the pending list.
+     * Returns true if it was present and removed.
+     */
+    public boolean removePendingUpgrade(int checkpointLevel) {
+        return pendingUpgrades.remove(Integer.valueOf(checkpointLevel));
+    }
+
+    public boolean hasPendingUpgrade() {
+        return !pendingUpgrades.isEmpty();
     }
 }
