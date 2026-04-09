@@ -1,59 +1,36 @@
 package org.minecraft.atlas.listener;
 
-import io.papermc.paper.dialog.Dialog;
-import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.input.DialogInput;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Location;
-import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
-import org.bukkit.block.Block;
 import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
-import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionListener implements Listener {
-
-    // -------------------------------------------------------------------------
-    // Message helpers
-    // -------------------------------------------------------------------------
-
-    private static Component error(String msg) {
-        return Component.text(msg, NamedTextColor.RED);
-    }
 
     /**
      * Tracks last hit time (ms) per attacker to enforce 1-hit-per-second anti-spam.
@@ -61,130 +38,11 @@ public class FactionListener implements Listener {
     private static final Map<UUID, Long> lastHitTime = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
-    // Atlas Crystal item — placement
+    // Crystal naming fallback on disconnect
     // -------------------------------------------------------------------------
-
-    @EventHandler
-    public void onPlayerInteract(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
-        if (event.getHand() != EquipmentSlot.HAND) return;
-
-        Player player = event.getPlayer();
-        ItemStack item = player.getInventory().getItemInMainHand();
-        if (!isAtlasCrystalItem(item)) return;
-
-        event.setCancelled(true);
-
-        String itemFaction = getCrystalItemFaction(item);
-        if (itemFaction == null) return;
-
-        String playerFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
-
-        // Not in the item's faction: show message, keep item
-        if (!itemFaction.equals(playerFactionName)) {
-            player.sendMessage(Component.text(
-                    "This crystal doesn't belong to your faction.", NamedTextColor.RED));
-            return;
-        }
-
-        // Must be leader or owner to place
-        Faction faction = FactionManager.getFaction(playerFactionName);
-        boolean isOwner = faction.getOwner().equals(player.getUniqueId());
-        boolean isLeader = !isOwner && faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
-        if (!isOwner && !isLeader) {
-            player.sendMessage(Component.text(
-                    "Only Leaders and Owners can place the Atlas Crystal.", NamedTextColor.RED));
-            return;
-        }
-
-        Block block = event.getClickedBlock();
-        if (block == null) return;
-
-        // Spawn ender crystal 1 block above the clicked block surface
-        EnderCrystal crystalEntity = block.getWorld().spawn(
-                block.getLocation().add(0.5, 1.0, 0.5), EnderCrystal.class);
-        crystalEntity.setShowingBottom(false);
-
-        AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, playerFactionName);
-
-        // Home is 1 block in the direction the player is facing
-        Location home = block.getRelative(player.getFacing()).getLocation().add(0.5, 0.0, 0.5);
-        home.setYaw(player.getLocation().getYaw());
-        home.setPitch(0);
-        atlasCrystal.setHome(home);
-        AtlasCrystalManager.saveHome(atlasCrystal);
-
-        // Consume the item
-        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-
-        // Start naming flow via Minecraft dialog
-        AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
-        openNamingDialog(player, atlasCrystal, null);
-    }
-
-    // -------------------------------------------------------------------------
-    // Crystal naming via Minecraft dialog
-    // -------------------------------------------------------------------------
-
-    private static void openNamingDialog(Player player, AtlasCrystal pending, String errorMsg) {
-        List<DialogBody> body = new ArrayList<>();
-        if (errorMsg != null) {
-            body.add(DialogBody.plainMessage(Component.text(errorMsg, NamedTextColor.RED)));
-        }
-        body.add(DialogBody.plainMessage(
-                Component.text("Enter a unique name (single word, no spaces).", NamedTextColor.GRAY)));
-
-        DialogBase base = DialogBase.builder(Component.text("Name Your Atlas Crystal", NamedTextColor.GOLD))
-                .canCloseWithEscape(false)
-                .afterAction(DialogBase.DialogAfterAction.CLOSE)
-                .body(body)
-                .inputs(List.of(
-                        DialogInput.text("name", Component.text("Crystal Name"))
-                                .maxLength(32)
-                                .initial("")
-                                .labelVisible(true)
-                                .build()
-                ))
-                .build();
-
-        ActionButton submitButton = ActionButton.builder(Component.text("Confirm", NamedTextColor.GREEN))
-                .width(200)
-                .action(DialogAction.customClick((response, audience) -> {
-                    String name = response.getText("name");
-                    if (name == null || name.isBlank()) {
-                        openNamingDialog(player, pending, "Name cannot be empty.");
-                        return;
-                    }
-                    if (name.contains(" ")) {
-                        openNamingDialog(player, pending, "Name cannot contain spaces.");
-                        return;
-                    }
-                    if (AtlasCrystalManager.hasCrystalWithName(pending.getFactionName(), name)) {
-                        openNamingDialog(player, pending, "'" + name + "' is already taken.");
-                        return;
-                    }
-                    AtlasCrystalManager.clearPendingNaming(player.getUniqueId());
-                    AtlasCrystalManager.assignName(pending, name.trim());
-                    player.sendMessage(Component.text(
-                            "Atlas Crystal named '" + name + "'!", NamedTextColor.GREEN));
-                    FactionManager.broadcastToFaction(pending.getFactionName(),
-                            Component.text("Atlas Crystal '" + name + "' has been placed by "
-                                    + player.getName() + "!", NamedTextColor.GOLD),
-                            player.getUniqueId());
-                }, ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).build()))
-                .build();
-
-        Dialog dialog = Dialog.create(factory ->
-                factory.empty()
-                        .base(base)
-                        .type(DialogType.multiAction(List.of(submitButton), null, 1))
-        );
-
-        player.showDialog(dialog);
-    }
 
     /**
-     * If a player disconnects mid-naming, assign a generated fallback name.
+     * If a player disconnects while the naming dialog is open, assign a generated fallback name.
      */
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
@@ -203,7 +61,7 @@ public class FactionListener implements Listener {
     }
 
     // -------------------------------------------------------------------------
-    // Atlas Crystal damage handling
+    // Teleport cancel on damage
     // -------------------------------------------------------------------------
 
     /**
@@ -218,6 +76,10 @@ public class FactionListener implements Listener {
                     "Teleport to faction home cancelled because you took damage.", NamedTextColor.RED));
         }
     }
+
+    // -------------------------------------------------------------------------
+    // Atlas Crystal damage handling
+    // -------------------------------------------------------------------------
 
     /** Cancels all non-entity damage to atlas crystals (fire, explosions, etc.). */
     @EventHandler(priority = EventPriority.NORMAL)
@@ -252,6 +114,13 @@ public class FactionListener implements Listener {
         String crystalFaction = atlasCrystal.getFactionName();
         if (crystalFaction.equals(attackerFaction)) return;
 
+        // Immune crystal: show message and bail
+        if (atlasCrystal.isImmune()) {
+            attacker.sendActionBar(Component.text("This crystal is immune to damage!", NamedTextColor.AQUA)
+                    .decorate(TextDecoration.BOLD));
+            return;
+        }
+
         // Anti-spam: allow at most 1 hit per second per attacker
         long now = System.currentTimeMillis();
         Long last = lastHitTime.get(attacker.getUniqueId());
@@ -264,12 +133,11 @@ public class FactionListener implements Listener {
         crystal.getPersistentDataContainer()
                 .set(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING, crystalFaction);
 
-        // Play elder guardian hurt sound at the crystal location
+        // Sound and particles on hit
         crystal.getWorld().playSound(
                 crystal.getLocation(), Sound.ENTITY_ELDER_GUARDIAN_HURT, SoundCategory.HOSTILE, 1.0f, 1.0f);
 
-        // Particle burst at crystal location (visible to all nearby players)
-        org.bukkit.Location loc = crystal.getLocation();
+        Location loc = crystal.getLocation();
         crystal.getWorld().spawnParticle(Particle.CRIT, loc, 30, 0.4, 0.4, 0.4, 0.25);
         crystal.getWorld().spawnParticle(Particle.DAMAGE_INDICATOR, loc, 10, 0.3, 0.3, 0.3, 0.0);
         crystal.getWorld().spawnParticle(Particle.ENCHANTED_HIT, loc, 20, 0.5, 0.5, 0.5, 0.1);
@@ -277,22 +145,72 @@ public class FactionListener implements Listener {
         crystal.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 8, 0.3, 0.3, 0.3, 0.02);
         crystal.getWorld().spawnParticle(Particle.EXPLOSION, loc, 2, 0.2, 0.2, 0.2, 0.0);
 
-        // Show damage dealt in bold red to the attacker only
         attacker.sendActionBar(Component.text("-" + (int) damage, NamedTextColor.RED)
-                .decorate(net.kyori.adventure.text.format.TextDecoration.BOLD));
+                .decorate(TextDecoration.BOLD));
 
-        if (died) {
-            String crystalName = atlasCrystal.getName();
-            String displayName = (crystalName != null && !crystalName.isEmpty()) ? crystalName : "(unnamed)";
+        if (!died) return;
+
+        // ── Crystal HP reached 0 ──────────────────────────────────────────────
+        Faction faction = FactionManager.getFaction(crystalFaction);
+        int factionLevel = faction != null ? faction.getLevel() : 0;
+
+        if (factionLevel == 0) {
+            // Level 0: crystal is permanently destroyed — disband the faction
             AtlasCrystalManager.remove(crystal.getUniqueId());
-            // Play beacon deactivate sound before explosion
             crystal.getWorld().playSound(
                     crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
             crystal.remove();
             FactionManager.broadcastToFaction(crystalFaction,
-                    error("The faction has been disbanded by enemy players"), null);
+                    Component.text("The faction has been destroyed by enemy players!", NamedTextColor.DARK_RED)
+                            .decorate(TextDecoration.BOLD), null);
             FactionManager.disbandFaction(crystalFaction);
+
+        } else {
+            // Level > 0: drop to the previous checkpoint, restore crystal HP, grant 1h immunity
+            int prevCheckpoint = FactionLevelManager.getPreviousCheckpoint(factionLevel);
+            int newLevel = Math.max(0, prevCheckpoint); // -1 means drop to 0
+
+            faction.setLevel(newLevel);
+            faction.setExp(0);
+
+            // Strip checkpoint bonuses above newLevel from all named faction crystals
+            Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
+            Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
+            for (AtlasCrystal fc : allCrystals) {
+                fc.stripUpgradesAbove(newLevel, bonusMap);
+                fc.updateNametag();
+                AtlasCrystalManager.persistCrystalState(fc);
+            }
+
+            // Restore the attacked crystal's HP to full and grant immunity
+            atlasCrystal.setHp(atlasCrystal.getMaxHp());
+            atlasCrystal.setImmuneFor(3_600_000L); // 1 hour
+            atlasCrystal.updateNametag();
+            AtlasCrystalManager.persistCrystalState(atlasCrystal);
+
+            // Effects (smaller explosion, no fire)
+            crystal.getWorld().playSound(
+                    crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 0.5f);
+            crystal.getWorld().createExplosion(crystal.getLocation(), 3.0f, false, false);
+
+            // Broadcast
+            String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
+            FactionManager.broadcastToFaction(crystalFaction,
+                    Component.text("⚠ Your Atlas Crystal was weakened! Faction level dropped to "
+                            + levelStr + ". Crystal is immune to damage for 1 hour!", NamedTextColor.RED)
+                            .decorate(TextDecoration.BOLD),
+                    null);
+            attacker.sendMessage(Component.text("You weakened the " + crystalFaction
+                            + " faction to level " + newLevel + "! Their crystal is immune for 1 hour.",
+                    NamedTextColor.YELLOW));
+
+            if (newLevel == 0) {
+                FactionManager.broadcastToFaction(crystalFaction,
+                        Component.text("⚠ WARNING: Your faction is at level 0! One more crystal defeat will disband the faction!",
+                                NamedTextColor.DARK_RED).decorate(TextDecoration.BOLD),
+                        null);
+            }
         }
     }
 
@@ -310,24 +228,5 @@ public class FactionListener implements Listener {
                 AtlasCrystalManager.restore(crystal);
             }
         }
-    }
-
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
-
-    private static boolean isAtlasCrystalItem(ItemStack item) {
-        if (item == null || item.getType() != Material.END_CRYSTAL) return false;
-        ItemMeta meta = item.getItemMeta();
-        return meta != null && meta.getPersistentDataContainer()
-                .has(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING);
-    }
-
-    private static String getCrystalItemFaction(ItemStack item) {
-        if (item == null) return null;
-        ItemMeta meta = item.getItemMeta();
-        if (meta == null) return null;
-        return meta.getPersistentDataContainer()
-                .get(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING);
     }
 }

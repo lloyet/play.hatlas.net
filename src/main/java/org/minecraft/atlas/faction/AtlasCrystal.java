@@ -5,22 +5,30 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
 import org.bukkit.entity.EnderCrystal;
 
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 /**
  * Represents an atlas ender crystal entity that guards a faction.
  * HP is managed independently of vanilla ender crystal mechanics.
  */
 public class AtlasCrystal {
 
+    static final double BASE_MAX_HP = 50.0;
+
     private final EnderCrystal entity;
     private final String factionName;
     private String name;
     private Location home;
     private double hp;
-    private final double maxHp;
-    /**
-     * System.currentTimeMillis() of the last hit by an outside player. 0 = never attacked.
-     */
-    private long lastAttackMillis;
+    private double maxHp;
+    /** Checkpoint levels whose HP upgrade has been permanently applied to this crystal. */
+    private final Set<Integer> appliedUpgrades = new HashSet<>();
+    /** System.currentTimeMillis() after which immunity ends. 0 = not immune. */
+    private long immuneUntilMillis = 0;
+    /** System.currentTimeMillis() of the last hit by an outside player. 0 = never attacked. */
+    private long lastAttackMillis = 0;
 
     public AtlasCrystal(EnderCrystal entity, String factionName, double hp, double maxHp) {
         this.entity = entity;
@@ -29,43 +37,79 @@ public class AtlasCrystal {
         this.home = null;
         this.hp = hp;
         this.maxHp = maxHp;
-        this.lastAttackMillis = 0;
     }
 
-    public EnderCrystal getEntity() {
-        return entity;
+    public EnderCrystal getEntity() { return entity; }
+    public String getFactionName() { return factionName; }
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+    public Location getHome() { return home; }
+    public void setHome(Location home) { this.home = home; }
+    public double getHp() { return hp; }
+    public double getMaxHp() { return maxHp; }
+
+    public Set<Integer> getAppliedUpgrades() { return new HashSet<>(appliedUpgrades); }
+    public long getImmuneUntilMillis() { return immuneUntilMillis; }
+    public void setImmuneUntilMillis(long ts) { this.immuneUntilMillis = ts; }
+
+    /** Directly sets HP (clamped to [0, maxHp]). Does NOT record an attack timestamp. */
+    public void setHp(double hp) {
+        this.hp = Math.min(maxHp, Math.max(0, hp));
+        updateNametag();
     }
 
-    public String getFactionName() {
-        return factionName;
+    /**
+     * Used during PDC restore: records that an upgrade was previously applied without
+     * re-adding the HP (maxHp is already the correct accumulated value restored from PDC).
+     */
+    void restoreUpgrade(int checkpointLevel) {
+        appliedUpgrades.add(checkpointLevel);
     }
 
-    public String getName() {
-        return name;
+    /**
+     * Applies a permanent HP upgrade from a checkpoint.
+     * Does nothing if this checkpoint level was already applied.
+     */
+    public void addUpgrade(int checkpointLevel, double upgradeHp) {
+        if (appliedUpgrades.add(checkpointLevel)) {
+            maxHp += upgradeHp;
+        }
     }
 
-    public void setName(String name) {
-        this.name = name;
+    /**
+     * Strips HP upgrades from checkpoint levels above the given threshold.
+     * Reduces maxHp accordingly and clamps hp if needed.
+     */
+    public void stripUpgradesAbove(int level, Map<Integer, Double> upgradeBonusMap) {
+        java.util.Iterator<Integer> iter = appliedUpgrades.iterator();
+        while (iter.hasNext()) {
+            int cp = iter.next();
+            if (cp > level) {
+                maxHp -= upgradeBonusMap.getOrDefault(cp, 0.0);
+                iter.remove();
+            }
+        }
+        maxHp = Math.max(BASE_MAX_HP, maxHp);
+        hp = Math.min(hp, maxHp);
     }
 
-    public Location getHome() {
-        return home;
+    /** Returns true if this crystal cannot be damaged right now. */
+    public boolean isImmune() {
+        return immuneUntilMillis > 0 && System.currentTimeMillis() < immuneUntilMillis;
     }
 
-    public void setHome(Location home) {
-        this.home = home;
+    /** Grants immunity for the specified number of milliseconds from now. */
+    public void setImmuneFor(long durationMs) {
+        this.immuneUntilMillis = System.currentTimeMillis() + durationMs;
     }
 
-    public double getHp() {
-        return hp;
-    }
-
-    public double getMaxHp() {
-        return maxHp;
-    }
-
-    /** Reduces HP by the given amount. Returns true if HP reached 0 (crystal dies). */
+    /**
+     * Reduces HP by the given amount.
+     * Returns true if HP reached 0 (level-drop or disband should trigger).
+     * Returns false without applying damage if the crystal is currently immune.
+     */
     public boolean damage(double amount) {
+        if (isImmune()) return false;
         hp = Math.max(0, hp - amount);
         lastAttackMillis = System.currentTimeMillis();
         updateNametag();
@@ -91,6 +135,10 @@ public class AtlasCrystal {
         NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
         int level = faction != null ? faction.getLevel() : 0;
 
+        Component immuneTag = isImmune()
+                ? Component.text(" [IMMUNE]", NamedTextColor.AQUA)
+                : Component.empty();
+
         Component tag;
         if (name != null && !name.isEmpty()) {
             tag = Component.text(name, NamedTextColor.WHITE)
@@ -100,14 +148,16 @@ public class AtlasCrystal {
                     .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
                     .append(Component.text("] ", NamedTextColor.GRAY))
                     .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED));
+                    .append(Component.text("♥", NamedTextColor.DARK_RED))
+                    .append(immuneTag);
         } else {
             tag = Component.text(factionName, color)
                     .append(Component.text(" [Lv.", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
                     .append(Component.text("] ", NamedTextColor.GRAY))
                     .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED));
+                    .append(Component.text("♥", NamedTextColor.DARK_RED))
+                    .append(immuneTag);
         }
 
         entity.customName(tag);

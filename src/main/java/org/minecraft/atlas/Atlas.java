@@ -9,6 +9,7 @@ import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
+import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.FactionListener;
 import org.minecraft.atlas.command.HelpCommand;
@@ -30,6 +31,10 @@ public final class Atlas extends JavaPlugin {
         instance = this;
 
         saveDefaultConfig();
+        saveResource("checkpoints.yml", false);
+        FactionLevelManager.loadCheckpoints(
+                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
+                        new java.io.File(getDataFolder(), "checkpoints.yml")));
         FactionManager.loadFactions(getConfig());
         JobManager.loadJobs(getConfig());
 

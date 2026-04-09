@@ -27,8 +27,11 @@ public class AtlasCrystalManager {
 
     private static NamespacedKey KEY_FACTION;
     private static NamespacedKey KEY_HP;
+    private static NamespacedKey KEY_MAX_HP;
     private static NamespacedKey KEY_NAME;
     private static NamespacedKey KEY_HOME;
+    private static NamespacedKey KEY_UPGRADES;
+    private static NamespacedKey KEY_IMMUNE_UNTIL;
 
     public static NamespacedKey getKeyFaction() {
         if (KEY_FACTION == null) KEY_FACTION = new NamespacedKey(Atlas.instance, "atlas_crystal_faction");
@@ -38,6 +41,11 @@ public class AtlasCrystalManager {
     private static NamespacedKey getKeyHp() {
         if (KEY_HP == null) KEY_HP = new NamespacedKey(Atlas.instance, "atlas_crystal_hp");
         return KEY_HP;
+    }
+
+    private static NamespacedKey getKeyMaxHp() {
+        if (KEY_MAX_HP == null) KEY_MAX_HP = new NamespacedKey(Atlas.instance, "atlas_crystal_max_hp");
+        return KEY_MAX_HP;
     }
 
     public static NamespacedKey getKeyName() {
@@ -50,13 +58,23 @@ public class AtlasCrystalManager {
         return KEY_HOME;
     }
 
+    private static NamespacedKey getKeyUpgrades() {
+        if (KEY_UPGRADES == null)
+            KEY_UPGRADES = new NamespacedKey(Atlas.instance, "atlas_crystal_upgrades");
+        return KEY_UPGRADES;
+    }
+
+    private static NamespacedKey getKeyImmuneUntil() {
+        if (KEY_IMMUNE_UNTIL == null)
+            KEY_IMMUNE_UNTIL = new NamespacedKey(Atlas.instance, "atlas_crystal_immune_until");
+        return KEY_IMMUNE_UNTIL;
+    }
+
     // -------------------------------------------------------------------------
     // State
     // -------------------------------------------------------------------------
 
-    /**
-     * entityUUID → AtlasCrystal
-     */
+    /** entityUUID → AtlasCrystal */
     private static final Map<UUID, AtlasCrystal> crystals = new HashMap<>();
 
     /**
@@ -65,28 +83,26 @@ public class AtlasCrystalManager {
      */
     private static final Map<String, Map<String, AtlasCrystal>> factionCrystals = new HashMap<>();
 
-    /**
-     * playerUUID → AtlasCrystal awaiting a name from chat. ConcurrentHashMap for AsyncChatEvent safety.
-     */
+    /** playerUUID → AtlasCrystal awaiting a name from the naming dialog. */
     private static final Map<UUID, AtlasCrystal> pendingNaming = new ConcurrentHashMap<>();
 
     // -------------------------------------------------------------------------
     // Register / restore
     // -------------------------------------------------------------------------
 
-    /** Registers a newly spawned atlas crystal. The crystal has no name yet until the player provides one. */
+    /** Registers a newly spawned atlas crystal with base HP and max HP of 50. */
     public static AtlasCrystal register(EnderCrystal entity, String factionName) {
-        AtlasCrystal crystal = new AtlasCrystal(entity, factionName, 50.0, 50.0);
+        double base = AtlasCrystal.BASE_MAX_HP;
+        AtlasCrystal crystal = new AtlasCrystal(entity, factionName, base, base);
         crystal.updateNametag();
         entity.getPersistentDataContainer().set(getKeyFaction(), PersistentDataType.STRING, factionName);
-        entity.getPersistentDataContainer().set(getKeyHp(), PersistentDataType.DOUBLE, 50.0);
+        entity.getPersistentDataContainer().set(getKeyHp(), PersistentDataType.DOUBLE, base);
+        entity.getPersistentDataContainer().set(getKeyMaxHp(), PersistentDataType.DOUBLE, base);
         crystals.put(entity.getUniqueId(), crystal);
         return crystal;
     }
 
-    /**
-     * Finalises the crystal's name after the player provides it via chat.
-     */
+    /** Finalises the crystal's name after the player provides it via dialog. */
     public static void assignName(AtlasCrystal crystal, String name) {
         crystal.setName(name);
         factionCrystals
@@ -97,9 +113,7 @@ public class AtlasCrystalManager {
         crystal.updateNametag();
     }
 
-    /**
-     * Persists a crystal's home location to PDC. Call after setting crystal.setHome().
-     */
+    /** Persists a crystal's home location to PDC. Call after setting crystal.setHome(). */
     public static void saveHome(AtlasCrystal crystal) {
         Location home = crystal.getHome();
         if (home == null || home.getWorld() == null) return;
@@ -110,18 +124,40 @@ public class AtlasCrystalManager {
                 .set(getKeyHome(), PersistentDataType.STRING, encoded);
     }
 
+    /**
+     * Persists the full mutable state of a crystal to PDC (hp, maxHp, upgrades, immuneUntil).
+     * Call after any significant state change (damage, level drop, upgrade applied).
+     */
+    public static void persistCrystalState(AtlasCrystal crystal) {
+        var pdc = crystal.getEntity().getPersistentDataContainer();
+        pdc.set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
+        pdc.set(getKeyMaxHp(), PersistentDataType.DOUBLE, crystal.getMaxHp());
+        pdc.set(getKeyImmuneUntil(), PersistentDataType.LONG, crystal.getImmuneUntilMillis());
+
+        // Encode applied upgrades as comma-separated checkpoint levels (e.g. "1,3,5")
+        StringBuilder sb = new StringBuilder();
+        for (int cp : crystal.getAppliedUpgrades()) {
+            if (!sb.isEmpty()) sb.append(',');
+            sb.append(cp);
+        }
+        pdc.set(getKeyUpgrades(), PersistentDataType.STRING, sb.toString());
+    }
+
     /** Restores an atlas crystal from PDC when its chunk is loaded. */
     public static AtlasCrystal restore(EnderCrystal entity) {
         String factionName = entity.getPersistentDataContainer().get(getKeyFaction(), PersistentDataType.STRING);
         if (factionName == null) return null;
 
         Double savedHp = entity.getPersistentDataContainer().get(getKeyHp(), PersistentDataType.DOUBLE);
-        double hp = savedHp != null ? savedHp : 50.0;
+        double hp = savedHp != null ? savedHp : AtlasCrystal.BASE_MAX_HP;
+
+        Double savedMaxHp = entity.getPersistentDataContainer().get(getKeyMaxHp(), PersistentDataType.DOUBLE);
+        double maxHp = savedMaxHp != null ? savedMaxHp : AtlasCrystal.BASE_MAX_HP;
 
         String savedName = entity.getPersistentDataContainer().get(getKeyName(), PersistentDataType.STRING);
         if (savedName == null) savedName = "";
 
-        AtlasCrystal crystal = new AtlasCrystal(entity, factionName, hp, 50.0);
+        AtlasCrystal crystal = new AtlasCrystal(entity, factionName, hp, maxHp);
         crystal.setName(savedName);
 
         // Restore home
@@ -129,6 +165,22 @@ public class AtlasCrystalManager {
         if (homeStr != null) {
             Location home = decodeHome(homeStr);
             crystal.setHome(home);
+        }
+
+        // Restore applied upgrades (stored as comma-separated checkpoint levels)
+        String upgradesStr = entity.getPersistentDataContainer().get(getKeyUpgrades(), PersistentDataType.STRING);
+        if (upgradesStr != null && !upgradesStr.isBlank()) {
+            for (String part : upgradesStr.split(",")) {
+                try {
+                    crystal.restoreUpgrade(Integer.parseInt(part.trim()));
+                } catch (NumberFormatException ignored) {}
+            }
+        }
+
+        // Restore immunity timestamp
+        Long savedImmune = entity.getPersistentDataContainer().get(getKeyImmuneUntil(), PersistentDataType.LONG);
+        if (savedImmune != null) {
+            crystal.setImmuneUntilMillis(savedImmune);
         }
 
         crystal.updateNametag();
@@ -166,18 +218,14 @@ public class AtlasCrystalManager {
         return map.get(crystalName);
     }
 
-    /**
-     * Returns all named crystals for a faction in insertion order.
-     */
+    /** Returns all named crystals for a faction in insertion order. */
     public static Collection<AtlasCrystal> getFactionCrystals(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
         if (map == null) return Collections.emptyList();
         return map.values();
     }
 
-    /**
-     * Returns the home of the first (oldest) crystal placed by this faction, or null if none.
-     */
+    /** Returns the home of the first (oldest) named crystal placed by this faction, or null if none. */
     public static Location getFirstHome(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
         if (map == null || map.isEmpty()) return null;
@@ -204,9 +252,7 @@ public class AtlasCrystalManager {
     // Mutations
     // -------------------------------------------------------------------------
 
-    /**
-     * Renames a crystal within a faction. Returns false if old name not found or new name taken.
-     */
+    /** Renames a crystal within a faction. Returns false if old name not found or new name taken. */
     public static boolean renameCrystal(String factionName, String oldName, String newName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
         if (map == null || !map.containsKey(oldName)) return false;
@@ -231,9 +277,7 @@ public class AtlasCrystalManager {
         }
     }
 
-    /**
-     * Removes and despawns all crystals belonging to a faction. Called when a faction is disbanded.
-     */
+    /** Removes and despawns all crystals belonging to a faction. Called when a faction is disbanded. */
     public static void removeAllForFaction(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.remove(factionName);
         if (map == null) return;
