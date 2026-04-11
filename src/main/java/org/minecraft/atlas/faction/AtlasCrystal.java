@@ -18,7 +18,7 @@ public class AtlasCrystal {
     static final double BASE_MAX_HP = 50.0;
 
     private final EnderCrystal entity;
-    private final String factionName;
+    private String factionName;
     private String name;
     private Location home;
     private double hp;
@@ -41,6 +41,7 @@ public class AtlasCrystal {
 
     public EnderCrystal getEntity() { return entity; }
     public String getFactionName() { return factionName; }
+    public void setFactionName(String factionName) { this.factionName = factionName; }
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public Location getHome() { return home; }
@@ -122,10 +123,10 @@ public class AtlasCrystal {
         updateNametag();
     }
 
-    /** Returns true if 60 seconds have elapsed since the last outside-player attack. */
+    /** Returns true if enough time (configured via {@code crystal.regen_timeout_seconds}) has elapsed since the last outside-player attack. */
     public boolean canRegen() {
         if (lastAttackMillis == 0) return true;
-        return System.currentTimeMillis() - lastAttackMillis >= 60_000;
+        return System.currentTimeMillis() - lastAttackMillis >= AtlasCrystalManager.regenTimeoutMs;
     }
 
     /** Refreshes the entity's overhead nametag. */

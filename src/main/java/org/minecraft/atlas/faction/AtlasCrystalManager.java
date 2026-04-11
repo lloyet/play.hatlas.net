@@ -74,6 +74,9 @@ public class AtlasCrystalManager {
     // State
     // -------------------------------------------------------------------------
 
+    /** Minimum ms since the last hit before a crystal can regenerate HP (loaded from config). */
+    public static long regenTimeoutMs = 60_000L;
+
     /** entityUUID → AtlasCrystal */
     private static final Map<UUID, AtlasCrystal> crystals = new HashMap<>();
 
@@ -252,6 +255,26 @@ public class AtlasCrystalManager {
     // Mutations
     // -------------------------------------------------------------------------
 
+    /**
+     * Updates the faction name stored on every crystal that belongs to {@code oldName}.
+     * Also re-keys the factionCrystals map so that lookups by new name work correctly.
+     * Call this after the faction has already been renamed in FactionManager.
+     */
+    public static void renameFactionCrystals(String oldName, String newName) {
+        // Update every registered crystal whose faction matches the old name
+        for (AtlasCrystal crystal : crystals.values()) {
+            if (crystal.getFactionName().equals(oldName)) {
+                crystal.setFactionName(newName);
+                crystal.getEntity().getPersistentDataContainer()
+                        .set(getKeyFaction(), PersistentDataType.STRING, newName);
+                crystal.updateNametag();
+            }
+        }
+        // Re-key the factionCrystals map
+        Map<String, AtlasCrystal> map = factionCrystals.remove(oldName);
+        if (map != null) factionCrystals.put(newName, map);
+    }
+
     /** Renames a crystal within a faction. Returns false if old name not found or new name taken. */
     public static boolean renameCrystal(String factionName, String oldName, String newName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
@@ -311,7 +334,7 @@ public class AtlasCrystalManager {
                         continue;
                     }
                     if (crystal.canRegen() && crystal.getHp() < crystal.getMaxHp()) {
-                        crystal.regen(1.5);
+                        crystal.regen(Atlas.crystalRegenPerSecond);
                         crystal.getEntity().getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }

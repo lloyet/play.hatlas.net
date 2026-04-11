@@ -9,6 +9,7 @@ import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
+import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.FactionListener;
@@ -26,16 +27,22 @@ public final class Atlas extends JavaPlugin {
 
     public static Atlas instance;
 
+    /** HP regenerated per second by Atlas Crystals (loaded from config). */
+    public static double crystalRegenPerSecond = 1.5;
+    /** Immunity duration in ms after a checkpoint level drop (loaded from config). */
+    public static long crystalImmunityDurationMs = 3_600_000L;
+
     @Override
     public void onEnable() {
         instance = this;
 
         saveDefaultConfig();
-        saveResource("checkpoints.yml", false);
-        FactionLevelManager.loadCheckpoints(
-                org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(
-                        new java.io.File(getDataFolder(), "checkpoints.yml")));
+        crystalRegenPerSecond = getConfig().getDouble("crystal.regen_per_second", 1.5);
+        crystalImmunityDurationMs = getConfig().getLong("crystal.immunity_duration_seconds", 3600L) * 1000L;
+        AtlasCrystalManager.regenTimeoutMs = getConfig().getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+        FactionLevelManager.loadCheckpoints(getConfig());
         FactionManager.loadFactions(getConfig());
+        FactionClaimManager.loadClaims(getConfig());
         JobManager.loadJobs(getConfig());
 
         // Register all listeners
@@ -68,6 +75,7 @@ public final class Atlas extends JavaPlugin {
     @Override
     public void onDisable() {
         FactionManager.saveFactions(getConfig());
+        FactionClaimManager.saveClaims(getConfig());
         JobManager.saveJobs(getConfig());
         saveConfig();
 

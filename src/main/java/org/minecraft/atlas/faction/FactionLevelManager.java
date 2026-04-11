@@ -39,7 +39,7 @@ public class FactionLevelManager {
         return expForLevel[n];
     }
 
-    /** Loads upgrade checkpoint HP values from checkpoints.yml. Call once from Atlas.onEnable. */
+    /** Loads upgrade checkpoint HP values from config.yml. Call once from Atlas.onEnable. */
     public static void loadCheckpoints(FileConfiguration config) {
         upgradeHpMap.clear();
         checkpoints.clear();

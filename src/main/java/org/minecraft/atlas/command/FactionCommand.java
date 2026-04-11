@@ -30,6 +30,7 @@ import org.bukkit.entity.Player;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
@@ -257,6 +258,10 @@ public class FactionCommand {
                                 .append(Component.newline()).append(helpEntry("exp", "set <amount>", "[debug] Set faction exp"))
                                 .append(Component.newline()).append(helpEntry("level", "set <level>", "[debug] Set faction level (0-100)"));
                     }
+                    if (sender.hasPermission("atlas.faction.admin.disband")) {
+                        help = help
+                                .append(Component.newline()).append(helpEntry("disband", "<faction>", "[admin] Forcibly disband any faction"));
+                    }
 
                     sender.sendMessage(help);
                     return Command.SINGLE_SUCCESS;
@@ -274,31 +279,50 @@ public class FactionCommand {
 
                                     String name = StringArgumentType.getString(ctx, "name");
 
+                                    // Determine the target chunk first so we can validate it
+                                    Chunk chunk = player.getLocation().getChunk();
+
+                                    // Reject if the chunk is already claimed by another faction
+                                    String existingClaim = FactionClaimManager.getClaimingFaction(
+                                            player.getWorld().getName(), chunk.getX(), chunk.getZ());
+                                    if (existingClaim != null) {
+                                        player.sendMessage(error("This chunk is already claimed by faction '"
+                                                + existingClaim + "'. Move to an unclaimed area."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (FactionManager.getPlayerFaction(player.getUniqueId()) != null) {
+                                        player.sendMessage(error("You are already in a faction. Leave or disband it first."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
                                     if (!FactionManager.createFaction(name, player.getUniqueId())) {
-                                        player.sendMessage(error("Could not create faction. You may already be in one, or that name is taken."));
+                                        player.sendMessage(error("A faction with that name already exists."));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
                                     player.sendMessage(success("Faction '" + name + "' created successfully!"));
                                     player.sendMessage(info("Don't forget to pick a job using the /job command!"));
 
-                                    // Spawn Atlas Crystal at the center of the player's current chunk,
-                                    // elevated 3 blocks above the highest block, with bedrock base visible.
-                                    Chunk chunk = player.getLocation().getChunk();
                                     int centerX = chunk.getX() * 16 + 8;
                                     int centerZ = chunk.getZ() * 16 + 8;
                                     int highestY = player.getWorld().getHighestBlockYAt(centerX, centerZ);
 
                                     Location spawnLoc = new Location(player.getWorld(),
-                                            centerX + 0.5, highestY + 4.0, centerZ + 0.5);
+                                            centerX + 0.5, highestY + 2.0, centerZ + 0.5);
 
                                     EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                                     crystalEntity.setShowingBottom(true);
 
                                     AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, name);
 
-                                    // Home set to where the player is standing right now
-                                    Location home = player.getLocation().clone();
+                                    // Claim the chunk where the crystal was spawned
+                                    FactionClaimManager.initializeClaim(name,
+                                            player.getWorld().getName(), chunk.getX(), chunk.getZ());
+
+                                    // Home set at the crystal's location (ground level beneath it)
+                                    Location home = spawnLoc.clone();
+                                    home.setY(highestY + 1.0);
                                     home.setPitch(0);
                                     atlasCrystal.setHome(home);
                                     AtlasCrystalManager.saveHome(atlasCrystal);
@@ -630,9 +654,10 @@ public class FactionCommand {
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
-                // ----- disband -----
+                // ----- disband / admin disband -----
                 .then(Commands.literal("disband")
-                        .requires(src -> src.getSender().hasPermission("atlas.faction.disband"))
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.disband")
+                                || src.getSender().hasPermission("atlas.faction.admin.disband"))
                         .executes(ctx -> {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
@@ -685,7 +710,30 @@ public class FactionCommand {
 
                             player.sendMessage(confirmMsg);
                             return Command.SINGLE_SUCCESS;
-                        }))
+                        })
+                        // ----- admin disband <faction> -----
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .requires(src -> src.getSender().hasPermission("atlas.faction.admin.disband"))
+                                .suggests((ctx, builder) -> {
+                                    FactionManager.getFactions().keySet().forEach(builder::suggest);
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    var sender = ctx.getSource().getSender();
+                                    String targetFaction = StringArgumentType.getString(ctx, "faction");
+
+                                    if (FactionManager.getFaction(targetFaction) == null) {
+                                        sender.sendMessage(error("Faction '" + targetFaction + "' does not exist."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    FactionManager.broadcastToFaction(targetFaction,
+                                            error("Your faction has been forcibly disbanded by an administrator."),
+                                            null);
+                                    FactionManager.disbandFaction(targetFaction);
+                                    sender.sendMessage(success("Faction '" + targetFaction + "' has been disbanded."));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
                 // ----- leave -----
                 .then(Commands.literal("leave")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.leave"))
