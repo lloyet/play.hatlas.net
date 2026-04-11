@@ -3,24 +3,34 @@ package org.minecraft.atlas.listener;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.block.Block;
 import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
+import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.util.TitleUtil;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
@@ -71,9 +81,53 @@ public class FactionListener implements Listener {
     public void onPlayerDamagedCancelTeleport(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         if (HomeTeleportManager.cancelTeleport(player.getUniqueId())) {
-            player.sendActionBar(Component.text("Teleport cancelled! (took damage)", NamedTextColor.RED));
-            player.sendMessage(Component.text(
-                    "Teleport to faction home cancelled because you took damage.", NamedTextColor.RED));
+            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Faction territory protection
+    // -------------------------------------------------------------------------
+
+    /**
+     * Returns true when the player is allowed to act in the given chunk —
+     * i.e. the chunk is unclaimed, or the player belongs to the owning faction.
+     */
+    private boolean isAllowedInChunk(Player player, Chunk chunk) {
+        String owner = FactionClaimManager.getClaimingFaction(
+                chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+        if (owner == null) return true;
+        return owner.equals(FactionManager.getPlayerFaction(player.getUniqueId()));
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onBlockBreak(BlockBreakEvent event) {
+        Player player = event.getPlayer();
+        if (isAllowedInChunk(player, event.getBlock().getChunk())) return;
+        event.setCancelled(true);
+        player.sendActionBar(Component.text("⚔ Enemy territory — can't break!", NamedTextColor.RED));
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onBlockPlace(BlockPlaceEvent event) {
+        Player player = event.getPlayer();
+        if (isAllowedInChunk(player, event.getBlock().getChunk())) return;
+        event.setCancelled(true);
+        player.sendActionBar(Component.text("⚔ Enemy territory — can't place!", NamedTextColor.RED));
+    }
+
+    /** Blocks right-click interactions (chests, doors, buttons…) and pressure-plate triggers in claimed chunks. */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        Action action = event.getAction();
+        if (action != Action.RIGHT_CLICK_BLOCK && action != Action.PHYSICAL) return;
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+        Player player = event.getPlayer();
+        if (isAllowedInChunk(player, block.getChunk())) return;
+        event.setCancelled(true);
+        if (action == Action.RIGHT_CLICK_BLOCK) {
+            player.sendActionBar(Component.text("⚔ Enemy territory — can't interact!", NamedTextColor.RED));
         }
     }
 
@@ -105,8 +159,7 @@ public class FactionListener implements Listener {
         // Players with no faction cannot damage atlas crystals
         String attackerFaction = FactionManager.getPlayerFaction(attacker.getUniqueId());
         if (attackerFaction == null) {
-            attacker.sendMessage(Component.text(
-                    "You must be in a faction to attack an Atlas Crystal.", NamedTextColor.RED));
+            TitleUtil.notify(attacker, "You must be in a faction to attack an Atlas Crystal.", NamedTextColor.RED);
             return;
         }
 
@@ -145,8 +198,9 @@ public class FactionListener implements Listener {
         crystal.getWorld().spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 8, 0.3, 0.3, 0.3, 0.02);
         crystal.getWorld().spawnParticle(Particle.EXPLOSION, loc, 2, 0.2, 0.2, 0.2, 0.0);
 
-        attacker.sendActionBar(Component.text("-" + (int) damage, NamedTextColor.RED)
-                .decorate(TextDecoration.BOLD));
+        // Show damage as hit feedback: instant appear, brief stay, slow fade-out
+        // — the abrupt appearance + gradual dissolution simulates text drifting upward.
+        TitleUtil.hitFeedback(attacker, "-" + (int) damage + " points", NamedTextColor.RED);
 
         if (!died) return;
 
@@ -161,9 +215,32 @@ public class FactionListener implements Listener {
                     crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
             crystal.remove();
+
+            // Chat to faction members (task 3: disband messages → chat)
             FactionManager.broadcastToFaction(crystalFaction,
-                    Component.text("The faction has been destroyed by enemy players!", NamedTextColor.DARK_RED)
-                            .decorate(TextDecoration.BOLD), null);
+                    Component.text("☠ Your faction has been destroyed by ", NamedTextColor.DARK_RED)
+                            .decorate(TextDecoration.BOLD)
+                            .append(Component.text(attackerFaction, NamedTextColor.YELLOW)
+                                    .decorate(TextDecoration.BOLD))
+                            .append(Component.text("!", NamedTextColor.DARK_RED)
+                                    .decorate(TextDecoration.BOLD)),
+                    null);
+
+            // Server-wide chat announcement (task 3: broadcast → chat)
+            Component serverMsg = Component.text("☠ [", NamedTextColor.DARK_RED)
+                    .decorate(TextDecoration.BOLD)
+                    .append(Component.text(crystalFaction, NamedTextColor.RED)
+                            .decorate(TextDecoration.BOLD))
+                    .append(Component.text("] was destroyed by [", NamedTextColor.DARK_RED)
+                            .decorate(TextDecoration.BOLD))
+                    .append(Component.text(attackerFaction, NamedTextColor.YELLOW)
+                            .decorate(TextDecoration.BOLD))
+                    .append(Component.text("]!", NamedTextColor.DARK_RED)
+                            .decorate(TextDecoration.BOLD));
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                online.sendMessage(serverMsg);
+            }
+
             FactionManager.disbandFaction(crystalFaction);
 
         } else {
@@ -173,6 +250,14 @@ public class FactionListener implements Listener {
 
             faction.setLevel(newLevel);
             faction.setExp(0);
+
+            // Shrink territory claims: keep only rings for checkpoints ≤ newLevel
+            int targetRings = 0;
+            for (int cp : FactionLevelManager.getCheckpoints()) {
+                if (cp <= newLevel) targetRings++;
+                else break;
+            }
+            FactionClaimManager.shrinkClaimsTo(crystalFaction, targetRings);
 
             // Strip checkpoint bonuses above newLevel from all named faction crystals
             Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
@@ -185,7 +270,7 @@ public class FactionListener implements Listener {
 
             // Restore the attacked crystal's HP to full and grant immunity
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
-            atlasCrystal.setImmuneFor(3_600_000L); // 1 hour
+            atlasCrystal.setImmuneFor(Atlas.crystalImmunityDurationMs);
             atlasCrystal.updateNametag();
             AtlasCrystalManager.persistCrystalState(atlasCrystal);
 
@@ -196,20 +281,19 @@ public class FactionListener implements Listener {
 
             // Broadcast
             String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
-            FactionManager.broadcastToFaction(crystalFaction,
-                    Component.text("⚠ Your Atlas Crystal was weakened! Faction level dropped to "
-                            + levelStr + ". Crystal is immune to damage for 1 hour!", NamedTextColor.RED)
-                            .decorate(TextDecoration.BOLD),
-                    null);
-            attacker.sendMessage(Component.text("You weakened the " + crystalFaction
-                            + " faction to level " + newLevel + "! Their crystal is immune for 1 hour.",
-                    NamedTextColor.YELLOW));
+            long immunitySeconds = Atlas.crystalImmunityDurationMs / 1000;
+            TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
+                    "⚠ Crystal weakened! Lv." + levelStr + ". Immune " + immunitySeconds + "s!",
+                    NamedTextColor.RED);
+            TitleUtil.notify(attacker,
+                    "Weakened " + crystalFaction + " to Lv." + newLevel
+                            + "! Immune " + immunitySeconds + "s.",
+                    NamedTextColor.YELLOW);
 
             if (newLevel == 0) {
-                FactionManager.broadcastToFaction(crystalFaction,
-                        Component.text("⚠ WARNING: Your faction is at level 0! One more crystal defeat will disband the faction!",
-                                NamedTextColor.DARK_RED).decorate(TextDecoration.BOLD),
-                        null);
+                TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
+                        "⚠ Lv.0! Next defeat disbands the faction!",
+                        NamedTextColor.DARK_RED);
             }
         }
     }

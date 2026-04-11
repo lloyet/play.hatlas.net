@@ -5,6 +5,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.*;
 
@@ -44,6 +45,7 @@ public class FactionManager {
         if (!faction.getOwner().equals(requesterUUID)) return false;
 
         AtlasCrystalManager.removeAllForFaction(factionName);
+        FactionClaimManager.removeAllClaims(factionName);
         faction.getMembers().forEach(playerFaction::remove);
         playerFaction.remove(requesterUUID);
         factions.remove(factionName);
@@ -70,6 +72,10 @@ public class FactionManager {
         playerFaction.put(faction.getOwner(), newName);
         faction.getMembers().forEach(uuid -> playerFaction.put(uuid, newName));
         pendingInvitations.replaceAll((uuid, name) -> name.equals(oldName) ? newName : name);
+
+        // Fix bug: update crystal faction references and claim map so they track the new name
+        AtlasCrystalManager.renameFactionCrystals(oldName, newName);
+        FactionClaimManager.renameFactionClaims(oldName, newName);
 
         return true;
     }
@@ -267,7 +273,7 @@ public class FactionManager {
         return factions.get(factionName);
     }
 
-    /** Sends a message to every online member of a faction, optionally excluding one player. */
+    /** Sends a chat message to every online member of a faction, optionally excluding one player. */
     public static void broadcastToFaction(String factionName, net.kyori.adventure.text.Component message, UUID exclude) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
@@ -284,12 +290,37 @@ public class FactionManager {
         }
     }
 
+    /**
+     * Returns a list of all online members of a faction, optionally excluding one player.
+     * Use this together with {@link TitleUtil} broadcast methods.
+     */
+    public static List<Player> getOnlineFactionMembers(String factionName, UUID exclude) {
+        Faction faction = factions.get(factionName);
+        if (faction == null) return List.of();
+
+        List<Player> online = new ArrayList<>();
+
+        if (!faction.getOwner().equals(exclude)) {
+            Player owner = Bukkit.getPlayer(faction.getOwner());
+            if (owner != null) online.add(owner);
+        }
+
+        for (UUID memberUUID : faction.getMembers()) {
+            if (memberUUID.equals(exclude)) continue;
+            Player member = Bukkit.getPlayer(memberUUID);
+            if (member != null) online.add(member);
+        }
+
+        return online;
+    }
+
     /** Disbands a faction by name without requiring the owner UUID. Used when all crystals are destroyed. */
     public static void disbandFaction(String factionName) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
 
         AtlasCrystalManager.removeAllForFaction(factionName);
+        FactionClaimManager.removeAllClaims(factionName);
         faction.getMembers().forEach(playerFaction::remove);
         playerFaction.remove(faction.getOwner());
         factions.remove(factionName);
@@ -337,6 +368,7 @@ public class FactionManager {
                 if (FactionLevelManager.isCheckpoint(newLevel)) {
                     reached.add(newLevel);
                     faction.addPendingUpgrade(newLevel);
+                    FactionClaimManager.expandClaims(factionName);
                 }
             } else {
                 break;

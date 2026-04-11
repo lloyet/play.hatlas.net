@@ -6,6 +6,7 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.util.UUID;
 public class HomeTeleportManager {
 
     private static final Map<UUID, BukkitRunnable> activeTeleports = new HashMap<>();
+
     /**
      * UUID -> System.currentTimeMillis() when the cooldown expires
      */
@@ -67,9 +69,7 @@ public class HomeTeleportManager {
                 if (dxz > 0.1) {
                     activeTeleports.remove(uuid);
                     cancel();
-                    player.sendActionBar(Component.text("Teleport cancelled! (moved)", NamedTextColor.RED));
-                    player.sendMessage(Component.text(
-                            "Teleport to faction home cancelled because you moved.", NamedTextColor.RED));
+                    TitleUtil.notify(player, "Teleport cancelled — you moved!", NamedTextColor.RED);
                     return;
                 }
                 if (remaining > 0) {

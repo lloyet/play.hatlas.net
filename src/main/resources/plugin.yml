@@ -72,6 +72,9 @@ permissions:
   atlas.faction.debug:
     description: Debug commands - /faction level set, /faction exp set/add
     default: op
+  atlas.faction.admin.disband:
+    description: Administratively disband any faction by name
+    default: op
   atlas.crystal:
     description: Access to /crystal commands
     default: true
