@@ -202,6 +202,14 @@ public class FactionListener implements Listener {
         // — the abrupt appearance + gradual dissolution simulates text drifting upward.
         TitleUtil.hitFeedback(attacker, "-" + (int) damage + " points", NamedTextColor.RED);
 
+        // Alert faction members that their crystal is under attack
+        String displayName = atlasCrystal.getName().isEmpty()
+                ? "A crystal" : "'" + atlasCrystal.getName() + "'";
+        TitleUtil.broadcastAlertBold(
+                FactionManager.getOnlineFactionMembers(crystalFaction, null),
+                "⚔ " + displayName + " is under attack by " + attackerFaction + "!",
+                NamedTextColor.RED);
+
         if (!died) return;
 
         // ── Crystal HP reached 0 ──────────────────────────────────────────────
@@ -216,27 +224,14 @@ public class FactionListener implements Listener {
             crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
             crystal.remove();
 
-            // Chat to faction members (task 3: disband messages → chat)
+            // Chat to faction members
             FactionManager.broadcastToFaction(crystalFaction,
-                    Component.text("☠ Your faction has been destroyed by ", NamedTextColor.DARK_RED)
-                            .decorate(TextDecoration.BOLD)
-                            .append(Component.text(attackerFaction, NamedTextColor.YELLOW)
-                                    .decorate(TextDecoration.BOLD))
-                            .append(Component.text("!", NamedTextColor.DARK_RED)
-                                    .decorate(TextDecoration.BOLD)),
+                    Component.text("☠ Your faction has been destroyed by " + attackerFaction + "!", NamedTextColor.RED),
                     null);
 
-            // Server-wide chat announcement (task 3: broadcast → chat)
-            Component serverMsg = Component.text("☠ [", NamedTextColor.DARK_RED)
-                    .decorate(TextDecoration.BOLD)
-                    .append(Component.text(crystalFaction, NamedTextColor.RED)
-                            .decorate(TextDecoration.BOLD))
-                    .append(Component.text("] was destroyed by [", NamedTextColor.DARK_RED)
-                            .decorate(TextDecoration.BOLD))
-                    .append(Component.text(attackerFaction, NamedTextColor.YELLOW)
-                            .decorate(TextDecoration.BOLD))
-                    .append(Component.text("]!", NamedTextColor.DARK_RED)
-                            .decorate(TextDecoration.BOLD));
+            // Server-wide chat announcement
+            Component serverMsg = Component.text(
+                    "☠ [" + crystalFaction + "] was destroyed by [" + attackerFaction + "]!", NamedTextColor.RED);
             for (Player online : Bukkit.getOnlinePlayers()) {
                 online.sendMessage(serverMsg);
             }
