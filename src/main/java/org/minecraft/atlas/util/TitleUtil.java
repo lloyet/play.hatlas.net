@@ -97,6 +97,22 @@ public final class TitleUtil {
         for (Player p : players) alertBold(p, text, color);
     }
 
+    /**
+     * Always shows {@code text} in the <em>subtitle</em> slot only — never in the title slot —
+     * regardless of text length. Uses {@link #NOTIFY_TIMES}.
+     */
+    public static void subtitle(Player player, String text, NamedTextColor color) {
+        player.showTitle(Title.title(
+                Component.empty(),
+                Component.text(text, color),
+                NOTIFY_TIMES));
+    }
+
+    /** Sends a subtitle-only notification to every player in {@code players}. */
+    public static void broadcastSubtitle(Collection<? extends Player> players, String text, NamedTextColor color) {
+        for (Player p : players) subtitle(p, text, color);
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------

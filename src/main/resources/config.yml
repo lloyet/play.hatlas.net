@@ -139,6 +139,53 @@ donjon:
       min_exp_reward:   500
       max_exp_reward: 10000
 
+      # Boss drop tables per rarity. Each rarity section defines:
+      #   min_items / max_items: how many item stacks the boss drops
+      #   items: list of { material, amount, chance } — chance is a relative weight
+      boss_drops:
+        common:
+          min_items: 1
+          max_items: 2
+          items:
+            - { material: IRON_INGOT,   amount: 4,  chance: 0.50 }
+            - { material: GOLD_INGOT,   amount: 2,  chance: 0.30 }
+            - { material: DIAMOND,      amount: 1,  chance: 0.20 }
+        rare:
+          min_items: 1
+          max_items: 3
+          items:
+            - { material: GOLD_INGOT,   amount: 4,  chance: 0.40 }
+            - { material: DIAMOND,      amount: 2,  chance: 0.35 }
+            - { material: EMERALD,      amount: 1,  chance: 0.25 }
+        epic:
+          min_items: 2
+          max_items: 4
+          items:
+            - { material: DIAMOND,      amount: 3,  chance: 0.40 }
+            - { material: EMERALD,      amount: 2,  chance: 0.35 }
+            - { material: NETHERITE_SCRAP, amount: 1, chance: 0.25 }
+        legendary:
+          min_items: 2
+          max_items: 5
+          items:
+            - { material: EMERALD,      amount: 4,  chance: 0.35 }
+            - { material: NETHERITE_SCRAP, amount: 2, chance: 0.40 }
+            - { material: NETHERITE_INGOT, amount: 1, chance: 0.25 }
+        mystic:
+          min_items: 3
+          max_items: 5
+          items:
+            - { material: NETHERITE_SCRAP, amount: 3, chance: 0.40 }
+            - { material: NETHERITE_INGOT, amount: 2, chance: 0.40 }
+            - { material: NETHER_STAR,   amount: 1,  chance: 0.20 }
+        goddess:
+          min_items: 4
+          max_items: 6
+          items:
+            - { material: NETHERITE_INGOT, amount: 3, chance: 0.40 }
+            - { material: NETHER_STAR,   amount: 2,  chance: 0.35 }
+            - { material: DRAGON_EGG,    amount: 1,  chance: 0.25 }
+
 # Faction level checkpoint configuration.
 # When a faction reaches a checkpoint level, an Owner or Leader can run
 # /faction checkpoint apply <crystalName> to permanently increase that crystal's max HP.

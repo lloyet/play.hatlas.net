@@ -96,12 +96,14 @@ public class AtlasCrystalManager {
     /** Registers a newly spawned atlas crystal with base HP and max HP of 50. */
     public static AtlasCrystal register(EnderCrystal entity, String factionName) {
         double base = AtlasCrystal.BASE_MAX_HP;
+
         AtlasCrystal crystal = new AtlasCrystal(entity, factionName, base, base);
         crystal.updateNametag();
         entity.getPersistentDataContainer().set(getKeyFaction(), PersistentDataType.STRING, factionName);
         entity.getPersistentDataContainer().set(getKeyHp(), PersistentDataType.DOUBLE, base);
         entity.getPersistentDataContainer().set(getKeyMaxHp(), PersistentDataType.DOUBLE, base);
         crystals.put(entity.getUniqueId(), crystal);
+
         return crystal;
     }
 
@@ -119,7 +121,9 @@ public class AtlasCrystalManager {
     /** Persists a crystal's home location to PDC. Call after setting crystal.setHome(). */
     public static void saveHome(AtlasCrystal crystal) {
         Location home = crystal.getHome();
+
         if (home == null || home.getWorld() == null) return;
+
         String encoded = home.getWorld().getName() + ","
                 + home.getX() + "," + home.getY() + "," + home.getZ() + ","
                 + home.getYaw() + "," + home.getPitch();
@@ -212,26 +216,33 @@ public class AtlasCrystalManager {
 
     public static boolean hasCrystalWithName(String factionName, String crystalName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
+
         return map != null && map.containsKey(crystalName);
     }
 
     public static AtlasCrystal getCrystalByName(String factionName, String crystalName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
+
         if (map == null) return null;
+
         return map.get(crystalName);
     }
 
     /** Returns all named crystals for a faction in insertion order. */
     public static Collection<AtlasCrystal> getFactionCrystals(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
+
         if (map == null) return Collections.emptyList();
+
         return map.values();
     }
 
     /** Returns the home of the first (oldest) named crystal placed by this faction, or null if none. */
     public static Location getFirstHome(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
+
         if (map == null || map.isEmpty()) return null;
+
         return map.values().iterator().next().getHome();
     }
 
@@ -272,12 +283,14 @@ public class AtlasCrystalManager {
         }
         // Re-key the factionCrystals map
         Map<String, AtlasCrystal> map = factionCrystals.remove(oldName);
+
         if (map != null) factionCrystals.put(newName, map);
     }
 
     /** Renames a crystal within a faction. Returns false if old name not found or new name taken. */
     public static boolean renameCrystal(String factionName, String oldName, String newName) {
         Map<String, AtlasCrystal> map = factionCrystals.get(factionName);
+
         if (map == null || !map.containsKey(oldName)) return false;
         if (map.containsKey(newName)) return false;
 
@@ -287,13 +300,17 @@ public class AtlasCrystalManager {
         crystal.getEntity().getPersistentDataContainer()
                 .set(getKeyName(), PersistentDataType.STRING, newName);
         crystal.updateNametag();
+
         return true;
     }
 
     public static void remove(UUID entityUUID) {
         AtlasCrystal crystal = crystals.remove(entityUUID);
+
         if (crystal == null) return;
+
         String name = crystal.getName();
+
         if (name != null && !name.isEmpty()) {
             Map<String, AtlasCrystal> map = factionCrystals.get(crystal.getFactionName());
             if (map != null) map.remove(name);
@@ -303,9 +320,12 @@ public class AtlasCrystalManager {
     /** Removes and despawns all crystals belonging to a faction. Called when a faction is disbanded. */
     public static void removeAllForFaction(String factionName) {
         Map<String, AtlasCrystal> map = factionCrystals.remove(factionName);
+
         if (map == null) return;
+
         for (AtlasCrystal crystal : map.values()) {
             crystals.remove(crystal.getEntity().getUniqueId());
+
             if (!crystal.getEntity().isDead()) {
                 crystal.getEntity().remove();
             }
@@ -324,15 +344,19 @@ public class AtlasCrystalManager {
                 Iterator<Map.Entry<UUID, AtlasCrystal>> iter = crystals.entrySet().iterator();
                 while (iter.hasNext()) {
                     AtlasCrystal crystal = iter.next().getValue();
+
                     if (crystal.getEntity().isDead()) {
                         String name = crystal.getName();
+
                         if (name != null && !name.isEmpty()) {
                             Map<String, AtlasCrystal> map = factionCrystals.get(crystal.getFactionName());
                             if (map != null) map.remove(name);
                         }
                         iter.remove();
+
                         continue;
                     }
+
                     if (crystal.canRegen() && crystal.getHp() < crystal.getMaxHp()) {
                         crystal.regen(Atlas.crystalRegenPerSecond);
                         crystal.getEntity().getPersistentDataContainer()

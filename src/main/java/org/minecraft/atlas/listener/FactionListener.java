@@ -22,10 +22,12 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.util.TitleUtil;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
@@ -290,6 +292,52 @@ public class FactionListener implements Listener {
                         "⚠ Lv.0! Next defeat disbands the faction!",
                         NamedTextColor.DARK_RED);
             }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Player move — enter/leave own faction territory
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Location from = event.getFrom();
+        Location to   = event.getTo();
+
+        int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
+        int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
+        if (fromCX == toCX && fromCZ == toCZ) return; // same chunk, skip
+
+        Player player = event.getPlayer();
+        String worldName = player.getWorld().getName();
+
+        String fromFaction = FactionClaimManager.getClaimingFaction(worldName, fromCX, fromCZ);
+        String toFaction   = FactionClaimManager.getClaimingFaction(worldName, toCX,   toCZ);
+        boolean fromDonjon = DonjonManager.isChunkInDonjon(worldName, fromCX, fromCZ);
+        boolean toDonjon   = DonjonManager.isChunkInDonjon(worldName, toCX,   toCZ);
+
+        String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+
+        // Entering a faction chunk
+        if (toFaction != null) {
+            boolean wasAlreadyInSame = toFaction.equals(fromFaction);
+            if (!wasAlreadyInSame) {
+                Faction faction = FactionManager.getFaction(toFaction);
+                NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
+                if (toFaction.equals(playerFaction)) {
+                    TitleUtil.alert(player, "You enter " + toFaction, color);
+                } else {
+                    TitleUtil.alert(player, "Enter faction " + toFaction, color);
+                    player.playSound(player.getLocation(),
+                            Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
+                }
+            }
+            return;
+        }
+
+        // Entering wilderness (unclaimed, non-donjon) from any claimed area
+        if (!toDonjon && (fromFaction != null || fromDonjon)) {
+            TitleUtil.notify(player, "Enter Wilderness", NamedTextColor.GREEN);
         }
     }
 

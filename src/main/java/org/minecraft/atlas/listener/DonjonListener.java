@@ -1,10 +1,12 @@
 package org.minecraft.atlas.listener;
 
-import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.World;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -16,17 +18,31 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.world.ChunkPopulateEvent;
+import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
+import org.bukkit.generator.structure.GeneratedStructure;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.util.BoundingBox;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
+import org.minecraft.atlas.donjon.DonjonType;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.TitleUtil;
 
 public class DonjonListener implements Listener {
+
+    /** 5 trial-spawner ambient-ominous sounds played at random when entering a donjon. */
+    private static final Sound[] ENTER_DONJON_SOUNDS = {
+            Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS,
+            Sound.BLOCK_TRIAL_SPAWNER_AMBIENT,
+            Sound.BLOCK_TRIAL_SPAWNER_DETECT_PLAYER,
+            Sound.BLOCK_TRIAL_SPAWNER_OMINOUS_ACTIVATE,
+            Sound.BLOCK_TRIAL_SPAWNER_EJECT_ITEM
+    };
 
     // -------------------------------------------------------------------------
     // Block protection
@@ -42,8 +58,7 @@ public class DonjonListener implements Listener {
         if (donjon == null) return;
 
         event.setCancelled(true);
-        event.getPlayer().sendMessage(
-                Component.text("You cannot destroy blocks inside a donjon!", NamedTextColor.RED));
+        TitleUtil.subtitle(event.getPlayer(), "You cannot break blocks in a donjon!", NamedTextColor.RED);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -56,8 +71,7 @@ public class DonjonListener implements Listener {
         if (donjon == null) return;
 
         event.setCancelled(true);
-        event.getPlayer().sendMessage(
-                Component.text("You cannot place blocks inside a donjon!", NamedTextColor.RED));
+        TitleUtil.subtitle(event.getPlayer(), "You cannot place blocks in a donjon!", NamedTextColor.RED);
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -99,18 +113,18 @@ public class DonjonListener implements Listener {
         Player player = event.getPlayer();
 
         if (donjon.getStatus() != DonjonStatus.ACTIVE) {
-            player.sendMessage(Component.text("This donjon is not active yet.", NamedTextColor.RED));
+            TitleUtil.notify(player, "This donjon is not active yet.", NamedTextColor.RED);
             return;
         }
 
         if (donjon.isInProgress()) {
-            player.sendMessage(Component.text("This donjon run is already in progress!", NamedTextColor.YELLOW));
+            TitleUtil.notify(player, "Donjon run already in progress!", NamedTextColor.YELLOW);
             return;
         }
 
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
         if (factionName == null) {
-            player.sendMessage(Component.text("You must be in a faction to start a donjon!", NamedTextColor.RED));
+            TitleUtil.notify(player, "Join a faction to start a donjon!", NamedTextColor.RED);
             return;
         }
 
@@ -123,7 +137,7 @@ public class DonjonListener implements Listener {
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
-        if (!(event.getEntity() instanceof LivingEntity living)) return;
+        LivingEntity living = event.getEntity();
         if (!DonjonManager.isDonjonEntity(living)) return;
 
         // Clear vanilla drops for donjon mobs
@@ -165,14 +179,13 @@ public class DonjonListener implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to   = event.getTo();
-        if (to == null) return;
 
         int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
         int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
         if (fromCX == toCX && fromCZ == toCZ) return; // same chunk
 
         long fromKey = Chunk.getChunkKey(fromCX, fromCZ);
-        long toKey   = Chunk.getChunkKey(toCX,   toCZ);
+        long toKey = Chunk.getChunkKey(toCX,   toCZ);
 
         Player player = event.getPlayer();
 
@@ -185,14 +198,13 @@ public class DonjonListener implements Listener {
 
             if (!wasIn && isIn) {
                 TitleUtil.alert(player,
-                        "Entering: " + donjon.getName(),
+                        donjon.getName() + " Lv." + donjon.getLevel()
+                                + " [" + donjon.getRarity().getDisplayName() + "]",
                         donjon.getRarity().getColor());
-                player.sendMessage(Component.text("You entered ", NamedTextColor.YELLOW)
-                        .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
-                        .append(Component.text(
-                                " — Lv." + donjon.getLevel() + " [" + donjon.getRarity().getDisplayName() + "]",
-                                NamedTextColor.YELLOW)));
+                Sound enterSound = ENTER_DONJON_SOUNDS[ThreadLocalRandom.current().nextInt(ENTER_DONJON_SOUNDS.length)];
+                player.playSound(player.getLocation(), enterSound, SoundCategory.BLOCKS, 0.6f, 1.0f);
             }
+
         }
     }
 
@@ -207,6 +219,23 @@ public class DonjonListener implements Listener {
             if (!(entity instanceof TextDisplay td)) continue;
             if (!td.getPersistentDataContainer().has(DonjonManager.keyTotemDisplay)) continue;
             DonjonManager.restoreNametag(td);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Chunk populate — auto-create donjon from vanilla structure (fires once on first gen)
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChunkPopulate(ChunkPopulateEvent event) {
+        Chunk chunk = event.getChunk();
+        World world = chunk.getWorld();
+
+        for (DonjonType type : DonjonType.values()) {
+            for (GeneratedStructure gs : chunk.getStructures(type.getStructure())) {
+                BoundingBox bb = gs.getBoundingBox();
+                DonjonManager.createDonjonFromStructure(type, bb, world);
+            }
         }
     }
 }

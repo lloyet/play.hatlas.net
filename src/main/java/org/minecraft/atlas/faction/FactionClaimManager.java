@@ -2,6 +2,7 @@ package org.minecraft.atlas.faction;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.minecraft.atlas.donjon.DonjonManager;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -158,6 +159,8 @@ public class FactionClaimManager {
         for (int x = cx - r; x <= cx + r; x++) {
             for (int z = cz - r; z <= cz + r; z++) {
                 if (Math.max(Math.abs(x - cx), Math.abs(z - cz)) == r) {
+                    // Skip chunks that are part of a donjon's protected area
+                    if (DonjonManager.isChunkInDonjon(world, x, z)) continue;
                     claimedChunks.put(key(world, x, z), factionName);
                 }
             }

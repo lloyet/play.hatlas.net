@@ -35,6 +35,7 @@ import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.donjon.DonjonManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -288,6 +289,13 @@ public class FactionCommand {
                                     if (existingClaim != null) {
                                         player.sendMessage(error("This chunk is already claimed by faction '"
                                                 + existingClaim + "'. Move to an unclaimed area."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    // Reject if the chunk belongs to a donjon
+                                    if (DonjonManager.isChunkInDonjon(
+                                            player.getWorld().getName(), chunk.getX(), chunk.getZ())) {
+                                        player.sendMessage(error("Cannot create a faction inside a donjon area."));
                                         return Command.SINGLE_SUCCESS;
                                     }
 

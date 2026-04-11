@@ -2,7 +2,9 @@ package org.minecraft.atlas.donjon;
 
 import org.bukkit.configuration.ConfigurationSection;
 
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 public class DonjonTypeConfig {
 
@@ -27,6 +29,8 @@ public class DonjonTypeConfig {
     private final int bossCountMax;
     private final long minExpReward;
     private final long maxExpReward;
+    /** Per-rarity boss drop tables. A rarity with no entry uses an empty loot table. */
+    private final Map<DonjonRarity, BossDropConfig> bossDrops;
 
     public DonjonTypeConfig(String displayName, List<String> nameAdjectives, List<String> nameNouns,
                             int protectionRadiusChunks, List<String> mobTypes, List<String> bossTypes,
@@ -35,7 +39,8 @@ public class DonjonTypeConfig {
                             double baseAttackMultiplier, double maxAttackMultiplier,
                             double bossHpMultiplier, double bossAttackMultiplier, double bossSpeedMultiplier,
                             int bossCountMin, int bossCountMax,
-                            long minExpReward, long maxExpReward) {
+                            long minExpReward, long maxExpReward,
+                            Map<DonjonRarity, BossDropConfig> bossDrops) {
         this.displayName = displayName;
         this.nameAdjectives = nameAdjectives;
         this.nameNouns = nameNouns;
@@ -57,6 +62,7 @@ public class DonjonTypeConfig {
         this.bossCountMax = bossCountMax;
         this.minExpReward = minExpReward;
         this.maxExpReward = maxExpReward;
+        this.bossDrops = bossDrops;
     }
 
     public String getDisplayName() { return displayName; }
@@ -80,6 +86,7 @@ public class DonjonTypeConfig {
     public int getBossCountMax() { return bossCountMax; }
     public long getMinExpReward() { return minExpReward; }
     public long getMaxExpReward() { return maxExpReward; }
+    public Map<DonjonRarity, BossDropConfig> getBossDrops() { return bossDrops; }
 
     public static DonjonTypeConfig load(ConfigurationSection s) {
         String displayName = s.getString("display_name", "Unknown");
@@ -104,9 +111,21 @@ public class DonjonTypeConfig {
         long minExp = s.getLong("min_exp_reward", 500L);
         long maxExp = s.getLong("max_exp_reward", 10000L);
 
+        // Boss drop tables — one section per rarity name (lowercase)
+        Map<DonjonRarity, BossDropConfig> bossDrops = new EnumMap<>(DonjonRarity.class);
+        ConfigurationSection dropsSec = s.getConfigurationSection("boss_drops");
+        if (dropsSec != null) {
+            for (DonjonRarity rarity : DonjonRarity.values()) {
+                ConfigurationSection raritySec = dropsSec.getConfigurationSection(rarity.name().toLowerCase());
+                if (raritySec != null) {
+                    bossDrops.put(rarity, BossDropConfig.load(raritySec));
+                }
+            }
+        }
+
         return new DonjonTypeConfig(displayName, adjectives, nouns, radius,
                 mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
                 baseHp, maxHp, baseAtk, maxAtk, bossHp, bossAtk, bossSpd,
-                bossMin, bossMax, minExp, maxExp);
+                bossMin, bossMax, minExp, maxExp, bossDrops);
     }
 }

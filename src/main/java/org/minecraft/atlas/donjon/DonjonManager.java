@@ -5,15 +5,19 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.block.data.type.RespawnAnchor;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.*;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.Sound;
+import org.bukkit.SoundCategory;
+import org.bukkit.util.BoundingBox;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
@@ -249,9 +253,12 @@ public class DonjonManager {
 
             if (!d.isTimeoutWarned() && elapsed >= warnThreshold) {
                 d.setTimeoutWarned(true);
-                broadcastAll(Component.text("⚠ Donjon ", NamedTextColor.YELLOW)
-                        .append(Component.text(d.getName(), d.getRarity().getColor()))
-                        .append(Component.text(" will become idle in 1 hour!", NamedTextColor.YELLOW)));
+                broadcastGlobal(
+                        Component.text("⚠ Donjon ", NamedTextColor.YELLOW)
+                                .append(Component.text(d.getName(), d.getRarity().getColor()))
+                                .append(Component.text(" will become idle in 1 hour!", NamedTextColor.YELLOW)),
+                        "⚠ " + d.getName() + " idle soon!",
+                        NamedTextColor.YELLOW);
             }
 
             if (elapsed >= idleTimeoutMs) {
@@ -287,6 +294,20 @@ public class DonjonManager {
         if (cfg == null) {
             Atlas.instance.getLogger().warning("No config for donjon type: " + type);
             return null;
+        }
+
+        // Reject if any proposed protected chunk already belongs to another donjon
+        int cx = center.getBlockX() >> 4, cz = center.getBlockZ() >> 4;
+        int radius = cfg.getProtectionRadiusChunks();
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dz = -radius; dz <= radius; dz++) {
+                long key = Chunk.getChunkKey(cx + dx, cz + dz);
+                if (getDonjonAtChunk(center.getWorld(), key) != null) {
+                    Atlas.instance.getLogger().warning(
+                            "Cannot create donjon: proposed chunks overlap with an existing donjon.");
+                    return null;
+                }
+            }
         }
 
         String id = UUID.randomUUID().toString().substring(0, 8);
@@ -337,10 +358,13 @@ public class DonjonManager {
         donjon.setTimeoutWarned(false);
         spawnOrUpdateNametag(donjon);
 
-        broadcastAll(Component.text("⚡ The donjon ", NamedTextColor.GOLD)
-                .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
-                .append(Component.text(" [Lv." + donjon.getLevel() + " — " + donjon.getRarity().getDisplayName() + "]", NamedTextColor.YELLOW))
-                .append(Component.text(" is now ACTIVE!", NamedTextColor.GOLD)));
+        broadcastGlobal(
+                Component.text("⚡ The donjon ", NamedTextColor.GOLD)
+                        .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
+                        .append(Component.text(" [Lv." + donjon.getLevel() + " — " + donjon.getRarity().getDisplayName() + "]", NamedTextColor.YELLOW))
+                        .append(Component.text(" is now ACTIVE!", NamedTextColor.GOLD)),
+                "⚡ " + donjon.getName() + " ACTIVE!",
+                NamedTextColor.GOLD);
     }
 
     // -------------------------------------------------------------------------
@@ -360,12 +384,16 @@ public class DonjonManager {
         Faction faction = FactionManager.getFaction(factionName);
         NamedTextColor factionColor = faction != null ? faction.getColor() : NamedTextColor.WHITE;
 
-        broadcastAll(Component.text("⚔ Faction ", NamedTextColor.GOLD)
-                .append(Component.text("[" + factionName + "]", factionColor))
-                .append(Component.text(" has started the donjon ", NamedTextColor.GOLD))
-                .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
-                .append(Component.text("!", NamedTextColor.GOLD)));
+        broadcastGlobal(
+                Component.text("⚔ Faction ", NamedTextColor.GOLD)
+                        .append(Component.text("[" + factionName + "]", factionColor))
+                        .append(Component.text(" has started the donjon ", NamedTextColor.GOLD))
+                        .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
+                        .append(Component.text("!", NamedTextColor.GOLD)),
+                "⚔ " + donjon.getName() + " started!",
+                NamedTextColor.GOLD);
 
+        soundToDonjonPlayers(donjon, Sound.BLOCK_TRIAL_SPAWNER_OPEN_SHUTTER, 1.0f, 1.0f);
         startWave(donjon, 0);
         return true;
     }
@@ -453,10 +481,13 @@ public class DonjonManager {
         }
         wave.setStarted(true);
 
-        broadcastToDonjonPlayers(donjon,
-                wave.isBossWave()
-                        ? Component.text("☠ BOSS WAVE — Wave " + wave.getWaveNumber() + "!", NamedTextColor.DARK_RED)
-                        : Component.text("⚡ Wave " + wave.getWaveNumber() + " begins!", NamedTextColor.YELLOW));
+        if (wave.isBossWave()) {
+            alertDonjonPlayers(donjon, "☠ BOSS WAVE — Wave " + wave.getWaveNumber() + "!", NamedTextColor.DARK_RED);
+            soundToDonjonPlayers(donjon, Sound.ENTITY_WITHER_SPAWN, 1.0f, 1.0f);
+        } else {
+            alertDonjonPlayers(donjon, "⚡ Wave " + wave.getWaveNumber() + " begins!", NamedTextColor.YELLOW);
+            randomSoundToDonjonPlayers(donjon, WAVE_SPAWN_SOUNDS, 0.8f, 1.0f);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -476,6 +507,21 @@ public class DonjonManager {
 
         wave.removeSpawnedEntity(uuid);
 
+        // Show kill counter subtitle to players inside the donjon
+        int total     = wave.getMobTypesToSpawn().size();
+        int remaining = wave.getSpawnedEntities().size();
+        int killed    = total - remaining;
+        if (wave.isBossWave()) {
+            alertDonjonPlayersSubtitle(donjon, "☠ " + killed + " / " + total, NamedTextColor.DARK_RED);
+        } else {
+            alertDonjonPlayersSubtitle(donjon, "⚔ " + killed + " / " + total, NamedTextColor.YELLOW);
+        }
+
+        // Drop boss loot when a boss entity dies
+        if (isBossEntity(entity)) {
+            spawnBossDrops(entity.getLocation(), donjon);
+        }
+
         // If baby zombie dies, also kill its vehicle (chicken in a jockey)
         Entity vehicle = entity.getVehicle();
         if (vehicle != null) {
@@ -491,8 +537,8 @@ public class DonjonManager {
             if (next >= donjon.getWaves().size()) {
                 completeDonjon(donjon);
             } else {
-                broadcastToDonjonPlayers(donjon, Component.text(
-                        "✔ Wave " + wave.getWaveNumber() + " cleared! Next wave in 5 s...", NamedTextColor.GREEN));
+                alertDonjonPlayers(donjon,
+                        "✔ Wave " + wave.getWaveNumber() + " cleared! Next wave in 5 s...", NamedTextColor.GREEN);
                 Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
                     if (donjon.isInProgress()) startWave(donjon, next);
                 }, 100L);
@@ -512,6 +558,7 @@ public class DonjonManager {
         if (wave == null || !wave.isBossWave()) return;
 
         donjon.getBossDamageMap().merge(factionName, damage, Double::sum);
+        updateBossNametag(boss, damage);
     }
 
     // -------------------------------------------------------------------------
@@ -549,11 +596,19 @@ public class DonjonManager {
         Faction mainF = mainFaction != null ? FactionManager.getFaction(mainFaction) : null;
         NamedTextColor mainColor = mainF != null ? mainF.getColor() : NamedTextColor.WHITE;
 
-        broadcastAll(Component.text("★ The donjon ", NamedTextColor.GOLD)
-                .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
-                .append(Component.text(" was cleared by faction ", NamedTextColor.GOLD))
-                .append(Component.text("[" + mainDisplay + "]", mainColor))
-                .append(Component.text("! " + totalExp + " exp distributed.", NamedTextColor.GOLD)));
+        broadcastGlobal(
+                Component.text("★ The donjon ", NamedTextColor.GOLD)
+                        .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
+                        .append(Component.text(" was cleared by faction ", NamedTextColor.GOLD))
+                        .append(Component.text("[" + mainDisplay + "]", mainColor))
+                        .append(Component.text("! " + totalExp + " exp distributed.", NamedTextColor.GOLD)),
+                "★ " + donjon.getName() + " cleared!",
+                NamedTextColor.GOLD);
+
+        // Play wither death sound for all online players as a server-wide event
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            p.playSound(p.getLocation(), Sound.ENTITY_WITHER_DEATH, SoundCategory.MASTER, 1.0f, 1.0f);
+        }
 
         setIdle(donjon, null);
     }
@@ -581,9 +636,12 @@ public class DonjonManager {
         spawnOrUpdateNametag(donjon);
 
         if ("timed out".equals(reason)) {
-            broadcastAll(Component.text("⌛ Donjon ", NamedTextColor.GRAY)
-                    .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
-                    .append(Component.text(" has become idle (timed out).", NamedTextColor.GRAY)));
+            broadcastGlobal(
+                    Component.text("⌛ Donjon ", NamedTextColor.GRAY)
+                            .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
+                            .append(Component.text(" has become idle (timed out).", NamedTextColor.GRAY)),
+                    "⌛ " + donjon.getName() + " idle!",
+                    NamedTextColor.GRAY);
         }
     }
 
@@ -675,16 +733,17 @@ public class DonjonManager {
         if (w == null) return;
         int x = loc.getBlockX(), y = loc.getBlockY(), z = loc.getBlockZ();
 
-        // Core: Respawn Anchor at y (the interactive trigger)
-        w.getBlockAt(x, y,     z).setType(Material.RESPAWN_ANCHOR);
-        // Below: Crying Obsidian foundation
-        w.getBlockAt(x, y - 1, z).setType(Material.CRYING_OBSIDIAN);
-        // Crying Obsidian ring at y (N/S/E/W)
-        w.getBlockAt(x + 1, y, z).setType(Material.CRYING_OBSIDIAN);
-        w.getBlockAt(x - 1, y, z).setType(Material.CRYING_OBSIDIAN);
-        w.getBlockAt(x, y, z + 1).setType(Material.CRYING_OBSIDIAN);
-        w.getBlockAt(x, y, z - 1).setType(Material.CRYING_OBSIDIAN);
-        // Top spine
+        // Respawn Anchor — all four sides left open so players can right-click it
+        w.getBlockAt(x, y, z).setType(Material.RESPAWN_ANCHOR);
+        // Decorative ring one level below (does not block access to the anchor)
+        w.getBlockAt(x, y - 1, z    ).setType(Material.CRYING_OBSIDIAN);
+        w.getBlockAt(x + 1, y - 1, z).setType(Material.CRYING_OBSIDIAN);
+        w.getBlockAt(x - 1, y - 1, z).setType(Material.CRYING_OBSIDIAN);
+        w.getBlockAt(x, y - 1, z + 1).setType(Material.CRYING_OBSIDIAN);
+        w.getBlockAt(x, y - 1, z - 1).setType(Material.CRYING_OBSIDIAN);
+        // Pedestal
+        w.getBlockAt(x, y - 2, z).setType(Material.OBSIDIAN);
+        // Spine above
         w.getBlockAt(x, y + 1, z).setType(Material.CRYING_OBSIDIAN);
         w.getBlockAt(x, y + 2, z).setType(Material.OBSIDIAN);
     }
@@ -697,7 +756,6 @@ public class DonjonManager {
      * Spawns one logical "mob entry" (which may produce multiple entities for special
      * types like CHICKEN_JOCKEY).  Returns the UUIDs that should be tracked in the wave.
      */
-    @SuppressWarnings("unchecked")
     private static List<UUID> spawnMobEntity(String mobTypeName, Location loc,
                                               double hpMult, double atkMult,
                                               boolean isBoss, double speedMult,
@@ -714,6 +772,12 @@ public class DonjonManager {
 
         applyMultipliers(entity, hpMult, atkMult, speedMult);
         tagEntity(entity, donjonId, waveIndex, isBoss);
+        if (isBoss) {
+            entity.customName(buildBossNametag(entity, mobTypeName));
+        } else {
+            entity.customName(Component.text(prettyMobName(mobTypeName), NamedTextColor.YELLOW));
+        }
+        entity.setCustomNameVisible(true);
         return List.of(entity.getUniqueId());
     }
 
@@ -722,7 +786,7 @@ public class DonjonManager {
         if (w == null) return null;
         return switch (name.toUpperCase()) {
             case "ZOMBIE"      -> w.spawn(loc, Zombie.class);
-            case "BABY_ZOMBIE" -> w.spawn(loc, Zombie.class, z -> z.setBaby(true));
+            case "BABY_ZOMBIE" -> w.spawn(loc, Zombie.class, z -> z.setBaby());
             case "HUSK"        -> w.spawn(loc, Husk.class);
             case "SKELETON"    -> w.spawn(loc, Skeleton.class);
             case "STRAY"       -> w.spawn(loc, Stray.class);
@@ -743,11 +807,14 @@ public class DonjonManager {
         if (w == null) return List.of();
 
         Chicken chicken = w.spawn(loc, Chicken.class);
-        Zombie baby = w.spawn(loc, Zombie.class, z -> z.setBaby(true));
+        Zombie baby = w.spawn(loc, Zombie.class, z -> z.setBaby());
         chicken.addPassenger(baby);
 
         applyMultipliers(baby, hpMult, atkMult, speedMult);
         tagEntity(baby, donjonId, waveIndex, isBoss);
+        baby.customName(Component.text(prettyMobName("CHICKEN_JOCKEY"),
+                isBoss ? NamedTextColor.DARK_RED : NamedTextColor.YELLOW));
+        baby.setCustomNameVisible(true);
         // Tag chicken for reference but don't include in wave count; track as auxiliary
         entityToDonjonId.put(chicken.getUniqueId(), donjonId);
 
@@ -761,7 +828,7 @@ public class DonjonManager {
         AttributeInstance maxHp = e.getAttribute(Attribute.MAX_HEALTH);
         if (maxHp != null) {
             maxHp.setBaseValue(maxHp.getBaseValue() * hpMult);
-            e.setHealth(e.getMaxHealth());
+            e.setHealth(maxHp.getValue());
         }
         AttributeInstance atk = e.getAttribute(Attribute.ATTACK_DAMAGE);
         if (atk != null) {
@@ -781,6 +848,91 @@ public class DonjonManager {
         if (isBoss) {
             e.getPersistentDataContainer().set(keyIsBoss, PersistentDataType.BYTE, (byte) 1);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Boss drops
+    // -------------------------------------------------------------------------
+
+    private static void spawnBossDrops(Location loc, Donjon donjon) {
+        DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
+        if (cfg == null) return;
+
+        BossDropConfig dropCfg = cfg.getBossDrops().get(donjon.getRarity());
+        if (dropCfg == null) return;
+
+        World world = loc.getWorld();
+        if (world == null) return;
+
+        for (ItemStack item : dropCfg.rollDrops()) {
+            world.dropItemNaturally(loc, item);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Structure-based creation
+    // -------------------------------------------------------------------------
+
+    /**
+     * Creates a donjon from a vanilla structure's bounding box.
+     * Uses arithmetic right-shift (safe for negative coords) to convert block → chunk coords.
+     * Returns {@code null} if another donjon already exists nearby or config is missing.
+     */
+    public static Donjon createDonjonFromStructure(DonjonType type, BoundingBox bb, World world) {
+        DonjonTypeConfig cfg = typeConfigMap.get(type);
+        if (cfg == null) return null;
+
+        int centerX = (int) ((bb.getMinX() + bb.getMaxX()) / 2);
+        int centerZ = (int) ((bb.getMinZ() + bb.getMaxZ()) / 2);
+        int centerY = world.getHighestBlockYAt(centerX, centerZ);
+        Location center = new Location(world, centerX, centerY, centerZ);
+
+        if (donjonExistsNear(center, 64)) return null;
+
+        String id = UUID.randomUUID().toString().substring(0, 8);
+        int level = randomLevel();
+        DonjonRarity rarity = randomRarity();
+        String name = generateName(type, cfg);
+
+        Donjon donjon = new Donjon(id, name, type, center, level, rarity);
+        donjon.setStatus(DonjonStatus.IDLE);
+
+        // Register all chunks covered by the bounding box
+        int minCX = (int) bb.getMinX() >> 4;
+        int maxCX = (int) bb.getMaxX() >> 4;
+        int minCZ = (int) bb.getMinZ() >> 4;
+        int maxCZ = (int) bb.getMaxZ() >> 4;
+        for (int cx = minCX; cx <= maxCX; cx++) {
+            for (int cz = minCZ; cz <= maxCZ; cz++) {
+                donjon.getProtectedChunkKeys().add(Chunk.getChunkKey(cx, cz));
+            }
+        }
+
+        Location totemLoc = center.clone();
+        donjon.setTotemLocation(totemLoc);
+        placeTotem(donjon, totemLoc);
+        spawnOrUpdateNametag(donjon);
+
+        donjons.put(id, donjon);
+        totemLocationToId.put(locationKey(totemLoc), id);
+
+        // Save asynchronously to avoid blocking chunk generation
+        Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
+            saveDonjonConfig(Atlas.instance.getConfig());
+            Atlas.instance.saveConfig();
+        }, 20L);
+
+        return donjon;
+    }
+
+    /** Returns {@code true} if any existing donjon's center is within {@code radiusBlocks} of {@code loc}. */
+    public static boolean donjonExistsNear(Location loc, double radiusBlocks) {
+        double sq = radiusBlocks * radiusBlocks;
+        for (Donjon d : donjons.values()) {
+            if (!d.getCenter().getWorld().equals(loc.getWorld())) continue;
+            if (d.getCenter().distanceSquared(loc) <= sq) return true;
+        }
+        return false;
     }
 
     // -------------------------------------------------------------------------
@@ -817,6 +969,18 @@ public class DonjonManager {
         return donjon.getProtectedChunkKeys().contains(key);
     }
 
+    /** Returns true if the given chunk is within any donjon's protected area. */
+    public static boolean isChunkInDonjon(String worldName, int chunkX, int chunkZ) {
+        long key = Chunk.getChunkKey(chunkX, chunkZ);
+        for (Donjon d : donjons.values()) {
+            if (d.getCenter().getWorld().getName().equals(worldName)
+                    && d.getProtectedChunkKeys().contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Donjon getDonjonAtChunk(World world, long chunkKey) {
         for (Donjon d : donjons.values()) {
             if (d.getCenter().getWorld().equals(world) && d.getProtectedChunkKeys().contains(chunkKey)) {
@@ -833,7 +997,7 @@ public class DonjonManager {
     private static void activateRandomDonjon() {
         List<Donjon> idle = donjons.values().stream()
                 .filter(d -> d.getStatus() == DonjonStatus.IDLE)
-                .collect(Collectors.toList());
+                .toList();
         if (idle.isEmpty()) return;
         activateDonjon(idle.get(ThreadLocalRandom.current().nextInt(idle.size())));
     }
@@ -902,17 +1066,90 @@ public class DonjonManager {
         }
     }
 
-    private static void broadcastAll(Component msg) {
-        for (Player p : Bukkit.getOnlinePlayers()) p.sendMessage(msg);
+    private static void broadcastGlobal(Component chatMsg, String shortTitle, NamedTextColor color) {
+        List<Player> players = new ArrayList<>(Bukkit.getOnlinePlayers());
+        for (Player p : players) p.sendMessage(chatMsg);
+        TitleUtil.broadcastAlertBold(players, shortTitle, color);
     }
 
-    private static void broadcastToDonjonPlayers(Donjon donjon, Component msg) {
+    private static void alertDonjonPlayers(Donjon donjon, String text, NamedTextColor color) {
         World world = donjon.getCenter().getWorld();
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            if (p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon)) {
-                p.sendMessage(msg);
-            }
+        List<Player> players = Bukkit.getOnlinePlayers().stream()
+                .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
+                .collect(Collectors.toList());
+        TitleUtil.broadcastAlertBold(players, text, color);
+    }
+
+    // -------------------------------------------------------------------------
+    // Sound helpers
+    // -------------------------------------------------------------------------
+
+    /** 4 trial-spawner spawn sounds played at random when a wave begins. */
+    private static final List<Sound> WAVE_SPAWN_SOUNDS = List.of(
+            Sound.BLOCK_TRIAL_SPAWNER_SPAWN_MOB,
+            Sound.BLOCK_TRIAL_SPAWNER_DETECT_PLAYER,
+            Sound.BLOCK_TRIAL_SPAWNER_CLOSE_SHUTTER,
+            Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS
+    );
+
+    private static void soundToDonjonPlayers(Donjon donjon, Sound sound, float volume, float pitch) {
+        World world = donjon.getCenter().getWorld();
+        Location loc = donjon.getCenter();
+        Bukkit.getOnlinePlayers().stream()
+                .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
+                .forEach(p -> p.playSound(loc, sound, SoundCategory.MASTER, volume, pitch));
+    }
+
+    private static void randomSoundToDonjonPlayers(Donjon donjon, List<Sound> sounds, float volume, float pitch) {
+        if (sounds.isEmpty()) return;
+        soundToDonjonPlayers(donjon,
+                sounds.get(ThreadLocalRandom.current().nextInt(sounds.size())), volume, pitch);
+    }
+
+    // -------------------------------------------------------------------------
+    // Boss nametag helpers
+    // -------------------------------------------------------------------------
+
+    private static Component buildBossNametag(LivingEntity boss, String mobTypeName) {
+        AttributeInstance maxHpAttr = boss.getAttribute(Attribute.MAX_HEALTH);
+        int maxHp = maxHpAttr != null ? (int) maxHpAttr.getValue() : 0;
+        int hp    = (int) Math.ceil(boss.getHealth());
+        return Component.text(prettyMobName(mobTypeName) + " ", NamedTextColor.DARK_RED)
+                .append(Component.text("❤ " + hp + "/" + maxHp, NamedTextColor.RED));
+    }
+
+    /** Updates the boss nametag to reflect HP remaining after {@code damage} is subtracted. */
+    public static void updateBossNametag(LivingEntity boss, double damage) {
+        AttributeInstance maxHpAttr = boss.getAttribute(Attribute.MAX_HEALTH);
+        int maxHp = maxHpAttr != null ? (int) maxHpAttr.getValue() : 0;
+        int hp    = (int) Math.max(0, Math.ceil(boss.getHealth() - damage));
+        String mobName = prettyMobName(boss.getType().name());
+        boss.customName(Component.text(mobName + " ", NamedTextColor.DARK_RED)
+                .append(Component.text("❤ " + hp + "/" + maxHp, NamedTextColor.RED)));
+    }
+
+    // -------------------------------------------------------------------------
+    // Donjon-player subtitle helper
+    // -------------------------------------------------------------------------
+
+    private static void alertDonjonPlayersSubtitle(Donjon donjon, String text, NamedTextColor color) {
+        World world = donjon.getCenter().getWorld();
+        List<Player> players = Bukkit.getOnlinePlayers().stream()
+                .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
+                .collect(Collectors.toList());
+        TitleUtil.broadcastSubtitle(players, text, color);
+    }
+
+    /** Converts a config mob name like "CAVE_SPIDER" to "Cave Spider". */
+    private static String prettyMobName(String name) {
+        String[] parts = name.split("_");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (!sb.isEmpty()) sb.append(' ');
+            sb.append(Character.toUpperCase(part.charAt(0)));
+            sb.append(part.substring(1).toLowerCase());
         }
+        return sb.toString();
     }
 
     private static String locationKey(Location loc) {
