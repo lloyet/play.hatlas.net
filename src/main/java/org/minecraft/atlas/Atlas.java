@@ -6,12 +6,15 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.jspecify.annotations.NonNull;
 import org.minecraft.atlas.command.CrystalCommand;
+import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
+import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
 import org.minecraft.atlas.command.HelpCommand;
 import org.minecraft.atlas.command.JobCommand;
@@ -44,6 +47,8 @@ public final class Atlas extends JavaPlugin {
         FactionManager.loadFactions(getConfig());
         FactionClaimManager.loadClaims(getConfig());
         JobManager.loadJobs(getConfig());
+        DonjonManager.loadConfig(getConfig());
+        DonjonManager.loadDonjons(getConfig());
 
         // Register all listeners
         getServer().getPluginManager().registerEvents(new FactionListener(), this);
@@ -51,9 +56,11 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GolemListener(), this);
         getServer().getPluginManager().registerEvents(new JobListener(), this);
         getServer().getPluginManager().registerEvents(new JobGui(), this);
+        getServer().getPluginManager().registerEvents(new DonjonListener(), this);
         // Scheduler with ticks
         GolemListener.schedule(this);
         AtlasCrystalManager.schedule(this);
+        DonjonManager.schedule(this);
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
                 new LifecycleEventHandler<ReloadableRegistrarEvent<Commands>>() {
@@ -64,6 +71,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(JobCommand.build());
                         event.registrar().register(HelpCommand.build());
                         event.registrar().register(CrystalCommand.build());
+                        event.registrar().register(DonjonCommand.build());
                     }
                 }
         );
@@ -77,6 +85,7 @@ public final class Atlas extends JavaPlugin {
         FactionManager.saveFactions(getConfig());
         FactionClaimManager.saveClaims(getConfig());
         JobManager.saveJobs(getConfig());
+        DonjonManager.saveDonjonConfig(getConfig());
         saveConfig();
 
         getLogger().info("Atlas disabled.");    }

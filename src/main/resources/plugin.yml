@@ -84,3 +84,6 @@ permissions:
   atlas.crystal.rename:
     description: Rename a faction crystal
     default: true
+  atlas.donjon.admin:
+    description: Create, delete, activate, and reset donjons via /donjon
+    default: op
