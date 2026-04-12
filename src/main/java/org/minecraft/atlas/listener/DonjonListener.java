@@ -17,13 +17,15 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.world.ChunkLoadEvent;
 
 import java.util.concurrent.ThreadLocalRandom;
+
+import org.bukkit.event.world.ChunkPopulateEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
@@ -31,15 +33,6 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.TitleUtil;
 
 public class DonjonListener implements Listener {
-
-    /** 5 trial-spawner ambient-ominous sounds played at random when entering a donjon. */
-    private static final Sound[] ENTER_DONJON_SOUNDS = {
-            Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS,
-            Sound.BLOCK_TRIAL_SPAWNER_AMBIENT,
-            Sound.BLOCK_TRIAL_SPAWNER_DETECT_PLAYER,
-            Sound.BLOCK_TRIAL_SPAWNER_OMINOUS_ACTIVATE,
-            Sound.BLOCK_TRIAL_SPAWNER_EJECT_ITEM
-    };
 
     // -------------------------------------------------------------------------
     // Block protection
@@ -96,7 +89,7 @@ public class DonjonListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getClickedBlock() == null) return;
-        if (event.getClickedBlock().getType() != Material.RESPAWN_ANCHOR) return;
+        if (event.getClickedBlock().getType() != Material.VAULT) return;
 
         // Check whether the right-clicked anchor sits inside any donjon's protected chunks
         org.bukkit.block.Block clicked = event.getClickedBlock();
@@ -109,8 +102,9 @@ public class DonjonListener implements Listener {
 
         Player player = event.getPlayer();
 
-        if (donjon.getStatus() != DonjonStatus.ACTIVE) {
-            TitleUtil.notify(player, "This donjon is not active yet.", NamedTextColor.RED);
+        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+        if (factionName == null) {
+            TitleUtil.notify(player, "Join a faction to start a donjon!", NamedTextColor.RED);
             return;
         }
 
@@ -119,12 +113,23 @@ public class DonjonListener implements Listener {
             return;
         }
 
-        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
-        if (factionName == null) {
-            TitleUtil.notify(player, "Join a faction to start a donjon!", NamedTextColor.RED);
-            return;
+        Material playerItemType = player.getInventory().getItemInMainHand().getType();
+
+        if (donjon.getStatus() != DonjonStatus.ACTIVE) {
+            if (!playerItemType.equals(Material.OMINOUS_TRIAL_KEY)) {
+                TitleUtil.notify(player, "This donjon is not active yet. Wait or use OminousTrialKey to activate this donjon.", NamedTextColor.RED);
+
+                return;
+            }
+        } else {
+            if (!playerItemType.equals(Material.TRIAL_KEY) && !playerItemType.equals(Material.OMINOUS_TRIAL_KEY)) {
+                TitleUtil.notify(player, "You need a TrialKey or OminousTrialKey to start this donjon.", NamedTextColor.RED);
+
+                return;
+            }
         }
 
+        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
         DonjonManager.startDonjon(donjon, player, factionName);
     }
 
@@ -187,7 +192,6 @@ public class DonjonListener implements Listener {
         Player player = event.getPlayer();
 
         for (Donjon donjon : DonjonManager.getDonjons().values()) {
-            if (donjon.getStatus() != DonjonStatus.ACTIVE) continue;
             if (!player.getWorld().equals(donjon.getCenter().getWorld())) continue;
 
             boolean wasIn = donjon.getProtectedChunkKeys().contains(fromKey);
@@ -195,11 +199,10 @@ public class DonjonListener implements Listener {
 
             if (!wasIn && isIn) {
                 TitleUtil.alert(player,
-                        donjon.getName() + " Lv." + donjon.getLevel()
+                        donjon.getName() + " LvL." + donjon.getLevel()
                                 + " [" + donjon.getRarity().getDisplayName() + "]",
                         donjon.getRarity().getColor());
-                Sound enterSound = ENTER_DONJON_SOUNDS[ThreadLocalRandom.current().nextInt(ENTER_DONJON_SOUNDS.length)];
-                player.playSound(player.getLocation(), enterSound, SoundCategory.BLOCKS, 0.6f, 1.0f);
+                player.playSound(player.getLocation(), Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS, SoundCategory.BLOCKS, 0.6f, 1.0f);
             }
 
         }
@@ -222,13 +225,11 @@ public class DonjonListener implements Listener {
     }
 
     // -------------------------------------------------------------------------
-    // Chunk load — biome-based random donjon generation (fires once per new chunk)
+    // Chunk populate — structure-based donjon generation (fires once per new chunk)
     // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.MONITOR)
-    public void onChunkLoad(ChunkLoadEvent event) {
-        if (!event.isNewChunk()) return;
-
-        DonjonManager.trySpawnDonjonInChunk(event.getChunk());
+    public void onChunkPopulate(ChunkPopulateEvent event) {
+        DonjonManager.generateNaturallyDonjonInChunk(event.getChunk());
     }
 }

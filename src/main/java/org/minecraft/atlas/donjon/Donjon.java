@@ -36,7 +36,10 @@ public class Donjon {
     // Protected chunk keys (computed from center + radius)
     private final Set<Long> protectedChunkKeys = new HashSet<>();
 
-    // Nametag display — anchor location is above the respawn anchor in the NBT structure (if found)
+    // Wave spawn points — absolute locations of all RESPAWN_ANCHOR blocks in the placed structure
+    private List<Location> spawnPoints = new ArrayList<>();
+
+    // Nametag display — positioned above the VAULT block in the NBT structure
     private Location nametagLocation;
     private UUID textDisplayUUID;
 
@@ -80,6 +83,9 @@ public class Donjon {
     public Set<UUID> getAuxiliaryEntities() { return auxiliaryEntities; }
     public Set<Long> getProtectedChunkKeys() { return protectedChunkKeys; }
 
+    public List<Location> getSpawnPoints() { return spawnPoints; }
+    public void setSpawnPoints(List<Location> points) { this.spawnPoints = new ArrayList<>(points); }
+
     public Location getNametagLocation() { return nametagLocation != null ? nametagLocation.clone() : null; }
     public void setNametagLocation(Location loc) { this.nametagLocation = loc != null ? loc.clone() : null; }
     public UUID getTextDisplayUUID() { return textDisplayUUID; }
@@ -87,6 +93,7 @@ public class Donjon {
 
     public DonjonWave getCurrentWave() {
         if (waves.isEmpty() || currentWaveIndex >= waves.size()) return null;
+
         return waves.get(currentWaveIndex);
     }
 }

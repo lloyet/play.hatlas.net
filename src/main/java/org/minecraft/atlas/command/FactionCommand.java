@@ -835,7 +835,7 @@ public class FactionCommand {
                                         ? "No description set." : g.getDescription();
                                 list = list.append(Component.newline())
                                         .append(Component.text(g.getName(), g.getColor()))
-                                        .append(Component.text(" [Lv." + g.getLevel() + "]", NamedTextColor.YELLOW))
+                                        .append(Component.text(" [LvL." + g.getLevel() + "]", NamedTextColor.YELLOW))
                                         .append(Component.text(" (" + total + " member" + (total == 1 ? "" : "s") + ")", NamedTextColor.GRAY))
                                         .append(Component.text(" - " + desc, NamedTextColor.DARK_GRAY));
                             }
@@ -973,7 +973,7 @@ public class FactionCommand {
                                         double bonus = FactionLevelManager.getUpgradeHp(cp);
                                         msg = msg.append(Component.newline())
                                                 .append(Component.text("  Upgrade " + cp, NamedTextColor.GOLD))
-                                                .append(Component.text(" (checkpoint Lv." + cp + ")", NamedTextColor.GRAY))
+                                                .append(Component.text(" (checkpoint LvL." + cp + ")", NamedTextColor.GRAY))
                                                 .append(Component.text(" → +" + (int) bonus + " max HP", NamedTextColor.GREEN));
                                     }
                                     msg = msg.append(Component.newline())

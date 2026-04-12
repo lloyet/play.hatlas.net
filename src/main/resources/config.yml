@@ -17,9 +17,6 @@ crystal:
 # ============================================================
 donjon:
 
-  # Probability (0.0–1.0) that a newly generated chunk spawns a donjon.
-  spawn_chance: 0.05
-
   # How often (in hours) the system automatically activates one idle donjon.
   activation_interval_hours: 6
   # After this many hours an active donjon becomes idle again (even if not completed).
@@ -64,13 +61,13 @@ donjon:
   types:
     trial:
       display_name: "Trial"
-      # Chunks protected around the donjon center (Chebyshev distance — e.g. 3 = 7×7 chunk square).
-      protection_radius_chunks: 3
+      # Probability (0.0–1.0) that a matching chunk spawns this donjon type.
+      spawn_chance: 0.33
       # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
-      structure_filename: "trial.nbt"
-      # Biomes in which this donjon type can naturally generate (use Bukkit Biome enum names).
-      biomes:
-        - plains
+      structure_filename: "test.nbt"
+      # Vanilla structures that trigger this donjon type (use minecraft structure keys, e.g. trial_chambers).
+      structures:
+        - trial_chambers
       # Words used to randomly generate the donjon's name.
       name_adjectives:
         - Ancient

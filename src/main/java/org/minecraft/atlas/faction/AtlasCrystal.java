@@ -145,7 +145,7 @@ public class AtlasCrystal {
             tag = Component.text(name, NamedTextColor.WHITE)
                     .append(Component.text(" [", NamedTextColor.GRAY))
                     .append(Component.text(factionName, color))
-                    .append(Component.text(" Lv.", NamedTextColor.GRAY))
+                    .append(Component.text(" LvL.", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
                     .append(Component.text("] ", NamedTextColor.GRAY))
                     .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
@@ -153,7 +153,7 @@ public class AtlasCrystal {
                     .append(immuneTag);
         } else {
             tag = Component.text(factionName, color)
-                    .append(Component.text(" [Lv.", NamedTextColor.GRAY))
+                    .append(Component.text(" [LvL.", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
                     .append(Component.text("] ", NamedTextColor.GRAY))
                     .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))

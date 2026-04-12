@@ -47,6 +47,7 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("list", "", "List all registered donjons"))
                                     .append(Component.newline()).append(helpEntry("info", "<id>", "Show detailed donjon info"))
                                     .append(Component.newline()).append(helpEntry("activate", "<id>", "Activate a donjon"))
+                                    .append(Component.newline()).append(helpEntry("deactivate", "<id>", "Deactivate a donjon"))
                                     .append(Component.newline()).append(helpEntry("reset", "<id>", "Reset a donjon to idle"))
                                     .append(Component.newline()).append(helpEntry("tp", "<id>", "Teleport to a donjon"))
                                     .append(Component.newline()).append(helpEntry("delete", "<id>", "Delete a donjon"))
@@ -76,11 +77,11 @@ public class DonjonCommand {
                                         return Command.SINGLE_SUCCESS;
                                     }
 
-                                    Donjon donjon = DonjonManager.createDonjon(
-                                            type, player.getLocation());
+                                    Donjon donjon = DonjonManager.generateDonjon(
+                                            type, player.getLocation().getChunk());
                                     if (donjon == null) {
                                         player.sendMessage(Component.text(
-                                                "Failed to create donjon (no config for type?).", NamedTextColor.RED));
+                                                "Failed to create donjon (no config or structure for type?).", NamedTextColor.RED));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
@@ -88,7 +89,7 @@ public class DonjonCommand {
                                     Atlas.instance.saveConfig();
                                     player.sendMessage(Component.text(
                                             "Donjon created: [" + donjon.getId() + "] " + donjon.getName()
-                                                    + " Lv." + donjon.getLevel()
+                                                    + " LvL." + donjon.getLevel()
                                                     + " [" + donjon.getRarity().getDisplayName() + "]",
                                             NamedTextColor.GREEN));
 
@@ -113,7 +114,7 @@ public class DonjonCommand {
                                         Component.text("[" + d.getId() + "] ", NamedTextColor.GRAY)
                                                 .append(Component.text(d.getName(), d.getRarity().getColor()))
                                                 .append(Component.text(
-                                                        " Lv." + d.getLevel()
+                                                        " LvL." + d.getLevel()
                                                                 + " | " + d.getType().getDisplayName()
                                                                 + " | " + d.getStatus().name()
                                                                 + (d.isInProgress() ? " (IN PROGRESS)" : ""),
@@ -190,6 +191,35 @@ public class DonjonCommand {
                                     Atlas.instance.saveConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon activated: " + d.getName(), NamedTextColor.GREEN));
+
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
+                // /donjon deactivate <id>
+                .then(Commands.literal("deactivate")
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(DONJON_IDS)
+                                .executes(ctx -> {
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    Donjon d = DonjonManager.getDonjon(id);
+
+                                    if (d == null) {
+                                        ctx.getSource().getSender().sendMessage(
+                                                Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (d.getStatus() != DonjonStatus.ACTIVE) {
+                                        ctx.getSource().getSender().sendMessage(
+                                                Component.text("Donjon is not active.", NamedTextColor.YELLOW));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    DonjonManager.setIdle(d, null);
+                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
+                                    Atlas.instance.saveConfig();
+                                    ctx.getSource().getSender().sendMessage(
+                                            Component.text("Donjon deactivated: " + d.getName(), NamedTextColor.GREEN));
 
                                     return Command.SINGLE_SUCCESS;
                                 })))

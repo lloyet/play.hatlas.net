@@ -280,16 +280,16 @@ public class FactionListener implements Listener {
             String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
             long immunitySeconds = Atlas.crystalImmunityDurationMs / 1000;
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                    "⚠ Crystal weakened! Lv." + levelStr + ". Immune " + immunitySeconds + "s!",
+                    "⚠ Crystal weakened! LvL." + levelStr + ". Immune " + immunitySeconds + "s!",
                     NamedTextColor.RED);
             TitleUtil.notify(attacker,
-                    "Weakened " + crystalFaction + " to Lv." + newLevel
+                    "Weakened " + crystalFaction + " to LvL." + newLevel
                             + "! Immune " + immunitySeconds + "s.",
                     NamedTextColor.YELLOW);
 
             if (newLevel == 0) {
                 TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                        "⚠ Lv.0! Next defeat disbands the faction!",
+                        "⚠ LvL.0! Next defeat disbands the faction!",
                         NamedTextColor.DARK_RED);
             }
         }
@@ -328,7 +328,7 @@ public class FactionListener implements Listener {
 
                 TitleUtil.alert(player, toFaction + "\nYou enter " + toFaction, color);
 
-                if (!toFaction.equals(playerFaction)) {
+                if (toFaction.equals(playerFaction)) {
                     player.playSound(player.getLocation(),
                             Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
                 }

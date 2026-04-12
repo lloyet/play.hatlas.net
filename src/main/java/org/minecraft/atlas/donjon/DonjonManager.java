@@ -9,11 +9,15 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
+import org.bukkit.block.BlockState;
 import org.bukkit.util.BlockVector;
+import org.bukkit.util.StructureSearchResult;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.block.Biome;
 import org.bukkit.block.structure.Mirror;
+import org.bukkit.generator.structure.Structure;
 import org.bukkit.block.structure.StructureRotation;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -24,7 +28,6 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
 import org.bukkit.structure.StructureManager;
-import org.bukkit.util.BoundingBox;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
@@ -48,6 +51,17 @@ public class DonjonManager {
     /** Maps a spawned mob UUID to the donjon ID it belongs to. */
     private static final Map<UUID, String> entityToDonjonId = new HashMap<>();
 
+    /**
+     * Cached per-structure offsets derived from the NBT palette on first placement.
+     * {@code spawnOffsets} — relative positions of every RESPAWN_ANCHOR (wave spawn points).
+     * {@code nametagOffset} — relative position of the VAULT block (nametag anchor).
+     */
+    private record StructureOffsets(List<BlockVector> spawnOffsets, BlockVector nametagOffset, int protectionRadiusChunks) {}
+    private static final Map<String, StructureOffsets> structureOffsetCache = new HashMap<>();
+
+    /** Holds the absolute world locations computed after a structure is placed. */
+    private record PlacedStructureResult(Location nametagLocation, List<Location> spawnPoints) {}
+
     /** Type-specific configuration, loaded from config.yml. */
     private static final Map<DonjonType, DonjonTypeConfig> typeConfigMap = new EnumMap<>(DonjonType.class);
 
@@ -58,7 +72,6 @@ public class DonjonManager {
     private static long activationIntervalMs  = 6L  * 3_600_000L;
     private static long idleTimeoutMs         = 24L * 3_600_000L;
     private static long lastActivationTime    = 0L;
-    private static double spawnChance         = 0.05;
 
     /** {minLevel, maxLevel, weight} per difficulty range */
     private static int[][] difficultyRanges = {
@@ -94,7 +107,6 @@ public class DonjonManager {
         activationIntervalMs = sec.getLong("activation_interval_hours", 6) * 3_600_000L;
         idleTimeoutMs        = sec.getLong("idle_timeout_hours", 24)        * 3_600_000L;
         lastActivationTime   = sec.getLong("last_activation_time", 0);
-        spawnChance          = sec.getDouble("spawn_chance", 0.05);
 
         // Difficulty ranges
         List<?> diffList = sec.getList("difficulty");
@@ -171,6 +183,15 @@ public class DonjonManager {
                 s.set("nametag_z", nt.getBlockZ());
             }
 
+            List<Location> spawnPts = d.getSpawnPoints();
+            if (!spawnPts.isEmpty()) {
+                List<String> encoded = new ArrayList<>();
+                for (Location pt : spawnPts) {
+                    encoded.add(pt.getBlockX() + "," + pt.getBlockY() + "," + pt.getBlockZ());
+                }
+                s.set("spawn_points", encoded);
+            }
+
             if (d.getTextDisplayUUID() != null) {
                 s.set("text_display_uuid", d.getTextDisplayUUID().toString());
             }
@@ -210,6 +231,22 @@ public class DonjonManager {
             if (s.contains("nametag_x")) {
                 donjon.setNametagLocation(new Location(world,
                         s.getInt("nametag_x"), s.getInt("nametag_y"), s.getInt("nametag_z")));
+            }
+
+            List<String> spawnPtsRaw = s.getStringList("spawn_points");
+            if (!spawnPtsRaw.isEmpty()) {
+                List<Location> spawnPts = new ArrayList<>();
+                for (String enc : spawnPtsRaw) {
+                    String[] parts = enc.split(",");
+                    if (parts.length != 3) continue;
+                    try {
+                        int sx = Integer.parseInt(parts[0].trim());
+                        int sy = Integer.parseInt(parts[1].trim());
+                        int sz = Integer.parseInt(parts[2].trim());
+                        spawnPts.add(new Location(world, sx + 0.5, sy, sz + 0.5));
+                    } catch (NumberFormatException ignored) {}
+                }
+                donjon.setSpawnPoints(spawnPts);
             }
 
             String displayUUIDStr = s.getString("text_display_uuid");
@@ -300,14 +337,16 @@ public class DonjonManager {
 
     public static Donjon createDonjon(DonjonType type, Location center) {
         DonjonTypeConfig cfg = typeConfigMap.get(type);
+
         if (cfg == null) {
             Atlas.instance.getLogger().warning("No config for donjon type: " + type);
+
             return null;
         }
 
         // Reject if any proposed protected chunk already belongs to another donjon
         int cx = center.getBlockX() >> 4, cz = center.getBlockZ() >> 4;
-        int radius = cfg.getProtectionRadiusChunks();
+        int radius = getOrCacheStructureOffsets(cfg.structureFilename()).protectionRadiusChunks();
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
                 long key = Chunk.getChunkKey(cx + dx, cz + dz);
@@ -328,7 +367,6 @@ public class DonjonManager {
         donjon.setStatus(DonjonStatus.IDLE);
 
         computeProtectedChunks(donjon, cfg);
-        spawnOrUpdateNametag(donjon);
 
         donjons.put(id, donjon);
 
@@ -407,22 +445,22 @@ public class DonjonManager {
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         double levelFactor = donjon.getLevel() / 99.0;
 
-        int numWaves = cfg.getMinWaves() + (int) Math.round(levelFactor * (cfg.getMaxWaves() - cfg.getMinWaves()));
-        int baseMobCount = cfg.getMinMobsPerWave()
-                + (int) Math.round(levelFactor * (cfg.getMaxMobsPerWave() - cfg.getMinMobsPerWave()));
+        int numWaves = cfg.minWaves() + (int) Math.round(levelFactor * (cfg.maxWaves() - cfg.minWaves()));
+        int baseMobCount = cfg.minMobsPerWave()
+                + (int) Math.round(levelFactor * (cfg.maxMobsPerWave() - cfg.minMobsPerWave()));
 
         List<DonjonWave> waves = new ArrayList<>();
-        List<String> mobTypes = cfg.getMobTypes();
-        List<String> bossTypes = cfg.getBossTypes();
+        List<String> mobTypes = cfg.mobTypes();
+        List<String> bossTypes = cfg.bossTypes();
 
         for (int i = 1; i <= numWaves; i++) {
             boolean isBoss = (i == numWaves);
             List<String> mobsForWave = new ArrayList<>();
 
             if (isBoss) {
-                int bossCount = cfg.getBossCountMin()
-                        + (cfg.getBossCountMax() > cfg.getBossCountMin()
-                        ? rand.nextInt(cfg.getBossCountMax() - cfg.getBossCountMin() + 1) : 0);
+                int bossCount = cfg.bossCountMin()
+                        + (cfg.bossCountMax() > cfg.bossCountMin()
+                        ? rand.nextInt(cfg.bossCountMax() - cfg.bossCountMin() + 1) : 0);
                 if (!bossTypes.isEmpty()) {
                     for (int j = 0; j < bossCount; j++) {
                         mobsForWave.add(bossTypes.get(rand.nextInt(bossTypes.size())));
@@ -430,7 +468,7 @@ public class DonjonManager {
                 }
             } else {
                 double variation = 0.8 + rand.nextDouble() * 0.4;
-                int count = Math.max(cfg.getMinMobsPerWave(), (int)(baseMobCount * variation));
+                int count = Math.max(cfg.minMobsPerWave(), (int)(baseMobCount * variation));
                 if (!mobTypes.isEmpty()) {
                     for (int j = 0; j < count; j++) {
                         mobsForWave.add(mobTypes.get(rand.nextInt(mobTypes.size())));
@@ -447,6 +485,7 @@ public class DonjonManager {
     static void startWave(Donjon donjon, int waveIndex) {
         if (waveIndex >= donjon.getWaves().size()) {
             completeDonjon(donjon);
+
             return;
         }
 
@@ -457,22 +496,28 @@ public class DonjonManager {
         if (cfg == null) return;
 
         double lf = donjon.getLevel() / 99.0;
-        double hpMult = cfg.getBaseHpMultiplier() + lf * (cfg.getMaxHpMultiplier() - cfg.getBaseHpMultiplier());
-        double atkMult = cfg.getBaseAttackMultiplier() + lf * (cfg.getMaxAttackMultiplier() - cfg.getBaseAttackMultiplier());
+        double hpMult = cfg.baseHpMultiplier() + lf * (cfg.maxHpMultiplier() - cfg.baseHpMultiplier());
+        double atkMult = cfg.baseAttackMultiplier() + lf * (cfg.maxAttackMultiplier() - cfg.baseAttackMultiplier());
 
         if (wave.isBossWave()) {
-            hpMult  *= cfg.getBossHpMultiplier();
-            atkMult *= cfg.getBossAttackMultiplier();
+            hpMult  *= cfg.bossHpMultiplier();
+            atkMult *= cfg.bossAttackMultiplier();
         }
 
         double finalHpMult = hpMult;
         double finalAtkMult = atkMult;
-        double bossSpeedMult = cfg.getBossSpeedMultiplier();
+        double bossSpeedMult = cfg.bossSpeedMultiplier();
         String donjonId = donjon.getId();
 
-        for (String mobType : wave.getMobTypesToSpawn()) {
-            Location spawnLoc = randomSpawnLocation(donjon);
-            List<UUID> uuids = spawnMobEntity(mobType, spawnLoc, finalHpMult, finalAtkMult,
+        List<Location> spawnPoints = donjon.getSpawnPoints();
+        List<String> mobsToSpawn = wave.getMobTypesToSpawn();
+        int spawnCount = spawnPoints.size();
+
+        for (int i = 0; i < mobsToSpawn.size(); i++) {
+            Location spawnLoc = spawnCount > 0
+                    ? spawnPoints.get(i % spawnCount).clone()
+                    : randomSpawnLocation(donjon);
+            List<UUID> uuids = spawnMobEntity(mobsToSpawn.get(i), spawnLoc, finalHpMult, finalAtkMult,
                     wave.isBossWave(), wave.isBossWave() ? bossSpeedMult : 1.0,
                     donjonId, waveIndex);
             for (UUID uuid : uuids) {
@@ -509,9 +554,9 @@ public class DonjonManager {
         wave.removeSpawnedEntity(uuid);
 
         // Show kill counter subtitle to players inside the donjon
-        int total     = wave.getMobTypesToSpawn().size();
+        int total = wave.getMobTypesToSpawn().size();
         int remaining = wave.getSpawnedEntities().size();
-        int killed    = total - remaining;
+        int killed = total - remaining;
         if (wave.isBossWave()) {
             alertDonjonPlayersSubtitle(donjon, "☠ " + killed + " / " + total, NamedTextColor.DARK_RED);
         } else {
@@ -571,8 +616,8 @@ public class DonjonManager {
         double totalDmg = dmgMap.values().stream().mapToDouble(Double::doubleValue).sum();
 
         DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
-        long baseExp = (cfg != null) ? cfg.getMinExpReward() : 500L;
-        long maxExp  = (cfg != null) ? cfg.getMaxExpReward() : 10000L;
+        long baseExp = (cfg != null) ? cfg.minExpReward() : 500L;
+        long maxExp  = (cfg != null) ? cfg.maxExpReward() : 10000L;
         long totalExp = (long)((baseExp + (donjon.getLevel() / 99.0) * (maxExp - baseExp))
                 * donjon.getRarity().getExpMultiplier());
 
@@ -697,19 +742,21 @@ public class DonjonManager {
     public static void restoreNametag(TextDisplay display) {
         String id = display.getPersistentDataContainer().get(keyTotemDisplay, PersistentDataType.STRING);
         if (id == null) return;
+
         Donjon donjon = donjons.get(id);
         if (donjon == null) {
             // Orphaned display from a deleted donjon
             display.remove();
             return;
         }
+
         donjon.setTextDisplayUUID(display.getUniqueId());
         display.text(buildNametag(donjon));
     }
 
     private static Component buildNametag(Donjon donjon) {
         DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
-        String typeName = cfg != null ? cfg.getDisplayName() : donjon.getType().getDisplayName();
+        String typeName = cfg != null ? cfg.displayName() : donjon.getType().getDisplayName();
 
         Component statusLine = donjon.getStatus() == DonjonStatus.ACTIVE
                 ? Component.text("◆ ACTIVE ◆", NamedTextColor.GREEN)
@@ -732,10 +779,7 @@ public class DonjonManager {
      * Spawns one logical "mob entry" (which may produce multiple entities for special
      * types like CHICKEN_JOCKEY).  Returns the UUIDs that should be tracked in the wave.
      */
-    private static List<UUID> spawnMobEntity(String mobTypeName, Location loc,
-                                              double hpMult, double atkMult,
-                                              boolean isBoss, double speedMult,
-                                              String donjonId, int waveIndex) {
+    private static List<UUID> spawnMobEntity(String mobTypeName, Location loc, double hpMult, double atkMult, boolean isBoss, double speedMult, String donjonId, int waveIndex) {
         World world = loc.getWorld();
         if (world == null) return List.of();
 
@@ -762,7 +806,7 @@ public class DonjonManager {
         if (w == null) return null;
         return switch (name.toUpperCase()) {
             case "ZOMBIE"      -> w.spawn(loc, Zombie.class);
-            case "BABY_ZOMBIE" -> w.spawn(loc, Zombie.class, z -> z.setBaby());
+            case "BABY_ZOMBIE" -> w.spawn(loc, Zombie.class, Ageable::setBaby);
             case "HUSK"        -> w.spawn(loc, Husk.class);
             case "SKELETON"    -> w.spawn(loc, Skeleton.class);
             case "STRAY"       -> w.spawn(loc, Stray.class);
@@ -783,7 +827,7 @@ public class DonjonManager {
         if (w == null) return List.of();
 
         Chicken chicken = w.spawn(loc, Chicken.class);
-        Zombie baby = w.spawn(loc, Zombie.class, z -> z.setBaby());
+        Zombie baby = w.spawn(loc, Zombie.class, Ageable::setBaby);
         chicken.addPassenger(baby);
 
         applyMultipliers(baby, hpMult, atkMult, speedMult);
@@ -834,7 +878,7 @@ public class DonjonManager {
         DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
         if (cfg == null) return;
 
-        BossDropConfig dropCfg = cfg.getBossDrops().get(donjon.getRarity());
+        BossDropConfig dropCfg = cfg.bossDrops().get(donjon.getRarity());
         if (dropCfg == null) return;
 
         World world = loc.getWorld();
@@ -850,82 +894,157 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     /**
-     * Called on every newly-generated chunk. Rolls the spawn chance, samples the dominant biome,
-     * finds a matching donjon type, places the NBT structure, and registers the donjon.
+     * Called on every newly-populated chunk. Rolls the spawn chance, checks whether a configured
+     * vanilla structure is present in this chunk, places the NBT structure, and registers the donjon.
      */
-    public static void trySpawnDonjonInChunk(Chunk chunk) {
-        if (ThreadLocalRandom.current().nextDouble() >= spawnChance) return;
-
+    public static void generateNaturallyDonjonInChunk(Chunk chunk) {
         World world = chunk.getWorld();
-
-        // Sample dominant biome across the chunk (4-block grid)
-        Map<Biome, Integer> biomeCounts = new HashMap<>();
-        for (int x = 0; x < 16; x += 4) {
-            for (int z = 0; z < 16; z += 4) {
-                int bx = (chunk.getX() << 4) + x;
-                int bz = (chunk.getZ() << 4) + z;
-                Biome b = world.getBiome(bx, world.getHighestBlockYAt(bx, bz, HeightMap.OCEAN_FLOOR), bz);
-                biomeCounts.merge(b, 1, Integer::sum);
-            }
-        }
-        
-        if (biomeCounts.isEmpty()) return;
-
-        Biome dominant = Collections.max(biomeCounts.entrySet(), Map.Entry.comparingByValue()).getKey();
-        String biomeKey = dominant.getKey().getKey(); // e.g. "plains"
-
-        // Find a DonjonType whose biome list includes the dominant biome
-        DonjonType matchedType = null;
-        DonjonTypeConfig matchedCfg = null;
-        for (DonjonType type : DonjonType.values()) {
-            DonjonTypeConfig cfg = typeConfigMap.get(type);
-            if (cfg == null) continue;
-            for (String b : cfg.getBiomes()) {
-                if (b.equalsIgnoreCase(biomeKey)) {
-                    matchedType = type;
-                    matchedCfg = cfg;
-                    break;
-                }
-            }
-            if (matchedType != null) break;
-        }
-        if (matchedType == null) return;
-
         int chunkCenterX = (chunk.getX() << 4) + 8;
         int chunkCenterZ = (chunk.getZ() << 4) + 8;
         int centerY = world.getHighestBlockYAt(chunkCenterX, chunkCenterZ, HeightMap.OCEAN_FLOOR);
-        Location center = new Location(world, chunkCenterX, centerY, chunkCenterZ);
+        Location chunkCenter = new Location(world, chunkCenterX, centerY, chunkCenterZ);
 
-        if (donjonExistsNear(center, 64)) return;
+        // Find a DonjonType whose structures list contains a vanilla structure present in this chunk
+        DonjonType matchedType = null;
+        DonjonTypeConfig matchedCfg = null;
+        outer:
+        for (DonjonType type : DonjonType.values()) {
+            DonjonTypeConfig cfg = typeConfigMap.get(type);
 
-        // Place the NBT structure: NW-bottom corner at the chunk's NW corner, on the solid surface
+            if (cfg == null) continue;
+
+            for (String structureName : cfg.structures()) {
+                Structure vanillaStructure = RegistryAccess.registryAccess()
+                        .getRegistry(RegistryKey.STRUCTURE)
+                        .get(NamespacedKey.minecraft(structureName.toLowerCase()));
+                if (vanillaStructure == null) continue;
+
+                StructureSearchResult result = world.locateNearestStructure(chunkCenter, vanillaStructure, 1, false);
+                if (result == null) continue;
+
+                Location sLoc = result.getLocation();
+                if (sLoc.getChunk().getX() == chunk.getX() && sLoc.getChunk().getZ() == chunk.getZ()) {
+                    matchedType = type;
+                    matchedCfg = cfg;
+
+                    break outer;
+                }
+            }
+        }
+
+        if (matchedType == null) return;
+        if (ThreadLocalRandom.current().nextDouble() >= matchedCfg.spawnChance()) return;
+
+        // todo past here
+        generateDonjon(matchedType, chunk);
+    }
+
+    /**
+     * Creates a donjon of the given type with its NBT structure at corner top north-west in {@code chunk}.
+     * Intended for the {@code /donjon create} admin command.
+     *
+     * @return the created {@link Donjon}, or {@code null} on failure.
+     */
+    public static Donjon generateDonjon(DonjonType type, Chunk chunk) {
+        World world = chunk.getWorld();
+        int chunkCenterX = (chunk.getX() << 4) + 8;
+        int chunkCenterZ = (chunk.getZ() << 4) + 8;
+        int centerY = world.getHighestBlockYAt(chunkCenterX, chunkCenterZ, HeightMap.OCEAN_FLOOR);
+        Location chunkCenter = new Location(world, chunkCenterX, centerY, chunkCenterZ);
+
+        if (donjonExistsNear(chunkCenter, 64)) return null;
+
+        DonjonTypeConfig cfg = typeConfigMap.get(type);
+        if (cfg == null) return null;
+
+        // Place the NBT structure at the NW-top corner of the chunk, on the solid surface
         int originX = chunk.getX() << 4;
         int originZ = chunk.getZ() << 4;
         int originY = world.getHighestBlockYAt(originX, originZ, HeightMap.OCEAN_FLOOR);
-        Location anchorLoc = placeStructure(matchedCfg, new Location(world, originX, originY, originZ));
+        PlacedStructureResult placed = placeStructure(cfg, new Location(world, originX, originY, originZ));
 
-        // Register the donjon
-        Donjon donjon = createDonjon(matchedType, center);
-        if (donjon == null) return;
-
-        // Position the floating nametag above the respawn anchor (or structure center as fallback)
-        if (anchorLoc != null) donjon.setNametagLocation(anchorLoc);
+        Donjon donjon = createDonjon(type, chunkCenter);
+        if (donjon == null) return null;
+        if (placed != null) {
+            donjon.setNametagLocation(placed.nametagLocation());
+            donjon.setSpawnPoints(placed.spawnPoints());
+            spawnOrUpdateNametag(donjon);
+        }
 
         Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
             saveDonjonConfig(Atlas.instance.getConfig());
             Atlas.instance.saveConfig();
         }, 20L);
+
+        return donjon;
     }
 
     /**
-     * Loads the NBT structure file from {@code <dataFolder>/structures/<filename>}, places it at
-     * {@code origin}, then scans the placed footprint for a RESPAWN_ANCHOR block.
-     *
-     * @return the RESPAWN_ANCHOR location if one is found inside the structure,
-     *         the center of the structure footprint as a fallback, or {@code null} on error.
+     * Computes and caches {@link StructureOffsets} for an already-loaded structure object.
+     * Collects all RESPAWN_ANCHOR positions (spawn points), the first VAULT (nametag),
+     * and derives the protection radius from the structure's XZ footprint.
      */
-    private static Location placeStructure(DonjonTypeConfig cfg, Location origin) {
-        String filename = cfg.getStructureFilename();
+    private static StructureOffsets computeStructureOffsets(String filename, org.bukkit.structure.Structure structure) {
+        return structureOffsetCache.computeIfAbsent(filename, k -> {
+            List<BlockVector> spawnOffsets = new ArrayList<>();
+            BlockVector nametagOffset = null;
+            if (!structure.getPalettes().isEmpty()) {
+                for (BlockState block : structure.getPalettes().getFirst().getBlocks()) {
+                    Material type = block.getType();
+                    Location blockLocation = block.getLocation();
+                    if (type == Material.RESPAWN_ANCHOR) {
+                        spawnOffsets.add(new BlockVector(blockLocation.getBlockX(), blockLocation.getBlockY(), blockLocation.getBlockZ()));
+                    } else if (nametagOffset == null && type == Material.VAULT) {
+                        nametagOffset = new BlockVector(blockLocation.getBlockX(), blockLocation.getBlockY(), blockLocation.getBlockZ());
+                    }
+                }
+            }
+
+            BlockVector size = structure.getSize();
+            if (nametagOffset == null) {
+                nametagOffset = new BlockVector(size.getBlockX() / 2, 0, size.getBlockZ() / 2);
+            }
+
+            int maxDim = Math.max(size.getBlockX(), size.getBlockZ());
+            int radius = (int) Math.ceil(maxDim / 16.0) + 1;
+
+            return new StructureOffsets(List.copyOf(spawnOffsets), nametagOffset, radius);
+        });
+    }
+
+    /**
+     * Ensures the {@link StructureOffsets} for the given filename are in the cache,
+     * loading the structure file if necessary. Returns a fallback with radius 3 on any error.
+     */
+    private static StructureOffsets getOrCacheStructureOffsets(String filename) {
+        if (structureOffsetCache.containsKey(filename)) return structureOffsetCache.get(filename);
+        if (filename == null || filename.isEmpty())
+            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
+        File file = new File(Atlas.instance.getDataFolder(), "structures/" + filename);
+        if (!file.exists())
+            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
+        try {
+            org.bukkit.structure.Structure structure = Bukkit.getServer().getStructureManager().loadStructure(file);
+            return computeStructureOffsets(filename, structure);
+        } catch (IOException e) {
+            Atlas.instance.getLogger().warning("Failed to read structure '" + filename + "': " + e.getMessage());
+            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
+        }
+    }
+
+    /**
+     * Loads the NBT structure file and places it in the world, with {@code loc} as the NW-bottom corner.
+     *
+     * <ul>
+     *   <li>Every {@code RESPAWN_ANCHOR} block becomes a wave spawn point.</li>
+     *   <li>The first {@code VAULT} block found in the placed region is the nametag anchor.</li>
+     * </ul>
+     *
+     * @param origin NW-bottom corner of the structure.
+     * @return a {@link PlacedStructureResult} with absolute world locations, or {@code null} on error.
+     */
+    private static PlacedStructureResult placeStructure(DonjonTypeConfig cfg, Location origin) {
+        String filename = cfg.structureFilename();
         if (filename == null || filename.isEmpty()) return null;
 
         File file = new File(Atlas.instance.getDataFolder(), "structures/" + filename);
@@ -939,29 +1058,24 @@ public class DonjonManager {
         try {
             StructureManager sm = Bukkit.getServer().getStructureManager();
             org.bukkit.structure.Structure structure = sm.loadStructure(file);
+
             structure.place(origin, true, StructureRotation.NONE, Mirror.NONE, 0, 1.0f, new Random());
 
-            // Scan the placed area for the first RESPAWN_ANCHOR
-            BlockVector size = structure.getSize();
-            World world = origin.getWorld();
-            int ox = origin.getBlockX(), oy = origin.getBlockY(), oz = origin.getBlockZ();
-            for (int dy = 0; dy < size.getBlockY(); dy++) {
-                for (int dx = 0; dx < size.getBlockX(); dx++) {
-                    for (int dz = 0; dz < size.getBlockZ(); dz++) {
-                        if (world.getBlockAt(ox + dx, oy + dy, oz + dz).getType() != Material.RESPAWN_ANCHOR) {
-                            continue;
-                        }
+            // Resolve spawn offsets from palette[0] (cached per filename).
+            StructureOffsets offsets = computeStructureOffsets(filename, structure);
 
-                        return new Location(world, ox + dx + 0.5, oy + dy, oz + dz + 0.5);
-                    }
-                }
+            int ox = origin.getBlockX(), oy = origin.getBlockY(), oz = origin.getBlockZ();
+            World world = origin.getWorld();
+
+            List<Location> spawnPoints = new ArrayList<>();
+            for (BlockVector sv : offsets.spawnOffsets()) {
+                spawnPoints.add(new Location(world, ox + sv.getBlockX() + 0.5, oy + sv.getBlockY(), oz + sv.getBlockZ() + 0.5));
             }
 
-            // Fallback: horizontal center of the structure at origin Y
-            return new Location(world,
-                    ox + size.getBlockX() / 2.0,
-                    oy,
-                    oz + size.getBlockZ() / 2.0);
+            BlockVector nv = offsets.nametagOffset();
+            Location nametagLoc = new Location(world, ox + nv.getBlockX() + 0.5, oy + nv.getBlockY(), oz + nv.getBlockZ() + 0.5);
+
+            return new PlacedStructureResult(nametagLoc, spawnPoints);
 
         } catch (IOException e) {
             Atlas.instance.getLogger().warning("Failed to place structure '" + filename + "': " + e.getMessage());
@@ -972,10 +1086,12 @@ public class DonjonManager {
     /** Returns {@code true} if any existing donjon's center is within {@code radiusBlocks} of {@code loc}. */
     public static boolean donjonExistsNear(Location loc, double radiusBlocks) {
         double sq = radiusBlocks * radiusBlocks;
+
         for (Donjon d : donjons.values()) {
             if (!d.getCenter().getWorld().equals(loc.getWorld())) continue;
             if (d.getCenter().distanceSquared(loc) <= sq) return true;
         }
+
         return false;
     }
 
@@ -1006,18 +1122,21 @@ public class DonjonManager {
     public static boolean isInDonjon(Location loc, Donjon donjon) {
         if (!loc.getWorld().equals(donjon.getCenter().getWorld())) return false;
         long key = Chunk.getChunkKey(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+
         return donjon.getProtectedChunkKeys().contains(key);
     }
 
     /** Returns true if the given chunk is within any donjon's protected area. */
     public static boolean isChunkInDonjon(String worldName, int chunkX, int chunkZ) {
         long key = Chunk.getChunkKey(chunkX, chunkZ);
+
         for (Donjon d : donjons.values()) {
             if (d.getCenter().getWorld().getName().equals(worldName)
                     && d.getProtectedChunkKeys().contains(key)) {
                 return true;
             }
         }
+
         return false;
     }
 
@@ -1027,6 +1146,7 @@ public class DonjonManager {
                 return d;
             }
         }
+
         return null;
     }
 
@@ -1070,8 +1190,8 @@ public class DonjonManager {
     }
 
     private static String generateName(DonjonType type, DonjonTypeConfig cfg) {
-        List<String> adjectives = cfg.getNameAdjectives();
-        List<String> nouns      = cfg.getNameNouns();
+        List<String> adjectives = cfg.nameAdjectives();
+        List<String> nouns      = cfg.nameNouns();
         if (adjectives.isEmpty() || nouns.isEmpty()) return type.getDisplayName();
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         String adj  = adjectives.get(rand.nextInt(adjectives.size()));
@@ -1080,13 +1200,15 @@ public class DonjonManager {
     }
 
     private static Location randomSpawnLocation(Donjon donjon) {
+        List<Location> spawnPoints = donjon.getSpawnPoints();
+        if (!spawnPoints.isEmpty()) {
+            return spawnPoints.get(ThreadLocalRandom.current().nextInt(spawnPoints.size())).clone();
+        }
+        // Fallback: random offset from center when no spawn points are stored
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         Location c = donjon.getCenter();
         int range = 8;
-        return c.clone().add(
-                rand.nextInt(-range, range + 1),
-                0,
-                rand.nextInt(-range, range + 1));
+        return c.clone().add(rand.nextInt(-range, range + 1), 0, rand.nextInt(-range, range + 1));
     }
 
     private static void computeProtectedChunks(Donjon donjon) {
@@ -1097,7 +1219,7 @@ public class DonjonManager {
     private static void computeProtectedChunks(Donjon donjon, DonjonTypeConfig cfg) {
         donjon.getProtectedChunkKeys().clear();
         Location c = donjon.getCenter();
-        int radius = cfg.getProtectionRadiusChunks();
+        int radius = getOrCacheStructureOffsets(cfg.structureFilename()).protectionRadiusChunks();
         int cx = c.getBlockX() >> 4, cz = c.getBlockZ() >> 4;
         for (int dx = -radius; dx <= radius; dx++) {
             for (int dz = -radius; dz <= radius; dz++) {
