@@ -6,7 +6,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
-import org.bukkit.World;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -18,18 +17,16 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.world.ChunkPopulateEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
+
 import java.util.concurrent.ThreadLocalRandom;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
-import org.bukkit.generator.structure.GeneratedStructure;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.util.BoundingBox;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
-import org.minecraft.atlas.donjon.DonjonType;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.TitleUtil;
 
@@ -101,14 +98,14 @@ public class DonjonListener implements Listener {
         if (event.getClickedBlock() == null) return;
         if (event.getClickedBlock().getType() != Material.RESPAWN_ANCHOR) return;
 
-        String donjonId = DonjonManager.getDonjonIdAtTotem(event.getClickedBlock().getLocation());
-        if (donjonId == null) return;
-
-        // Always cancel to prevent vanilla charge/explode behaviour
-        event.setCancelled(true);
-
-        Donjon donjon = DonjonManager.getDonjon(donjonId);
+        // Check whether the right-clicked anchor sits inside any donjon's protected chunks
+        org.bukkit.block.Block clicked = event.getClickedBlock();
+        long chunkKey = Chunk.getChunkKey(clicked.getX() >> 4, clicked.getZ() >> 4);
+        Donjon donjon = DonjonManager.getDonjonAtChunk(clicked.getWorld(), chunkKey);
         if (donjon == null) return;
+
+        // Always cancel to prevent vanilla charge/explode behavior
+        event.setCancelled(true);
 
         Player player = event.getPlayer();
 
@@ -181,11 +178,11 @@ public class DonjonListener implements Listener {
         Location to   = event.getTo();
 
         int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
-        int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
+        int toCX = to.getBlockX() >> 4, toCZ = to.getBlockZ() >> 4;
         if (fromCX == toCX && fromCZ == toCZ) return; // same chunk
 
         long fromKey = Chunk.getChunkKey(fromCX, fromCZ);
-        long toKey = Chunk.getChunkKey(toCX,   toCZ);
+        long toKey = Chunk.getChunkKey(toCX, toCZ);
 
         Player player = event.getPlayer();
 
@@ -194,7 +191,7 @@ public class DonjonListener implements Listener {
             if (!player.getWorld().equals(donjon.getCenter().getWorld())) continue;
 
             boolean wasIn = donjon.getProtectedChunkKeys().contains(fromKey);
-            boolean isIn  = donjon.getProtectedChunkKeys().contains(toKey);
+            boolean isIn = donjon.getProtectedChunkKeys().contains(toKey);
 
             if (!wasIn && isIn) {
                 TitleUtil.alert(player,
@@ -215,27 +212,23 @@ public class DonjonListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         if (DonjonManager.keyTotemDisplay == null) return;
+
         for (Entity entity : event.getEntities()) {
             if (!(entity instanceof TextDisplay td)) continue;
             if (!td.getPersistentDataContainer().has(DonjonManager.keyTotemDisplay)) continue;
+
             DonjonManager.restoreNametag(td);
         }
     }
 
     // -------------------------------------------------------------------------
-    // Chunk populate — auto-create donjon from vanilla structure (fires once on first gen)
+    // Chunk load — biome-based random donjon generation (fires once per new chunk)
     // -------------------------------------------------------------------------
 
     @EventHandler(priority = EventPriority.MONITOR)
-    public void onChunkPopulate(ChunkPopulateEvent event) {
-        Chunk chunk = event.getChunk();
-        World world = chunk.getWorld();
+    public void onChunkLoad(ChunkLoadEvent event) {
+        if (!event.isNewChunk()) return;
 
-        for (DonjonType type : DonjonType.values()) {
-            for (GeneratedStructure gs : chunk.getStructures(type.getStructure())) {
-                BoundingBox bb = gs.getBoundingBox();
-                DonjonManager.createDonjonFromStructure(type, bb, world);
-            }
-        }
+        DonjonManager.trySpawnDonjonInChunk(event.getChunk());
     }
 }

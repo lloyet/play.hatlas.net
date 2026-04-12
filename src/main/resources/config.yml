@@ -16,6 +16,10 @@ crystal:
 # Donjon System
 # ============================================================
 donjon:
+
+  # Probability (0.0–1.0) that a newly generated chunk spawns a donjon.
+  spawn_chance: 0.05
+
   # How often (in hours) the system automatically activates one idle donjon.
   activation_interval_hours: 6
   # After this many hours an active donjon becomes idle again (even if not completed).
@@ -49,12 +53,12 @@ donjon:
 
   # Rarity selection weights (relative).
   rarity:
-    common:    66
-    rare:      14
-    epic:      10
-    legendary:  5
-    mystic:     3
-    goddess:    2
+    common: 66
+    rare: 14
+    epic: 10
+    legendary: 5
+    mystic: 3
+    goddess: 2
 
   # Per-type configuration. Add a new section here for each new DonjonType enum value.
   types:
@@ -62,7 +66,11 @@ donjon:
       display_name: "Trial"
       # Chunks protected around the donjon center (Chebyshev distance — e.g. 3 = 7×7 chunk square).
       protection_radius_chunks: 3
-
+      # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
+      structure_filename: "trial.nbt"
+      # Biomes in which this donjon type can naturally generate (use Bukkit Biome enum names).
+      biomes:
+        - plains
       # Words used to randomly generate the donjon's name.
       name_adjectives:
         - Ancient
@@ -139,52 +147,167 @@ donjon:
       min_exp_reward:   500
       max_exp_reward: 10000
 
-      # Boss drop tables per rarity. Each rarity section defines:
+      # Boss drop tables per rarity.
       #   min_items / max_items: how many item stacks the boss drops
-      #   items: list of { material, amount, chance } — chance is a relative weight
+      #   items: list of entries — chance is a relative weight
+      #   enchantments (optional): list of { enchantment: <name>, level: <n> }
       boss_drops:
         common:
           min_items: 1
           max_items: 2
           items:
-            - { material: IRON_INGOT,   amount: 4,  chance: 0.50 }
-            - { material: GOLD_INGOT,   amount: 2,  chance: 0.30 }
-            - { material: DIAMOND,      amount: 1,  chance: 0.20 }
+            - material: IRON_INGOT
+              amount: 4
+              chance: 0.50
+            - material: GOLD_INGOT
+              amount: 2
+              chance: 0.30
+            - material: DIAMOND
+              amount: 1
+              chance: 0.20
         rare:
           min_items: 1
           max_items: 3
           items:
-            - { material: GOLD_INGOT,   amount: 4,  chance: 0.40 }
-            - { material: DIAMOND,      amount: 2,  chance: 0.35 }
-            - { material: EMERALD,      amount: 1,  chance: 0.25 }
+            - material: GOLD_INGOT
+              amount: 4
+              chance: 0.40
+            - material: DIAMOND
+              amount: 2
+              chance: 0.35
+            - material: IRON_SWORD
+              amount: 1
+              chance: 0.25
+              enchantments:
+                - enchantment: sharpness
+                  level: 2
+                - enchantment: unbreaking
+                  level: 2
         epic:
           min_items: 2
           max_items: 4
           items:
-            - { material: DIAMOND,      amount: 3,  chance: 0.40 }
-            - { material: EMERALD,      amount: 2,  chance: 0.35 }
-            - { material: NETHERITE_SCRAP, amount: 1, chance: 0.25 }
+            - material: DIAMOND
+              amount: 3
+              chance: 0.40
+            - material: EMERALD
+              amount: 2
+              chance: 0.35
+            - material: DIAMOND_SWORD
+              amount: 1
+              chance: 0.25
+              enchantments:
+                - enchantment: sharpness
+                  level: 3
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: looting
+                  level: 2
         legendary:
           min_items: 2
           max_items: 5
           items:
-            - { material: EMERALD,      amount: 4,  chance: 0.35 }
-            - { material: NETHERITE_SCRAP, amount: 2, chance: 0.40 }
-            - { material: NETHERITE_INGOT, amount: 1, chance: 0.25 }
+            - material: EMERALD
+              amount: 4
+              chance: 0.35
+            - material: NETHERITE_SCRAP
+              amount: 2
+              chance: 0.30
+            - material: DIAMOND_CHESTPLATE
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+            - material: DIAMOND_SWORD
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: sharpness
+                  level: 4
+                - enchantment: fire_aspect
+                  level: 2
+                - enchantment: mending
+                  level: 1
         mystic:
           min_items: 3
           max_items: 5
           items:
-            - { material: NETHERITE_SCRAP, amount: 3, chance: 0.40 }
-            - { material: NETHERITE_INGOT, amount: 2, chance: 0.40 }
-            - { material: NETHER_STAR,   amount: 1,  chance: 0.20 }
+            - material: NETHERITE_SCRAP
+              amount: 3
+              chance: 0.35
+            - material: NETHERITE_INGOT
+              amount: 2
+              chance: 0.30
+            - material: NETHERITE_SWORD
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: sharpness
+                  level: 5
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: looting
+                  level: 3
+            - material: NETHERITE_CHESTPLATE
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: thorns
+                  level: 3
         goddess:
           min_items: 4
           max_items: 6
           items:
-            - { material: NETHERITE_INGOT, amount: 3, chance: 0.40 }
-            - { material: NETHER_STAR,   amount: 2,  chance: 0.35 }
-            - { material: DRAGON_EGG,    amount: 1,  chance: 0.25 }
+            - material: NETHERITE_INGOT
+              amount: 3
+              chance: 0.30
+            - material: NETHER_STAR
+              amount: 2
+              chance: 0.25
+            - material: NETHERITE_SWORD
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: sharpness
+                  level: 5
+                - enchantment: smite
+                  level: 5
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: looting
+                  level: 3
+            - material: NETHERITE_CHESTPLATE
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: blast_protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: thorns
+                  level: 3
+            - material: DRAGON_EGG
+              amount: 1
+              chance: 0.10
 
 # Faction level checkpoint configuration.
 # When a faction reaches a checkpoint level, an Owner or Leader can run

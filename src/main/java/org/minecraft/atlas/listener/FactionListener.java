@@ -321,23 +321,25 @@ public class FactionListener implements Listener {
         // Entering a faction chunk
         if (toFaction != null) {
             boolean wasAlreadyInSame = toFaction.equals(fromFaction);
+
             if (!wasAlreadyInSame) {
                 Faction faction = FactionManager.getFaction(toFaction);
                 NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
-                if (toFaction.equals(playerFaction)) {
-                    TitleUtil.alert(player, "You enter " + toFaction, color);
-                } else {
-                    TitleUtil.alert(player, "Enter faction " + toFaction, color);
+
+                TitleUtil.alert(player, toFaction + "\nYou enter " + toFaction, color);
+
+                if (!toFaction.equals(playerFaction)) {
                     player.playSound(player.getLocation(),
                             Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
                 }
             }
+
             return;
         }
 
         // Entering wilderness (unclaimed, non-donjon) from any claimed area
         if (!toDonjon && (fromFaction != null || fromDonjon)) {
-            TitleUtil.notify(player, "Enter Wilderness", NamedTextColor.GREEN);
+            TitleUtil.notify(player, "Wilderness\nEnter the Wilderness", NamedTextColor.GREEN);
         }
     }
 

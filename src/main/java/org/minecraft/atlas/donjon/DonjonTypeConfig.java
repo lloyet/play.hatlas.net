@@ -9,6 +9,8 @@ import java.util.Map;
 public class DonjonTypeConfig {
 
     private final String displayName;
+    private final String structureFilename;
+    private final List<String> biomes;
     private final List<String> nameAdjectives;
     private final List<String> nameNouns;
     private final int protectionRadiusChunks;
@@ -32,7 +34,8 @@ public class DonjonTypeConfig {
     /** Per-rarity boss drop tables. A rarity with no entry uses an empty loot table. */
     private final Map<DonjonRarity, BossDropConfig> bossDrops;
 
-    public DonjonTypeConfig(String displayName, List<String> nameAdjectives, List<String> nameNouns,
+    public DonjonTypeConfig(String displayName, String structureFilename, List<String> biomes,
+                            List<String> nameAdjectives, List<String> nameNouns,
                             int protectionRadiusChunks, List<String> mobTypes, List<String> bossTypes,
                             int minWaves, int maxWaves, int minMobsPerWave, int maxMobsPerWave,
                             double baseHpMultiplier, double maxHpMultiplier,
@@ -42,6 +45,8 @@ public class DonjonTypeConfig {
                             long minExpReward, long maxExpReward,
                             Map<DonjonRarity, BossDropConfig> bossDrops) {
         this.displayName = displayName;
+        this.structureFilename = structureFilename;
+        this.biomes = biomes;
         this.nameAdjectives = nameAdjectives;
         this.nameNouns = nameNouns;
         this.protectionRadiusChunks = protectionRadiusChunks;
@@ -66,6 +71,8 @@ public class DonjonTypeConfig {
     }
 
     public String getDisplayName() { return displayName; }
+    public String getStructureFilename() { return structureFilename; }
+    public List<String> getBiomes() { return biomes; }
     public List<String> getNameAdjectives() { return nameAdjectives; }
     public List<String> getNameNouns() { return nameNouns; }
     public int getProtectionRadiusChunks() { return protectionRadiusChunks; }
@@ -90,6 +97,8 @@ public class DonjonTypeConfig {
 
     public static DonjonTypeConfig load(ConfigurationSection s) {
         String displayName = s.getString("display_name", "Unknown");
+        String structureFilename = s.getString("structure_filename", "");
+        List<String> biomes = s.getStringList("biomes");
         List<String> adjectives = s.getStringList("name_adjectives");
         List<String> nouns = s.getStringList("name_nouns");
         int radius = s.getInt("protection_radius_chunks", 3);
@@ -123,7 +132,7 @@ public class DonjonTypeConfig {
             }
         }
 
-        return new DonjonTypeConfig(displayName, adjectives, nouns, radius,
+        return new DonjonTypeConfig(displayName, structureFilename, biomes, adjectives, nouns, radius,
                 mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
                 baseHp, maxHp, baseAtk, maxAtk, bossHp, bossAtk, bossSpd,
                 bossMin, bossMax, minExp, maxExp, bossDrops);

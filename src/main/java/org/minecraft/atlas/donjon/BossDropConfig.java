@@ -1,7 +1,11 @@
 package org.minecraft.atlas.donjon;
 
+import io.papermc.paper.registry.RegistryAccess;
+import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
@@ -20,7 +24,8 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 public class BossDropConfig {
 
-    public record Entry(Material material, int amount, double chance) {}
+    public record EnchantmentEntry(Enchantment enchantment, int level) {}
+    public record Entry(Material material, int amount, double chance, List<EnchantmentEntry> enchantments) {}
 
     private final int minItems;
     private final int maxItems;
@@ -49,7 +54,11 @@ public class BossDropConfig {
             for (Entry entry : entries) {
                 cumulative += entry.chance();
                 if (roll < cumulative) {
-                    drops.add(new ItemStack(entry.material(), entry.amount()));
+                    ItemStack stack = new ItemStack(entry.material(), entry.amount());
+                    for (EnchantmentEntry enc : entry.enchantments()) {
+                        stack.addUnsafeEnchantment(enc.enchantment(), enc.level());
+                    }
+                    drops.add(stack);
                     break;
                 }
             }
@@ -69,8 +78,23 @@ public class BossDropConfig {
             int    amount  = row.get("amount")  instanceof Number nm ? nm.intValue()    : 1;
             double chance  = row.get("chance")  instanceof Number nc ? nc.doubleValue() : 0.5;
 
+            // Parse optional enchantments list
+            List<EnchantmentEntry> enchantments = new ArrayList<>();
+            if (row.get("enchantments") instanceof List<?> encList) {
+                for (Object encObj : encList) {
+                    if (!(encObj instanceof Map<?, ?> encMap)) continue;
+                    Object encName = encMap.get("enchantment");
+                    int encLevel = encMap.get("level") instanceof Number nl ? nl.intValue() : 1;
+                    if (encName == null) continue;
+                    Enchantment enc = RegistryAccess.registryAccess()
+                            .getRegistry(RegistryKey.ENCHANTMENT)
+                            .get(NamespacedKey.minecraft(encName.toString().toLowerCase()));
+                    if (enc != null) enchantments.add(new EnchantmentEntry(enc, encLevel));
+                }
+            }
+
             try {
-                entries.add(new Entry(Material.valueOf(matName), amount, chance));
+                entries.add(new Entry(Material.valueOf(matName), amount, chance, List.copyOf(enchantments)));
             } catch (IllegalArgumentException ignored) {
                 // Skip entries with invalid material names
             }

@@ -36,8 +36,8 @@ public class Donjon {
     // Protected chunk keys (computed from center + radius)
     private final Set<Long> protectedChunkKeys = new HashSet<>();
 
-    // Totem
-    private Location totemLocation;
+    // Nametag display — anchor location is above the respawn anchor in the NBT structure (if found)
+    private Location nametagLocation;
     private UUID textDisplayUUID;
 
     public Donjon(String id, String name, DonjonType type, Location center, int level, DonjonRarity rarity) {
@@ -80,8 +80,8 @@ public class Donjon {
     public Set<UUID> getAuxiliaryEntities() { return auxiliaryEntities; }
     public Set<Long> getProtectedChunkKeys() { return protectedChunkKeys; }
 
-    public Location getTotemLocation() { return totemLocation != null ? totemLocation.clone() : null; }
-    public void setTotemLocation(Location loc) { this.totemLocation = loc != null ? loc.clone() : null; }
+    public Location getNametagLocation() { return nametagLocation != null ? nametagLocation.clone() : null; }
+    public void setNametagLocation(Location loc) { this.nametagLocation = loc != null ? loc.clone() : null; }
     public UUID getTextDisplayUUID() { return textDisplayUUID; }
     public void setTextDisplayUUID(UUID uuid) { this.textDisplayUUID = uuid; }
 

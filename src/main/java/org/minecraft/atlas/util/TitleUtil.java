@@ -126,21 +126,31 @@ public final class TitleUtil {
      * </ul>
      */
     private static void send(Player player, String text, NamedTextColor color, boolean bold, Title.Times times) {
-        List<String> lines = wordWrap(text);
         Component titleComp;
         Component subtitleComp;
-        if (lines.size() == 1) {
-            titleComp = Component.empty();
-            subtitleComp = styled(lines.get(0), color, bold);
+
+        int nl = text.indexOf('\n');
+        if (nl >= 0) {
+            // Explicit split: everything before \n → title slot, everything after → subtitle slot
+            titleComp    = styled(text.substring(0, nl), color, bold);
+            subtitleComp = styled(text.substring(nl + 1), color, bold);
         } else {
-            titleComp = styled(lines.get(0), color, bold);
-            subtitleComp = styled(String.join(" ", lines.subList(1, lines.size())), color, bold);
+            List<String> lines = wordWrap(text);
+            if (lines.size() == 1) {
+                titleComp    = Component.empty();
+                subtitleComp = styled(lines.getFirst(), color, bold);
+            } else {
+                titleComp    = styled(lines.getFirst(), color, bold);
+                subtitleComp = styled(String.join(" ", lines.subList(1, lines.size())), color, bold);
+            }
         }
+
         player.showTitle(Title.title(titleComp, subtitleComp, times));
     }
 
     private static Component styled(String text, NamedTextColor color, boolean bold) {
         Component c = Component.text(text, color);
+
         return bold ? c.decorate(TextDecoration.BOLD) : c;
     }
 
@@ -163,8 +173,10 @@ public final class TitleUtil {
                 current = new StringBuilder(word);
             }
         }
+
         if (!current.isEmpty()) lines.add(current.toString());
         if (lines.isEmpty()) lines.add("");
+
         return lines;
     }
 }
