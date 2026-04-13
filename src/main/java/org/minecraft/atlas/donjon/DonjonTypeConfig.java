@@ -11,7 +11,6 @@ import java.util.Map;
  */
 public record DonjonTypeConfig(String displayName, String structureFilename, List<String> structures,
                                List<String> nameAdjectives, List<String> nameNouns,
-                               double spawnChance,
                                List<String> mobTypes, List<String> bossTypes, int minWaves, int maxWaves,
                                int minMobsPerWave, int maxMobsPerWave, double baseHpMultiplier, double maxHpMultiplier,
                                double baseAttackMultiplier, double maxAttackMultiplier, double bossHpMultiplier,
@@ -25,7 +24,6 @@ public record DonjonTypeConfig(String displayName, String structureFilename, Lis
         List<String> structures = s.getStringList("structures");
         List<String> adjectives = s.getStringList("name_adjectives");
         List<String> nouns = s.getStringList("name_nouns");
-        double spawnChance = s.getDouble("spawn_chance", 0.33);
         List<String> mobTypes = s.getStringList("mob_types");
         List<String> bossTypes = s.getStringList("boss_types");
         int minWaves = s.getInt("min_waves", 3);
@@ -57,7 +55,7 @@ public record DonjonTypeConfig(String displayName, String structureFilename, Lis
         }
 
         return new DonjonTypeConfig(displayName, structureFilename, structures, adjectives, nouns,
-                spawnChance, mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
+                mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
                 baseHp, maxHp, baseAtk, maxAtk, bossHp, bossAtk, bossSpd,
                 bossMin, bossMax, minExp, maxExp, bossDrops);
     }

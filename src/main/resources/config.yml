@@ -21,6 +21,8 @@ donjon:
   activation_interval_hours: 6
   # After this many hours an active donjon becomes idle again (even if not completed).
   idle_timeout_hours: 24
+  # Maximum number of donjons the scheduler can keep active simultaneously.
+  max_active_donjons: 2
   # Persisted at runtime — do not edit manually.
   last_activation_time: 0
   # Persisted at runtime — donjon instances are stored here.
@@ -61,8 +63,6 @@ donjon:
   types:
     trial:
       display_name: "Trial"
-      # Probability (0.0–1.0) that a matching chunk spawns this donjon type.
-      spawn_chance: 0.33
       # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
       structure_filename: "test.nbt"
       # Vanilla structures that trigger this donjon type (use minecraft structure keys, e.g. trial_chambers).

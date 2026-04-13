@@ -18,9 +18,6 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
-import java.util.concurrent.ThreadLocalRandom;
-
-import org.bukkit.event.world.ChunkPopulateEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
@@ -91,13 +88,12 @@ public class DonjonListener implements Listener {
         if (event.getClickedBlock() == null) return;
         if (event.getClickedBlock().getType() != Material.VAULT) return;
 
-        // Check whether the right-clicked anchor sits inside any donjon's protected chunks
         org.bukkit.block.Block clicked = event.getClickedBlock();
         long chunkKey = Chunk.getChunkKey(clicked.getX() >> 4, clicked.getZ() >> 4);
         Donjon donjon = DonjonManager.getDonjonAtChunk(clicked.getWorld(), chunkKey);
         if (donjon == null) return;
 
-        // Always cancel to prevent vanilla charge/explode behavior
+        // Always cancel to prevent vanilla vault behavior
         event.setCancelled(true);
 
         Player player = event.getPlayer();
@@ -113,24 +109,34 @@ public class DonjonListener implements Listener {
             return;
         }
 
-        Material playerItemType = player.getInventory().getItemInMainHand().getType();
+        ItemStack heldItem = player.getInventory().getItemInMainHand();
+        Material itemType = heldItem.getType();
+        boolean isEnchanted = !heldItem.getEnchantments().isEmpty();
 
         if (donjon.getStatus() != DonjonStatus.ACTIVE) {
-            if (!playerItemType.equals(Material.OMINOUS_TRIAL_KEY)) {
-                TitleUtil.notify(player, "This donjon is not active yet. Wait or use OminousTrialKey to activate this donjon.", NamedTextColor.RED);
-
+            // IDLE donjon — only an enchanted Ominous Trial Key can force-activate it
+            if (!itemType.equals(Material.OMINOUS_TRIAL_KEY) || !isEnchanted) {
+                TitleUtil.notify(player,
+                        "This donjon is not active. Use an enchanted Ominous Trial Key to force-activate it.",
+                        NamedTextColor.RED);
                 return;
             }
+            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+            DonjonManager.forceActivateDonjon(donjon);
+            DonjonManager.startDonjon(donjon, player, factionName);
         } else {
-            if (!playerItemType.equals(Material.TRIAL_KEY) && !playerItemType.equals(Material.OMINOUS_TRIAL_KEY)) {
-                TitleUtil.notify(player, "You need a TrialKey or OminousTrialKey to start this donjon.", NamedTextColor.RED);
-
+            // ACTIVE donjon — enchanted Trial Key or enchanted Ominous Trial Key
+            boolean isTrial  = itemType.equals(Material.TRIAL_KEY);
+            boolean isOminous = itemType.equals(Material.OMINOUS_TRIAL_KEY);
+            if ((!isTrial && !isOminous) || !isEnchanted) {
+                TitleUtil.notify(player,
+                        "You need an enchanted Trial Key or enchanted Ominous Trial Key to start this donjon.",
+                        NamedTextColor.RED);
                 return;
             }
+            player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+            DonjonManager.startDonjon(donjon, player, factionName);
         }
-
-        player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-        DonjonManager.startDonjon(donjon, player, factionName);
     }
 
     // -------------------------------------------------------------------------
@@ -224,12 +230,4 @@ public class DonjonListener implements Listener {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Chunk populate — structure-based donjon generation (fires once per new chunk)
-    // -------------------------------------------------------------------------
-
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onChunkPopulate(ChunkPopulateEvent event) {
-        DonjonManager.generateNaturallyDonjonInChunk(event.getChunk());
-    }
 }

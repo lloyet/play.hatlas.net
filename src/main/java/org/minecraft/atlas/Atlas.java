@@ -9,6 +9,7 @@ import org.jspecify.annotations.NonNull;
 import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
+import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
@@ -18,8 +19,10 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.ChatListener;
 import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
+import org.minecraft.atlas.listener.TagListener;
 import org.minecraft.atlas.command.HelpCommand;
 import org.minecraft.atlas.command.JobCommand;
+import org.minecraft.atlas.tag.TagManager;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.listener.JobListener;
@@ -32,26 +35,21 @@ public final class Atlas extends JavaPlugin {
 
     public static Atlas instance;
 
-    /** HP regenerated per second by Atlas Crystals (loaded from config). */
-    public static double crystalRegenPerSecond = 1.5;
-    /** Immunity duration in ms after a checkpoint level drop (loaded from config). */
-    public static long crystalImmunityDurationMs = 3_600_000L;
-
     @Override
     public void onEnable() {
         instance = this;
 
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
-        crystalRegenPerSecond = configFile.getDouble("crystal.regen_per_second", 1.5);
-        crystalImmunityDurationMs = configFile.getLong("crystal.immunity_duration_seconds", 3600L) * 1000L;
-        AtlasCrystalManager.regenTimeoutMs = configFile.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+        AtlasCrystalManager.loadConfig(configFile);
         FactionLevelManager.loadCheckpoints(configFile);
         FactionManager.loadFactions(configFile);
         FactionClaimManager.loadClaims(configFile);
         JobManager.loadJobs(configFile);
         DonjonManager.loadConfig(configFile);
         DonjonManager.loadDonjons(configFile);
+        TagManager.init();
+        TagManager.loadTags(configFile);
 
         // Register all listeners
         getServer().getPluginManager().registerEvents(new ChatListener(), this);
@@ -61,6 +59,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JobListener(), this);
         getServer().getPluginManager().registerEvents(new JobGui(), this);
         getServer().getPluginManager().registerEvents(new DonjonListener(), this);
+        getServer().getPluginManager().registerEvents(new TagListener(), this);
 
         // Scheduler with ticks
         GolemListener.schedule(this);
@@ -78,6 +77,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(HelpCommand.build());
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
+                        event.registrar().register(TagCommand.build());
                     }
                 }
         );
@@ -94,6 +94,7 @@ public final class Atlas extends JavaPlugin {
         FactionClaimManager.saveClaims(configFile);
         JobManager.saveJobs(configFile);
         DonjonManager.saveDonjonConfig(configFile);
+        TagManager.saveTags(configFile);
         saveConfig();
 
         getLogger().info("Atlas disabled.");    }

@@ -10,8 +10,8 @@ public class Donjon {
     private String name;
     private final DonjonType type;
     private final Location center;
-    private final int level;
-    private final DonjonRarity rarity;
+    private int level;
+    private DonjonRarity rarity;
     private DonjonStatus status;
 
     // Wave progression
@@ -59,7 +59,9 @@ public class Donjon {
     public DonjonType getType() { return type; }
     public Location getCenter() { return center.clone(); }
     public int getLevel() { return level; }
+    public void setLevel(int level) { this.level = level; }
     public DonjonRarity getRarity() { return rarity; }
+    public void setRarity(DonjonRarity rarity) { this.rarity = rarity; }
     public DonjonStatus getStatus() { return status; }
     public void setStatus(DonjonStatus status) { this.status = status; }
 

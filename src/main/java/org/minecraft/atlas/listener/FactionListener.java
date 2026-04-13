@@ -267,7 +267,7 @@ public class FactionListener implements Listener {
 
             // Restore the attacked crystal's HP to full and grant immunity
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
-            atlasCrystal.setImmuneFor(Atlas.crystalImmunityDurationMs);
+            atlasCrystal.setImmuneFor(AtlasCrystalManager.immunityDurationMs);
             atlasCrystal.updateNametag();
             AtlasCrystalManager.persistCrystalState(atlasCrystal);
 
@@ -278,7 +278,7 @@ public class FactionListener implements Listener {
 
             // Broadcast
             String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
-            long immunitySeconds = Atlas.crystalImmunityDurationMs / 1000;
+            long immunitySeconds = AtlasCrystalManager.immunityDurationMs / 1000;
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
                     "⚠ Crystal weakened! LvL." + levelStr + ". Immune " + immunitySeconds + "s!",
                     NamedTextColor.RED);

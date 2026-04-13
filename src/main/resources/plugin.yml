@@ -87,3 +87,6 @@ permissions:
   atlas.donjon.admin:
     description: Create, delete, activate, and reset donjons via /donjon
     default: op
+  atlas.tag.admin:
+    description: Full access to /tag (create, delete, add, edit, list)
+    default: op

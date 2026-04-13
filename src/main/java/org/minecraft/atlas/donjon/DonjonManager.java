@@ -9,16 +9,13 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
-import io.papermc.paper.registry.RegistryAccess;
-import io.papermc.paper.registry.RegistryKey;
 import org.bukkit.block.BlockState;
 import org.bukkit.util.BlockVector;
-import org.bukkit.util.StructureSearchResult;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
 import org.bukkit.block.structure.Mirror;
-import org.bukkit.generator.structure.Structure;
 import org.bukkit.block.structure.StructureRotation;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.*;
@@ -72,6 +69,7 @@ public class DonjonManager {
     private static long activationIntervalMs  = 6L  * 3_600_000L;
     private static long idleTimeoutMs         = 24L * 3_600_000L;
     private static long lastActivationTime    = 0L;
+    private static int  maxActiveDonjonons    = 2;
 
     /** {minLevel, maxLevel, weight} per difficulty range */
     private static int[][] difficultyRanges = {
@@ -107,6 +105,7 @@ public class DonjonManager {
         activationIntervalMs = sec.getLong("activation_interval_hours", 6) * 3_600_000L;
         idleTimeoutMs        = sec.getLong("idle_timeout_hours", 24)        * 3_600_000L;
         lastActivationTime   = sec.getLong("last_activation_time", 0);
+        maxActiveDonjonons   = sec.getInt("max_active_donjons", 2);
 
         // Difficulty ranges
         List<?> diffList = sec.getList("difficulty");
@@ -391,6 +390,17 @@ public class DonjonManager {
     // Activation
     // -------------------------------------------------------------------------
 
+    /**
+     * Force-activates a donjon via an enchanted Ominous Trial Key.
+     * Upgrades level to 50–99 and rarity to LEGENDARY/MYSTIC/GODDESS before activating.
+     */
+    public static void forceActivateDonjon(Donjon donjon) {
+        donjon.setLevel(ThreadLocalRandom.current().nextInt(50, 100));
+        DonjonRarity[] forcedRarities = {DonjonRarity.LEGENDARY, DonjonRarity.MYSTIC, DonjonRarity.GODDESS};
+        donjon.setRarity(forcedRarities[ThreadLocalRandom.current().nextInt(forcedRarities.length)]);
+        activateDonjon(donjon);
+    }
+
     public static void activateDonjon(Donjon donjon) {
         donjon.setStatus(DonjonStatus.ACTIVE);
         donjon.setActivationTime(System.currentTimeMillis());
@@ -418,6 +428,7 @@ public class DonjonManager {
         donjon.setCurrentWaveIndex(0);
         donjon.setInProgress(true);
         donjon.setStartingFaction(factionName);
+        spawnOrUpdateNametag(donjon);
         donjon.getBossDamageMap().clear();
 
         Faction faction = FactionManager.getFaction(factionName);
@@ -656,7 +667,31 @@ public class DonjonManager {
             p.playSound(p.getLocation(), Sound.ENTITY_WITHER_DEATH, SoundCategory.MASTER, 1.0f, 1.0f);
         }
 
+        // Drop an enchanted Ominous Trial Key when EPIC+ donjon is completed
+        if (donjon.getRarity().ordinal() >= DonjonRarity.EPIC.ordinal()) {
+            double dropChance = ominousKeyDropChance(donjon.getRarity());
+            if (ThreadLocalRandom.current().nextDouble() < dropChance) {
+                Location dropLoc = donjon.getNametagLocation() != null
+                        ? donjon.getNametagLocation() : donjon.getCenter();
+                World dropWorld = dropLoc.getWorld();
+                if (dropWorld != null) {
+                    ItemStack ominousKey = new ItemStack(Material.OMINOUS_TRIAL_KEY);
+                    ominousKey.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
+                    dropWorld.dropItemNaturally(dropLoc, ominousKey);
+                }
+            }
+        }
+
         setIdle(donjon, null);
+    }
+
+    /** Drop-chance for the enchanted Ominous Trial Key: (1 – normalizedWeight) + 10%, clamped to [0, 1]. */
+    private static double ominousKeyDropChance(DonjonRarity rarity) {
+        int totalWeight = 0;
+        for (int w : rarityWeights) totalWeight += w;
+        double normalizedWeight = (double) rarityWeights[rarity.ordinal()] / totalWeight;
+
+        return Math.min(1.0, (1.0 - normalizedWeight) + 0.10);
     }
 
     static void resetDonjon(Donjon donjon) {
@@ -667,6 +702,7 @@ public class DonjonManager {
         donjon.getPlayersInside().clear();
         clearEntities(donjon);
         donjon.getWaves().clear();
+        spawnOrUpdateNametag(donjon);
     }
 
     public static void setIdle(Donjon donjon, String reason) {
@@ -758,9 +794,14 @@ public class DonjonManager {
         DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
         String typeName = cfg != null ? cfg.displayName() : donjon.getType().getDisplayName();
 
-        Component statusLine = donjon.getStatus() == DonjonStatus.ACTIVE
-                ? Component.text("◆ ACTIVE ◆", NamedTextColor.GREEN)
-                : Component.text("◇ IDLE ◇", NamedTextColor.DARK_GRAY);
+        Component statusLine;
+        if (donjon.isInProgress()) {
+            statusLine = Component.text("⚔ IN PROGRESS ⚔", NamedTextColor.YELLOW);
+        } else if (donjon.getStatus() == DonjonStatus.ACTIVE) {
+            statusLine = Component.text("◆ ACTIVE ◆", NamedTextColor.GREEN);
+        } else {
+            statusLine = Component.text("◇ IDLE ◇", NamedTextColor.DARK_GRAY);
+        }
 
         return Component.text("[" + typeName + "] ", NamedTextColor.GRAY)
                 .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
@@ -889,59 +930,9 @@ public class DonjonManager {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Chunk-based procedural generation
-    // -------------------------------------------------------------------------
-
     /**
-     * Called on every newly-populated chunk. Rolls the spawn chance, checks whether a configured
-     * vanilla structure is present in this chunk, places the NBT structure, and registers the donjon.
-     */
-    public static void generateNaturallyDonjonInChunk(Chunk chunk) {
-        World world = chunk.getWorld();
-        int chunkCenterX = (chunk.getX() << 4) + 8;
-        int chunkCenterZ = (chunk.getZ() << 4) + 8;
-        int centerY = world.getHighestBlockYAt(chunkCenterX, chunkCenterZ, HeightMap.OCEAN_FLOOR);
-        Location chunkCenter = new Location(world, chunkCenterX, centerY, chunkCenterZ);
-
-        // Find a DonjonType whose structures list contains a vanilla structure present in this chunk
-        DonjonType matchedType = null;
-        DonjonTypeConfig matchedCfg = null;
-        outer:
-        for (DonjonType type : DonjonType.values()) {
-            DonjonTypeConfig cfg = typeConfigMap.get(type);
-
-            if (cfg == null) continue;
-
-            for (String structureName : cfg.structures()) {
-                Structure vanillaStructure = RegistryAccess.registryAccess()
-                        .getRegistry(RegistryKey.STRUCTURE)
-                        .get(NamespacedKey.minecraft(structureName.toLowerCase()));
-                if (vanillaStructure == null) continue;
-
-                StructureSearchResult result = world.locateNearestStructure(chunkCenter, vanillaStructure, 1, false);
-                if (result == null) continue;
-
-                Location sLoc = result.getLocation();
-                if (sLoc.getChunk().getX() == chunk.getX() && sLoc.getChunk().getZ() == chunk.getZ()) {
-                    matchedType = type;
-                    matchedCfg = cfg;
-
-                    break outer;
-                }
-            }
-        }
-
-        if (matchedType == null) return;
-        if (ThreadLocalRandom.current().nextDouble() >= matchedCfg.spawnChance()) return;
-
-        // todo past here
-        generateDonjon(matchedType, chunk);
-    }
-
-    /**
-     * Creates a donjon of the given type with its NBT structure at corner top north-west in {@code chunk}.
-     * Intended for the {@code /donjon create} admin command.
+     * Creates a donjon of the given type with its NBT structure at the north-west corner of {@code chunk}.
+     * Used exclusively by the {@code /donjon create} admin command.
      *
      * @return the created {@link Donjon}, or {@code null} on failure.
      */
@@ -1155,11 +1146,20 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     private static void activateRandomDonjon() {
+        long activeCount = donjons.values().stream()
+                .filter(d -> d.getStatus() == DonjonStatus.ACTIVE)
+                .count();
+        if (activeCount >= maxActiveDonjonons) return;
+
         List<Donjon> idle = donjons.values().stream()
                 .filter(d -> d.getStatus() == DonjonStatus.IDLE)
                 .toList();
         if (idle.isEmpty()) return;
-        activateDonjon(idle.get(ThreadLocalRandom.current().nextInt(idle.size())));
+
+        Donjon selected = idle.get(ThreadLocalRandom.current().nextInt(idle.size()));
+        selected.setLevel(randomLevel());
+        selected.setRarity(randomRarity());
+        activateDonjon(selected);
     }
 
     private static int randomLevel() {

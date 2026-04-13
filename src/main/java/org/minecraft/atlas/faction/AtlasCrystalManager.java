@@ -4,6 +4,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.EnderCrystal;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.plugin.Plugin;
@@ -74,8 +75,22 @@ public class AtlasCrystalManager {
     // State
     // -------------------------------------------------------------------------
 
+    /** HP regenerated per second when the crystal is eligible (loaded from config). */
+    public static double regenPerSecond      = 1.5;
+    /** Immunity duration in ms granted after a checkpoint level drop (loaded from config). */
+    public static long   immunityDurationMs  = 3_600_000L;
     /** Minimum ms since the last hit before a crystal can regenerate HP (loaded from config). */
-    public static long regenTimeoutMs = 60_000L;
+    public static long   regenTimeoutMs      = 60_000L;
+
+    // -------------------------------------------------------------------------
+    // Config loading
+    // -------------------------------------------------------------------------
+
+    public static void loadConfig(FileConfiguration config) {
+        regenPerSecond     = config.getDouble("crystal.regen_per_second", 1.5);
+        immunityDurationMs = config.getLong("crystal.immunity_duration_seconds", 3600L) * 1000L;
+        regenTimeoutMs     = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+    }
 
     /** entityUUID → AtlasCrystal */
     private static final Map<UUID, AtlasCrystal> crystals = new HashMap<>();
@@ -358,7 +373,7 @@ public class AtlasCrystalManager {
                     }
 
                     if (crystal.canRegen() && crystal.getHp() < crystal.getMaxHp()) {
-                        crystal.regen(Atlas.crystalRegenPerSecond);
+                        crystal.regen(regenPerSecond);
                         crystal.getEntity().getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }
