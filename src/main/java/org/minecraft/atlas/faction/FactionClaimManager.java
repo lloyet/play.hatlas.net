@@ -15,8 +15,8 @@ import java.util.Map;
  *  Ring r  → all chunks at Chebyshev distance exactly r from the center
  *             (ring 1 = 8 chunks, ring 2 = 16 chunks, ring r = 8*r chunks)
  *
- * Each checkpoint level reached adds one more ring.
- * Each checkpoint level lost removes the outermost ring.
+ * Each upgrade level reached adds one more ring.
+ * Each upgrade level lost removes the outermost ring.
  * Disbanding removes every ring including the center.
  */
 public class FactionClaimManager {
@@ -43,7 +43,7 @@ public class FactionClaimManager {
 
     /**
      * Expands claims by one ring outward.
-     * Call once each time a checkpoint level is reached.
+     * Call once each time an upgrade level is reached.
      */
     public static void expandClaims(String factionName) {
         String[] center = factionCenters.get(factionName);

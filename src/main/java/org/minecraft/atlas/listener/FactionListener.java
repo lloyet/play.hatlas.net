@@ -25,6 +25,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonManager;
@@ -38,6 +40,7 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -241,22 +244,41 @@ public class FactionListener implements Listener {
             FactionManager.disbandFaction(crystalFaction);
 
         } else {
-            // Level > 0: drop to the previous checkpoint, restore crystal HP, grant 1h immunity
-            int prevCheckpoint = FactionLevelManager.getPreviousCheckpoint(factionLevel);
-            int newLevel = Math.max(0, prevCheckpoint); // -1 means drop to 0
+            // Level > 0: drop to the previous upgrade level, restore crystal HP, grant 1h immunity
+            int prevUpgrade = FactionLevelManager.getPreviousUpgrade(factionLevel);
+            int newLevel = Math.max(0, prevUpgrade); // -1 means drop to 0
 
             faction.setLevel(newLevel);
             faction.setExp(0);
 
-            // Shrink territory claims: keep only rings for checkpoints ≤ newLevel
+            // Shrink territory claims: keep only rings for upgrade levels ≤ newLevel
             int targetRings = 0;
-            for (int cp : FactionLevelManager.getCheckpoints()) {
+            for (int cp : FactionLevelManager.getUpgradeLevels()) {
                 if (cp <= newLevel) targetRings++;
                 else break;
             }
             FactionClaimManager.shrinkClaimsTo(crystalFaction, targetRings);
 
-            // Strip checkpoint bonuses above newLevel from all named faction crystals
+            // Drop and delete virtual chests whose index exceeds what newLevel allows
+            int allowedChests = FactionLevelManager.getAvailableChests(newLevel);
+            Map<Integer, ItemStack[]> chestMap = faction.getChestContentsMap();
+            Iterator<Map.Entry<Integer, ItemStack[]>> chestIter = chestMap.entrySet().iterator();
+            while (chestIter.hasNext()) {
+                Map.Entry<Integer, ItemStack[]> entry = chestIter.next();
+                if (entry.getKey() >= allowedChests) {
+                    ItemStack[] contents = entry.getValue();
+                    if (contents != null) {
+                        for (ItemStack stack : contents) {
+                            if (stack != null && stack.getType() != Material.AIR) {
+                                crystal.getWorld().dropItemNaturally(crystal.getLocation(), stack);
+                            }
+                        }
+                    }
+                    chestIter.remove();
+                }
+            }
+
+            // Strip upgrade bonuses above newLevel from all named faction crystals
             Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
             Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
             for (AtlasCrystal fc : allCrystals) {

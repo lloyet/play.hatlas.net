@@ -43,7 +43,7 @@ public final class Atlas extends JavaPlugin {
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
         AtlasCrystalManager.loadConfig(configFile);
-        FactionLevelManager.loadCheckpoints(configFile);
+        FactionLevelManager.loadUpgrades(configFile);
         FactionManager.loadFactions(configFile);
         FactionClaimManager.loadClaims(configFile);
         JobManager.loadJobs(configFile);

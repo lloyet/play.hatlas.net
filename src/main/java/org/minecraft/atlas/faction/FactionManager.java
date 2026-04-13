@@ -2,9 +2,11 @@ package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.*;
@@ -349,8 +351,8 @@ public class FactionManager {
 
     /**
      * Adds exp to a faction and processes any resulting level-ups.
-     * Reached checkpoint levels are queued in the faction as pending upgrades.
-     * Returns the list of checkpoint levels newly reached (may be empty).
+     * Reached upgrade levels are queued in the faction as pending upgrades.
+     * Returns the list of upgrade levels newly reached (may be empty).
      */
     public static List<Integer> addExpToFaction(String factionName, int amount) {
         Faction faction = factions.get(factionName);
@@ -365,7 +367,7 @@ public class FactionManager {
                 faction.setExp(faction.getExp() - required);
                 faction.setLevel(faction.getLevel() + 1);
                 int newLevel = faction.getLevel();
-                if (FactionLevelManager.isCheckpoint(newLevel)) {
+                if (FactionLevelManager.isUpgrade(newLevel)) {
                     reached.add(newLevel);
                     faction.addPendingUpgrade(newLevel);
                     FactionClaimManager.expandClaims(factionName);
@@ -384,11 +386,11 @@ public class FactionManager {
     }
 
     /**
-     * Applies the specified checkpoint upgrade HP to the named crystal.
-     * The checkpointLevel must be in the faction's pending upgrades list.
+     * Applies the specified upgrade HP bonus to the named crystal.
+     * The upgradeLevel must be in the faction's pending upgrades list.
      * Only the Owner or a Leader may do this.
      */
-    public static ApplyUpgradeResult applyUpgrade(UUID playerUUID, int checkpointLevel, String crystalName) {
+    public static ApplyUpgradeResult applyUpgrade(UUID playerUUID, int upgradeLevel, String crystalName) {
         String factionName = playerFaction.get(playerUUID);
         if (factionName == null) return ApplyUpgradeResult.NOT_IN_FACTION;
 
@@ -397,17 +399,17 @@ public class FactionManager {
         boolean isLeader = !isOwner && faction.getRole(playerUUID) == FactionRole.LEADER;
         if (!isOwner && !isLeader) return ApplyUpgradeResult.NO_PERMISSION;
 
-        if (!faction.removePendingUpgrade(checkpointLevel)) return ApplyUpgradeResult.UPGRADE_NOT_PENDING;
+        if (!faction.removePendingUpgrade(upgradeLevel)) return ApplyUpgradeResult.UPGRADE_NOT_PENDING;
 
         AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(factionName, crystalName);
         if (crystal == null) {
             // Put the upgrade back since we couldn't apply it
-            faction.addPendingUpgrade(checkpointLevel);
+            faction.addPendingUpgrade(upgradeLevel);
             return ApplyUpgradeResult.CRYSTAL_NOT_FOUND;
         }
 
-        double upgradeHp = FactionLevelManager.getUpgradeHp(checkpointLevel);
-        crystal.addUpgrade(checkpointLevel, upgradeHp);
+        double upgradeHp = FactionLevelManager.getUpgradeHp(upgradeLevel);
+        crystal.addUpgrade(upgradeLevel, upgradeHp);
         AtlasCrystalManager.persistCrystalState(crystal);
         crystal.updateNametag();
 
@@ -435,6 +437,20 @@ public class FactionManager {
 
             if (!faction.getPendingUpgrades().isEmpty()) {
                 s.set("pending_upgrades", faction.getPendingUpgrades());
+            }
+
+            Map<Integer, ItemStack[]> chests = faction.getChestContentsMap();
+            if (!chests.isEmpty()) {
+                ConfigurationSection chestsSection = s.createSection("chests");
+                for (Map.Entry<Integer, ItemStack[]> entry : chests.entrySet()) {
+                    ConfigurationSection chestSec = chestsSection.createSection(String.valueOf(entry.getKey()));
+                    ItemStack[] contents = entry.getValue();
+                    for (int i = 0; i < contents.length; i++) {
+                        if (contents[i] != null && contents[i].getType() != Material.AIR) {
+                            chestSec.set(String.valueOf(i), contents[i]);
+                        }
+                    }
+                }
             }
 
             Map<UUID, FactionRole> roles = faction.getRoles();
@@ -481,6 +497,25 @@ public class FactionManager {
 
             for (int cp : s.getIntegerList("pending_upgrades")) {
                 faction.addPendingUpgrade(cp);
+            }
+
+            ConfigurationSection chestsSection = s.getConfigurationSection("chests");
+            if (chestsSection != null) {
+                for (String indexStr : chestsSection.getKeys(false)) {
+                    try {
+                        int chestIndex = Integer.parseInt(indexStr);
+                        ConfigurationSection chestSec = chestsSection.getConfigurationSection(indexStr);
+                        if (chestSec == null) continue;
+                        ItemStack[] contents = new ItemStack[54];
+                        for (String slotStr : chestSec.getKeys(false)) {
+                            try {
+                                int slot = Integer.parseInt(slotStr);
+                                if (slot >= 0 && slot < 54) contents[slot] = chestSec.getItemStack(slotStr);
+                            } catch (NumberFormatException ignored) {}
+                        }
+                        faction.setChestContents(chestIndex, contents);
+                    } catch (NumberFormatException ignored) {}
+                }
             }
 
             ConfigurationSection rolesSection = s.getConfigurationSection("roles");

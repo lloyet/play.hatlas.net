@@ -965,7 +965,7 @@ public class FactionCommand {
                                     Faction faction = FactionManager.getFaction(fn);
                                     List<Integer> pending = faction.getPendingUpgrades();
                                     if (pending.isEmpty()) {
-                                        player.sendMessage(info("No pending upgrades. Gain exp to reach a checkpoint!"));
+                                        player.sendMessage(info("No pending upgrades. Gain exp to reach an upgrade level!"));
                                         return Command.SINGLE_SUCCESS;
                                     }
                                     Component msg = Component.text("--- Pending Upgrades ---", NamedTextColor.LIGHT_PURPLE);
@@ -973,7 +973,7 @@ public class FactionCommand {
                                         double bonus = FactionLevelManager.getUpgradeHp(cp);
                                         msg = msg.append(Component.newline())
                                                 .append(Component.text("  Upgrade " + cp, NamedTextColor.GOLD))
-                                                .append(Component.text(" (checkpoint LvL." + cp + ")", NamedTextColor.GRAY))
+                                                .append(Component.text(" (upgrade LvL." + cp + ")", NamedTextColor.GRAY))
                                                 .append(Component.text(" → +" + (int) bonus + " max HP", NamedTextColor.GREEN));
                                     }
                                     msg = msg.append(Component.newline())
@@ -1017,23 +1017,23 @@ public class FactionCommand {
                                                     String upgradeNameStr = StringArgumentType.getString(ctx, "upgradeName");
                                                     String crystalName = StringArgumentType.getString(ctx, "crystal");
 
-                                                    int checkpointLevel;
+                                                    int upgradeLevel;
                                                     try {
-                                                        checkpointLevel = Integer.parseInt(upgradeNameStr);
+                                                        upgradeLevel = Integer.parseInt(upgradeNameStr);
                                                     } catch (NumberFormatException e) {
-                                                        player.sendMessage(error("Invalid upgrade name '" + upgradeNameStr + "'. Use the checkpoint level number (e.g. 5)."));
+                                                        player.sendMessage(error("Invalid upgrade name '" + upgradeNameStr + "'. Use the upgrade level number (e.g. 5)."));
                                                         return Command.SINGLE_SUCCESS;
                                                     }
 
                                                     FactionManager.ApplyUpgradeResult result =
-                                                            FactionManager.applyUpgrade(player.getUniqueId(), checkpointLevel, crystalName);
+                                                            FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalName);
 
                                                     switch (result) {
                                                         case SUCCESS -> {
                                                             String fn = FactionManager.getPlayerFaction(player.getUniqueId());
                                                             AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(fn, crystalName);
                                                             int newMax = crystal != null ? (int) crystal.getMaxHp() : 0;
-                                                            player.sendMessage(success("Upgrade " + checkpointLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
+                                                            player.sendMessage(success("Upgrade " + upgradeLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
                                                             FactionManager.broadcastToFaction(fn,
                                                                     info(player.getName() + " upgraded Atlas Crystal '" + crystalName + "'! New max HP: " + newMax),
                                                                     player.getUniqueId());
@@ -1047,7 +1047,7 @@ public class FactionCommand {
                                                         case NO_PERMISSION ->
                                                                 player.sendMessage(error("Only Owners and Leaders can apply upgrades."));
                                                         case UPGRADE_NOT_PENDING ->
-                                                                player.sendMessage(error("Upgrade " + checkpointLevel + " is not pending. Use /faction upgrade list to see available upgrades."));
+                                                                player.sendMessage(error("Upgrade " + upgradeLevel + " is not pending. Use /faction upgrade list to see available upgrades."));
                                                         case CRYSTAL_NOT_FOUND ->
                                                                 player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
                                                     }
@@ -1133,7 +1133,7 @@ public class FactionCommand {
                                                         null);
                                                 if (faction.hasPendingUpgrade()) {
                                                     FactionManager.broadcastToFaction(factionName,
-                                                            Component.text("⚡ Checkpoint reached! An Owner or Leader can run /faction upgrade list then /faction upgrade apply <upgradeName> <crystal> to upgrade a crystal!", NamedTextColor.LIGHT_PURPLE),
+                                                            Component.text("⚡ Upgrade level reached! An Owner or Leader can run /faction upgrade list then /faction upgrade apply <upgradeName> <crystal> to upgrade a crystal!", NamedTextColor.LIGHT_PURPLE),
                                                             null);
                                                 }
                                             }

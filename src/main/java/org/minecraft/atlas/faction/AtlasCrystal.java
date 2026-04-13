@@ -23,7 +23,7 @@ public class AtlasCrystal {
     private Location home;
     private double hp;
     private double maxHp;
-    /** Checkpoint levels whose HP upgrade has been permanently applied to this crystal. */
+    /** Upgrade levels whose HP bonus has been permanently applied to this crystal. */
     private final Set<Integer> appliedUpgrades = new HashSet<>();
     /** System.currentTimeMillis() after which immunity ends. 0 = not immune. */
     private long immuneUntilMillis = 0;
@@ -63,22 +63,22 @@ public class AtlasCrystal {
      * Used during PDC restore: records that an upgrade was previously applied without
      * re-adding the HP (maxHp is already the correct accumulated value restored from PDC).
      */
-    void restoreUpgrade(int checkpointLevel) {
-        appliedUpgrades.add(checkpointLevel);
+    void restoreUpgrade(int upgradeLevel) {
+        appliedUpgrades.add(upgradeLevel);
     }
 
     /**
-     * Applies a permanent HP upgrade from a checkpoint.
-     * Does nothing if this checkpoint level was already applied.
+     * Applies a permanent HP bonus from an upgrade level.
+     * Does nothing if this upgrade level was already applied.
      */
-    public void addUpgrade(int checkpointLevel, double upgradeHp) {
-        if (appliedUpgrades.add(checkpointLevel)) {
+    public void addUpgrade(int upgradeLevel, double upgradeHp) {
+        if (appliedUpgrades.add(upgradeLevel)) {
             maxHp += upgradeHp;
         }
     }
 
     /**
-     * Strips HP upgrades from checkpoint levels above the given threshold.
+     * Strips HP bonuses from upgrade levels above the given threshold.
      * Reduces maxHp accordingly and clamps hp if needed.
      */
     public void stripUpgradesAbove(int level, Map<Integer, Double> upgradeBonusMap) {

@@ -33,7 +33,7 @@ public class CrystalGui implements Listener {
     // Screen tracking
     // -------------------------------------------------------------------------
 
-    private enum Screen { MAIN, UPGRADE, CONFIRM, COLOR }
+    private enum Screen { MAIN, UPGRADE, CONFIRM, COLOR, CHEST_LIST, CHEST_VIEW }
 
     /** Tracks which menu screen each player currently has open. */
     private static final Map<UUID, Screen> activeScreen = new HashMap<>();
@@ -46,13 +46,25 @@ public class CrystalGui implements Listener {
     private static final Set<UUID>          managedMenus      = new HashSet<>();
     /** UUID → name of the crystal that was right-clicked to open the GUI. */
     private static final Map<UUID, String>  activeCrystalName = new HashMap<>();
-    /** UUID → checkpoint level pending upgrade confirmation. */
+    /** UUID → upgrade level pending confirmation. */
     private static final Map<UUID, Integer> pendingConfirm    = new HashMap<>();
+    /** UUID → chest index currently open in CHEST_VIEW. */
+    private static final Map<UUID, Integer> activeChestIndex  = new HashMap<>();
+
+    /**
+     * Key "factionName:chestIndex" → shared Inventory instance.
+     * When multiple players open the same chest the same object is reused so
+     * edits are immediately visible to all viewers.
+     */
+    private static final Map<String, Inventory>    openChestInventories = new HashMap<>();
+    /** Key "factionName:chestIndex" → set of player UUIDs currently viewing that chest. */
+    private static final Map<String, Set<UUID>>    chestViewers         = new HashMap<>();
 
     // -------------------------------------------------------------------------
     // Main-menu slot indices (27-slot inventory)
     // -------------------------------------------------------------------------
 
+    private static final int SLOT_CHEST_BTN    = 4;
     private static final int SLOT_CRYSTAL_INFO = 11;
     private static final int SLOT_EXP_INFO     = 13;
     private static final int SLOT_COLOR_INFO   = 15;
@@ -112,6 +124,7 @@ public class CrystalGui implements Listener {
         Inventory inv = Bukkit.createInventory(null, 27,
                 Component.text(faction.getName(), faction.getColor()));
 
+        inv.setItem(SLOT_CHEST_BTN,    buildChestButton(faction));
         inv.setItem(SLOT_CRYSTAL_INFO, buildCrystalInfoItem(faction, crystal));
         inv.setItem(SLOT_EXP_INFO,     buildExpItem(faction));
         inv.setItem(SLOT_COLOR_INFO,   buildColorItem(faction));
@@ -128,14 +141,14 @@ public class CrystalGui implements Listener {
                 Component.text(faction.getName() + " - Upgrades", NamedTextColor.GOLD));
 
         int[] slots           = contentSlots54();
-        List<Integer> checkpoints = FactionLevelManager.getCheckpoints();
-        Set<Integer> applied      = crystal.getAppliedUpgrades();
-        List<Integer> pending     = faction.getPendingUpgrades();
-        int factionLevel          = faction.getLevel();
+        List<Integer> upgradeLevels = FactionLevelManager.getUpgradeLevels();
+        Set<Integer> applied        = crystal.getAppliedUpgrades();
+        List<Integer> pending       = faction.getPendingUpgrades();
+        int factionLevel            = faction.getLevel();
 
-        for (int i = 0; i < checkpoints.size() && i < slots.length; i++) {
-            int cp = checkpoints.get(i);
-            inv.setItem(slots[i], buildUpgradeItem(cp, applied.contains(cp),
+        for (int i = 0; i < upgradeLevels.size() && i < slots.length; i++) {
+            int ul = upgradeLevels.get(i);
+            inv.setItem(slots[i], buildUpgradeItem(ul, applied.contains(ul),
                     pending.contains(cp), factionLevel >= cp));
         }
 
@@ -145,7 +158,7 @@ public class CrystalGui implements Listener {
         managedMenus.add(player.getUniqueId());
     }
 
-    private static void openConfirmMenu(Player player, Faction faction, int checkpointLevel) {
+    private static void openConfirmMenu(Player player, Faction faction, int upgradeLevel) {
         Inventory inv = Bukkit.createInventory(null, 27,
                 Component.text(faction.getName() + " - Confirm Upgrade?", NamedTextColor.GOLD));
 
@@ -160,7 +173,7 @@ public class CrystalGui implements Listener {
 
         inv.setItem(4,  gray);
         inv.setItem(22, gray);
-        inv.setItem(SLOT_CONFIRM_INFO, buildConfirmInfoItem(checkpointLevel));
+        inv.setItem(SLOT_CONFIRM_INFO, buildConfirmInfoItem(upgradeLevel));
 
         activeScreen.put(player.getUniqueId(), Screen.CONFIRM);
         player.openInventory(inv);
@@ -181,9 +194,91 @@ public class CrystalGui implements Listener {
         managedMenus.add(player.getUniqueId());
     }
 
+    private static void openChestListMenu(Player player, Faction faction) {
+        int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+        Inventory inv = Bukkit.createInventory(null, 27,
+                Component.text(faction.getName() + " - Chests", faction.getColor()));
+
+        int[] slots = chestListSlots(available);
+        for (int i = 0; i < available; i++) {
+            inv.setItem(slots[i], buildChestListItem(i, faction));
+        }
+
+        fillGray(inv);
+        activeScreen.put(player.getUniqueId(), Screen.CHEST_LIST);
+        player.openInventory(inv);
+        managedMenus.add(player.getUniqueId());
+    }
+
+    private static void openChestViewMenu(Player player, Faction faction, int chestIndex) {
+        String key = faction.getName() + ":" + chestIndex;
+
+        // Reuse shared inventory if another faction member already has this chest open
+        Inventory inv = openChestInventories.get(key);
+        if (inv == null) {
+            inv = Bukkit.createInventory(null, 54,
+                    Component.text(faction.getName() + " - Chest #" + (chestIndex + 1), faction.getColor()));
+            inv.setContents(faction.getChestContents(chestIndex));
+            openChestInventories.put(key, inv);
+        }
+
+        chestViewers.computeIfAbsent(key, k -> new HashSet<>()).add(player.getUniqueId());
+        activeChestIndex.put(player.getUniqueId(), chestIndex);
+        activeScreen.put(player.getUniqueId(), Screen.CHEST_VIEW);
+        player.openInventory(inv);
+        managedMenus.add(player.getUniqueId());
+    }
+
     // -------------------------------------------------------------------------
     // Item builders
     // -------------------------------------------------------------------------
+
+    private static ItemStack buildChestButton(Faction faction) {
+        int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+        ItemStack item = new ItemStack(available > 0 ? Material.BARREL : Material.CHEST);
+        ItemMeta meta  = item.getItemMeta();
+        meta.displayName(Component.text("Faction Chests", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(loreLine("Available", String.valueOf(available),
+                available > 0 ? NamedTextColor.GREEN : NamedTextColor.RED));
+        lore.add(Component.empty());
+        lore.add(Component.text(available > 0
+                        ? "  Click to open chests"
+                        : "  Reach an upgrade level to unlock",
+                        NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static ItemStack buildChestListItem(int index, Faction faction) {
+        ItemStack[] contents = faction.getChestContents(index);
+        int itemCount = 0;
+        for (ItemStack stack : contents) {
+            if (stack != null && stack.getType() != Material.AIR) itemCount++;
+        }
+
+        ItemStack item = new ItemStack(Material.BARREL);
+        ItemMeta meta  = item.getItemMeta();
+        meta.displayName(Component.text("Chest #" + (index + 1), NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(loreLine("Items", itemCount + " / 54", NamedTextColor.WHITE));
+        lore.add(Component.empty());
+        lore.add(Component.text("  Click to open", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
 
     private static ItemStack buildCrystalInfoItem(Faction faction, AtlasCrystal crystal) {
         ItemStack item = new ItemStack(Material.END_CRYSTAL);
@@ -298,7 +393,7 @@ public class CrystalGui implements Listener {
         return item;
     }
 
-    private static ItemStack buildUpgradeItem(int checkpoint, boolean applied,
+    private static ItemStack buildUpgradeItem(int upgradeLevel, boolean applied,
                                               boolean pending, boolean levelReached) {
         Material mat;
         NamedTextColor nameColor;
@@ -324,13 +419,13 @@ public class CrystalGui implements Listener {
 
         ItemStack item = new ItemStack(mat);
         ItemMeta meta  = item.getItemMeta();
-        meta.displayName(Component.text("Level " + checkpoint + " Upgrade", nameColor)
+        meta.displayName(Component.text("Level " + upgradeLevel + " Upgrade", nameColor)
                 .decoration(TextDecoration.ITALIC, false));
 
-        double bonusHp = FactionLevelManager.getUpgradeHp(checkpoint);
+        double bonusHp = FactionLevelManager.getUpgradeHp(upgradeLevel);
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(loreLine("Reach Level", String.valueOf(checkpoint), NamedTextColor.AQUA));
+        lore.add(loreLine("Reach Level", String.valueOf(upgradeLevel), NamedTextColor.AQUA));
         lore.add(loreLine("HP Bonus",    "+" + (int) bonusHp + " ♥", NamedTextColor.RED));
         lore.add(Component.empty());
         lore.add(Component.text("  " + statusText, nameColor)
@@ -341,11 +436,11 @@ public class CrystalGui implements Listener {
         return item;
     }
 
-    private static ItemStack buildConfirmInfoItem(int checkpointLevel) {
-        double bonusHp = FactionLevelManager.getUpgradeHp(checkpointLevel);
+    private static ItemStack buildConfirmInfoItem(int upgradeLevel) {
+        double bonusHp = FactionLevelManager.getUpgradeHp(upgradeLevel);
         ItemStack item = new ItemStack(Material.BOOK);
         ItemMeta meta  = item.getItemMeta();
-        meta.displayName(Component.text("Apply Lv." + checkpointLevel + " Upgrade?", NamedTextColor.GOLD)
+        meta.displayName(Component.text("Apply Lv." + upgradeLevel + " Upgrade?", NamedTextColor.GOLD)
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
@@ -369,20 +464,25 @@ public class CrystalGui implements Listener {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (!managedMenus.contains(player.getUniqueId())) return;
 
+        Screen screen = activeScreen.get(player.getUniqueId());
+        if (screen == null) return;
+
+        // Chest view: allow free inventory interaction — do not cancel
+        if (screen == Screen.CHEST_VIEW) return;
+
         event.setCancelled(true);
 
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        Screen screen = activeScreen.get(player.getUniqueId());
-        if (screen == null) return;
-
         int slot = event.getRawSlot();
         switch (screen) {
-            case MAIN    -> handleMainClick(player, slot);
-            case UPGRADE -> handleUpgradeClick(player, slot);
-            case CONFIRM -> handleConfirmClick(player, slot);
-            case COLOR   -> handleColorClick(player, slot);
+            case MAIN       -> handleMainClick(player, slot);
+            case UPGRADE    -> handleUpgradeClick(player, slot);
+            case CONFIRM    -> handleConfirmClick(player, slot);
+            case COLOR      -> handleColorClick(player, slot);
+            case CHEST_LIST -> handleChestListClick(player, slot);
+            default -> {}
         }
     }
 
@@ -391,6 +491,19 @@ public class CrystalGui implements Listener {
         if (factionName == null) { player.closeInventory(); return; }
 
         Faction faction = FactionManager.getFaction(factionName);
+
+        if (slot == SLOT_CHEST_BTN) {
+            int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+            if (available == 0) {
+                player.sendMessage(Component.text(
+                        "Your faction has no chests yet. Reach an upgrade level to unlock one.",
+                        NamedTextColor.YELLOW));
+                return;
+            }
+            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
+            openChestListMenu(player, faction);
+            return;
+        }
 
         if (slot == SLOT_COLOR_INFO) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
@@ -411,6 +524,24 @@ public class CrystalGui implements Listener {
         }
     }
 
+    private void handleChestListClick(Player player, int slot) {
+        String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+        if (factionName == null) { player.closeInventory(); return; }
+
+        Faction faction   = FactionManager.getFaction(factionName);
+        int available     = FactionLevelManager.getAvailableChests(faction.getLevel());
+        int[] chestSlots  = chestListSlots(available);
+
+        int chestIndex = -1;
+        for (int i = 0; i < chestSlots.length; i++) {
+            if (chestSlots[i] == slot) { chestIndex = i; break; }
+        }
+        if (chestIndex < 0) return; // filler slot clicked
+
+        player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
+        openChestViewMenu(player, faction, chestIndex);
+    }
+
     private void handleUpgradeClick(Player player, int slot) {
         int[] slots = contentSlots54();
         int idx = -1;
@@ -419,16 +550,16 @@ public class CrystalGui implements Listener {
         }
         if (idx < 0) return;
 
-        List<Integer> checkpoints = FactionLevelManager.getCheckpoints();
-        if (idx >= checkpoints.size()) return;
+        List<Integer> upgradeLevels = FactionLevelManager.getUpgradeLevels();
+        if (idx >= upgradeLevels.size()) return;
 
-        int checkpointLevel = checkpoints.get(idx);
+        int upgradeLevel = upgradeLevels.get(idx);
 
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
         if (factionName == null) { player.closeInventory(); return; }
 
         Faction faction = FactionManager.getFaction(factionName);
-        if (!faction.getPendingUpgrades().contains(checkpointLevel)) return;
+        if (!faction.getPendingUpgrades().contains(upgradeLevel)) return;
 
         boolean isOwner  = faction.getOwner().equals(player.getUniqueId());
         boolean isLeader = !isOwner && faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
@@ -439,23 +570,23 @@ public class CrystalGui implements Listener {
         }
 
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-        pendingConfirm.put(player.getUniqueId(), checkpointLevel);
-        openConfirmMenu(player, faction, checkpointLevel);
+        pendingConfirm.put(player.getUniqueId(), upgradeLevel);
+        openConfirmMenu(player, faction, upgradeLevel);
     }
 
     private void handleConfirmClick(Player player, int slot) {
         if (CONFIRM_GREEN.contains(slot)) {
-            Integer checkpointLevel = pendingConfirm.remove(player.getUniqueId());
-            if (checkpointLevel == null) { player.closeInventory(); return; }
+            Integer upgradeLevel = pendingConfirm.remove(player.getUniqueId());
+            if (upgradeLevel == null) { player.closeInventory(); return; }
 
             String crystalName = activeCrystalName.getOrDefault(player.getUniqueId(), "");
             FactionManager.ApplyUpgradeResult result =
-                    FactionManager.applyUpgrade(player.getUniqueId(), checkpointLevel, crystalName);
+                    FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalName);
 
             switch (result) {
                 case SUCCESS -> {
                     player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-                    double bonus = FactionLevelManager.getUpgradeHp(checkpointLevel);
+                    double bonus = FactionLevelManager.getUpgradeHp(upgradeLevel);
                     player.sendMessage(
                             Component.text("Upgrade applied! Crystal gained ", NamedTextColor.GREEN)
                                     .append(Component.text("+" + (int) bonus + " ♥", NamedTextColor.RED))
@@ -515,7 +646,7 @@ public class CrystalGui implements Listener {
     }
 
     // -------------------------------------------------------------------------
-    // Close handling — clean up state on final close
+    // Close handling
     // -------------------------------------------------------------------------
 
     @EventHandler
@@ -524,20 +655,61 @@ public class CrystalGui implements Listener {
         UUID uuid = player.getUniqueId();
         if (!managedMenus.contains(uuid)) return;
 
+        Screen screen = activeScreen.get(uuid);
         managedMenus.remove(uuid);
 
-        // OPEN_NEW means the player is navigating to another managed menu.
-        // The new openXxxMenu call re-adds state — do not clean up yet.
+        // Always save chest contents and release the viewer slot when a chest view closes
+        // (this applies even with OPEN_NEW so contents are persisted before any new menu opens)
+        if (screen == Screen.CHEST_VIEW) {
+            Integer chestIdx   = activeChestIndex.get(uuid);
+            String factionName = FactionManager.getPlayerFaction(uuid);
+            if (chestIdx != null && factionName != null) {
+                Faction faction = FactionManager.getFaction(factionName);
+                if (faction != null) {
+                    faction.setChestContents(chestIdx, event.getInventory().getContents().clone());
+                }
+                String key = factionName + ":" + chestIdx;
+                Set<UUID> viewers = chestViewers.get(key);
+                if (viewers != null) {
+                    viewers.remove(uuid);
+                    if (viewers.isEmpty()) {
+                        chestViewers.remove(key);
+                        openChestInventories.remove(key);
+                    }
+                }
+            }
+        }
+
+        // OPEN_NEW: navigating to another managed menu — keep crystal/confirm state alive
         if (event.getReason() == InventoryCloseEvent.Reason.OPEN_NEW) return;
 
+        // Final close: full cleanup
         activeCrystalName.remove(uuid);
         pendingConfirm.remove(uuid);
         activeScreen.remove(uuid);
+        activeChestIndex.remove(uuid);
     }
 
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns slot indices for the chest list, centered in the middle row (slots 9–17)
+     * of a 27-slot inventory. For more than 9 chests, falls back to sequential slots from 0.
+     */
+    private static int[] chestListSlots(int count) {
+        if (count <= 9) {
+            int[] slots = new int[count];
+            int start = 9 + (9 - count) / 2;
+            for (int i = 0; i < count; i++) slots[i] = start + i;
+            return slots;
+        }
+        int capped = Math.min(count, 27);
+        int[] slots = new int[capped];
+        for (int i = 0; i < capped; i++) slots[i] = i;
+        return slots;
+    }
 
     /** Fills all empty slots with transparent gray glass panes. */
     private static void fillGray(Inventory inv) {
