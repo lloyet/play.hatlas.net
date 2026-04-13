@@ -10,6 +10,7 @@ import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
+import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
@@ -60,6 +61,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JobGui(), this);
         getServer().getPluginManager().registerEvents(new DonjonListener(), this);
         getServer().getPluginManager().registerEvents(new TagListener(), this);
+        getServer().getPluginManager().registerEvents(new CrystalGui(), this);
 
         // Scheduler with ticks
         GolemListener.schedule(this);
