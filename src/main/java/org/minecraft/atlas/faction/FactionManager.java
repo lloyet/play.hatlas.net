@@ -342,6 +342,10 @@ public class FactionManager {
 
         faction.setColor(color);
 
+        for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(factionName)) {
+            crystal.updateNametag();
+        }
+
         return true;
     }
 
@@ -390,7 +394,7 @@ public class FactionManager {
      * The upgradeLevel must be in the faction's pending upgrades list.
      * Only the Owner or a Leader may do this.
      */
-    public static ApplyUpgradeResult applyUpgrade(UUID playerUUID, int upgradeLevel, String crystalName) {
+    public static ApplyUpgradeResult applyUpgrade(UUID playerUUID, int upgradeLevel, UUID crystalEntityUUID) {
         String factionName = playerFaction.get(playerUUID);
         if (factionName == null) return ApplyUpgradeResult.NOT_IN_FACTION;
 
@@ -401,8 +405,8 @@ public class FactionManager {
 
         if (!faction.removePendingUpgrade(upgradeLevel)) return ApplyUpgradeResult.UPGRADE_NOT_PENDING;
 
-        AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(factionName, crystalName);
-        if (crystal == null) {
+        AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
+        if (crystal == null || !crystal.getFactionName().equals(factionName)) {
             // Put the upgrade back since we couldn't apply it
             faction.addPendingUpgrade(upgradeLevel);
             return ApplyUpgradeResult.CRYSTAL_NOT_FOUND;

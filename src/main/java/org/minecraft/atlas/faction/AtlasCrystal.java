@@ -8,6 +8,7 @@ import org.bukkit.entity.EnderCrystal;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Represents an atlas ender crystal entity that guards a faction.
@@ -29,6 +30,8 @@ public class AtlasCrystal {
     private long immuneUntilMillis = 0;
     /** System.currentTimeMillis() of the last hit by an outside player. 0 = never attacked. */
     private long lastAttackMillis = 0;
+    /** UUID of the TextDisplay entity used as this crystal's overhead nametag. */
+    private UUID textDisplayUUID = null;
 
     public AtlasCrystal(EnderCrystal entity, String factionName, double hp, double maxHp) {
         this.entity = entity;
@@ -52,6 +55,8 @@ public class AtlasCrystal {
     public Set<Integer> getAppliedUpgrades() { return new HashSet<>(appliedUpgrades); }
     public long getImmuneUntilMillis() { return immuneUntilMillis; }
     public void setImmuneUntilMillis(long ts) { this.immuneUntilMillis = ts; }
+    public UUID getTextDisplayUUID() { return textDisplayUUID; }
+    public void setTextDisplayUUID(UUID id) { this.textDisplayUUID = id; }
 
     /** Directly sets HP (clamped to [0, maxHp]). Does NOT record an attack timestamp. */
     public void setHp(double hp) {
@@ -129,9 +134,8 @@ public class AtlasCrystal {
         return System.currentTimeMillis() - lastAttackMillis >= AtlasCrystalManager.regenTimeoutMs;
     }
 
-    /** Refreshes the entity's overhead nametag (3 lines). */
-    public void updateNametag() {
-        if (entity.isDead()) return;
+    /** Builds the 3-line nametag Component without touching any entity. */
+    Component buildNametagComponent() {
         Faction faction = FactionManager.getFaction(factionName);
         NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
         int level = faction != null ? faction.getLevel() : 0;
@@ -160,9 +164,14 @@ public class AtlasCrystal {
         Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
                 .append(immuneTag);
 
-        entity.customName(line1.append(Component.newline())
+        return line1.append(Component.newline())
                 .append(line2).append(Component.newline())
-                .append(line3));
-        entity.setCustomNameVisible(true);
+                .append(line3);
+    }
+
+    /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */
+    public void updateNametag() {
+        if (entity.isDead()) return;
+        AtlasCrystalManager.spawnOrUpdateNametagDisplay(this);
     }
 }

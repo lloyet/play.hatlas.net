@@ -39,8 +39,10 @@ import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -262,6 +264,7 @@ public class FactionListener implements Listener {
             // Drop and delete virtual chests whose index exceeds what newLevel allows
             int allowedChests = FactionLevelManager.getAvailableChests(newLevel);
             Map<Integer, ItemStack[]> chestMap = faction.getChestContentsMap();
+            List<ItemStack> itemsToDrop = new ArrayList<>();
             Iterator<Map.Entry<Integer, ItemStack[]>> chestIter = chestMap.entrySet().iterator();
             while (chestIter.hasNext()) {
                 Map.Entry<Integer, ItemStack[]> entry = chestIter.next();
@@ -270,12 +273,21 @@ public class FactionListener implements Listener {
                     if (contents != null) {
                         for (ItemStack stack : contents) {
                             if (stack != null && stack.getType() != Material.AIR) {
-                                crystal.getWorld().dropItemNaturally(crystal.getLocation(), stack);
+                                itemsToDrop.add(stack);
                             }
                         }
                     }
                     chestIter.remove();
                 }
+            }
+            // Delay the actual drop by 2 ticks so items spawn after the explosion resolves
+            if (!itemsToDrop.isEmpty()) {
+                org.bukkit.Location dropLoc = crystal.getLocation();
+                Bukkit.getScheduler().runTaskLater(Atlas.getPlugin(Atlas.class), () -> {
+                    for (ItemStack stack : itemsToDrop) {
+                        dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
+                    }
+                }, 2L);
             }
 
             // Strip upgrade bonuses above newLevel from all named faction crystals

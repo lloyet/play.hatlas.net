@@ -75,6 +75,11 @@ public class FactionLevelManager {
         return upgradeHpMap.getOrDefault(level, 0.0);
     }
 
+    /** Returns the number of virtual chests unlocked at the given upgrade level (0 if none). */
+    public static int getUpgradeChests(int level) {
+        return upgradeChestMap.getOrDefault(level, 0);
+    }
+
     /** Returns an unmodifiable sorted list of all upgrade levels. */
     public static List<Integer> getUpgradeLevels() {
         return Collections.unmodifiableList(upgradeLevels);

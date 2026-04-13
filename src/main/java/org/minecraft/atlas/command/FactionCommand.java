@@ -19,7 +19,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -29,6 +28,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
@@ -684,39 +684,7 @@ public class FactionCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
 
-                            ClickCallback.Options singleUse = ClickCallback.Options.builder().uses(1).build();
-
-                            Component confirmMsg = Component.text("Disband '", NamedTextColor.YELLOW)
-                                    .append(Component.text(factionNameForDisband, grpForDisband.getColor()))
-                                    .append(Component.text("'? This cannot be undone!  ", NamedTextColor.YELLOW))
-                                    .append(Component.text("[Confirm]", NamedTextColor.GREEN)
-                                            .decorate(TextDecoration.BOLD)
-                                            .clickEvent(ClickEvent.callback(audience -> {
-                                                if (!(audience instanceof Player p)) return;
-                                                String fn = FactionManager.getPlayerFaction(p.getUniqueId());
-                                                if (fn == null) {
-                                                    p.sendMessage(error("You are no longer in a faction."));
-                                                    return;
-                                                }
-                                                Faction f = FactionManager.getFaction(fn);
-                                                if (!f.getOwner().equals(p.getUniqueId())) {
-                                                    p.sendMessage(error("You are no longer the Owner."));
-                                                    return;
-                                                }
-                                                FactionManager.broadcastToFaction(fn,
-                                                        error("The faction has been disbanded by " + p.getName() + "."),
-                                                        p.getUniqueId());
-                                                FactionManager.deleteFaction(p.getUniqueId());
-                                                p.sendMessage(success("Your faction has been disbanded."));
-                                            }, singleUse)))
-                                    .append(Component.text("  [Cancel]", NamedTextColor.RED)
-                                            .decorate(TextDecoration.BOLD)
-                                            .clickEvent(ClickEvent.callback(audience -> {
-                                                if (!(audience instanceof Player p)) return;
-                                                p.sendMessage(info("Disband cancelled."));
-                                            }, singleUse)));
-
-                            player.sendMessage(confirmMsg);
+                            CrystalGui.openDisbandConfirmMenu(player, grpForDisband);
                             return Command.SINGLE_SUCCESS;
                         })
                         // ----- admin disband <faction> -----
@@ -1025,14 +993,22 @@ public class FactionCommand {
                                                         return Command.SINGLE_SUCCESS;
                                                     }
 
+                                                    String fnForUpgrade = FactionManager.getPlayerFaction(player.getUniqueId());
+                                                    AtlasCrystal crystalForUpgrade = fnForUpgrade != null
+                                                            ? AtlasCrystalManager.getCrystalByName(fnForUpgrade, crystalName)
+                                                            : null;
+                                                    if (crystalForUpgrade == null) {
+                                                        player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+
                                                     FactionManager.ApplyUpgradeResult result =
-                                                            FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalName);
+                                                            FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalForUpgrade.getEntity().getUniqueId());
 
                                                     switch (result) {
                                                         case SUCCESS -> {
                                                             String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-                                                            AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(fn, crystalName);
-                                                            int newMax = crystal != null ? (int) crystal.getMaxHp() : 0;
+                                                            int newMax = (int) crystalForUpgrade.getMaxHp();
                                                             player.sendMessage(success("Upgrade " + upgradeLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
                                                             FactionManager.broadcastToFaction(fn,
                                                                     info(player.getName() + " upgraded Atlas Crystal '" + crystalName + "'! New max HP: " + newMax),
