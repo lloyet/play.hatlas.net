@@ -28,6 +28,7 @@ public class JobManager {
     public static boolean setJob(UUID playerUUID, Job job) {
         if (playerJobs.containsKey(playerUUID)) return false;
         playerJobs.put(playerUUID, new PlayerJobData(job));
+
         return true;
     }
 

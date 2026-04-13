@@ -22,10 +22,14 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
+import org.bukkit.Material;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.util.TitleUtil;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
@@ -35,7 +39,10 @@ import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -239,22 +246,51 @@ public class FactionListener implements Listener {
             FactionManager.disbandFaction(crystalFaction);
 
         } else {
-            // Level > 0: drop to the previous checkpoint, restore crystal HP, grant 1h immunity
-            int prevCheckpoint = FactionLevelManager.getPreviousCheckpoint(factionLevel);
-            int newLevel = Math.max(0, prevCheckpoint); // -1 means drop to 0
+            // Level > 0: drop to the previous upgrade level, restore crystal HP, grant 1h immunity
+            int prevUpgrade = FactionLevelManager.getPreviousUpgrade(factionLevel);
+            int newLevel = Math.max(0, prevUpgrade); // -1 means drop to 0
 
             faction.setLevel(newLevel);
             faction.setExp(0);
 
-            // Shrink territory claims: keep only rings for checkpoints ≤ newLevel
+            // Shrink territory claims: keep only rings for upgrade levels ≤ newLevel
             int targetRings = 0;
-            for (int cp : FactionLevelManager.getCheckpoints()) {
+            for (int cp : FactionLevelManager.getUpgradeLevels()) {
                 if (cp <= newLevel) targetRings++;
                 else break;
             }
             FactionClaimManager.shrinkClaimsTo(crystalFaction, targetRings);
 
-            // Strip checkpoint bonuses above newLevel from all named faction crystals
+            // Drop and delete virtual chests whose index exceeds what newLevel allows
+            int allowedChests = FactionLevelManager.getAvailableChests(newLevel);
+            Map<Integer, ItemStack[]> chestMap = faction.getChestContentsMap();
+            List<ItemStack> itemsToDrop = new ArrayList<>();
+            Iterator<Map.Entry<Integer, ItemStack[]>> chestIter = chestMap.entrySet().iterator();
+            while (chestIter.hasNext()) {
+                Map.Entry<Integer, ItemStack[]> entry = chestIter.next();
+                if (entry.getKey() >= allowedChests) {
+                    ItemStack[] contents = entry.getValue();
+                    if (contents != null) {
+                        for (ItemStack stack : contents) {
+                            if (stack != null && stack.getType() != Material.AIR) {
+                                itemsToDrop.add(stack);
+                            }
+                        }
+                    }
+                    chestIter.remove();
+                }
+            }
+            // Delay the actual drop by 2 ticks so items spawn after the explosion resolves
+            if (!itemsToDrop.isEmpty()) {
+                org.bukkit.Location dropLoc = crystal.getLocation();
+                Bukkit.getScheduler().runTaskLater(Atlas.getPlugin(Atlas.class), () -> {
+                    for (ItemStack stack : itemsToDrop) {
+                        dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
+                    }
+                }, 2L);
+            }
+
+            // Strip upgrade bonuses above newLevel from all named faction crystals
             Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
             Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
             for (AtlasCrystal fc : allCrystals) {
@@ -265,7 +301,7 @@ public class FactionListener implements Listener {
 
             // Restore the attacked crystal's HP to full and grant immunity
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
-            atlasCrystal.setImmuneFor(Atlas.crystalImmunityDurationMs);
+            atlasCrystal.setImmuneFor(AtlasCrystalManager.immunityDurationMs);
             atlasCrystal.updateNametag();
             AtlasCrystalManager.persistCrystalState(atlasCrystal);
 
@@ -276,20 +312,68 @@ public class FactionListener implements Listener {
 
             // Broadcast
             String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
-            long immunitySeconds = Atlas.crystalImmunityDurationMs / 1000;
+            long immunitySeconds = AtlasCrystalManager.immunityDurationMs / 1000;
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                    "⚠ Crystal weakened! Lv." + levelStr + ". Immune " + immunitySeconds + "s!",
+                    "⚠ Crystal weakened! LvL." + levelStr + ". Immune " + immunitySeconds + "s!",
                     NamedTextColor.RED);
             TitleUtil.notify(attacker,
-                    "Weakened " + crystalFaction + " to Lv." + newLevel
+                    "Weakened " + crystalFaction + " to LvL." + newLevel
                             + "! Immune " + immunitySeconds + "s.",
                     NamedTextColor.YELLOW);
 
             if (newLevel == 0) {
                 TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                        "⚠ Lv.0! Next defeat disbands the faction!",
+                        "⚠ LvL.0! Next defeat disbands the faction!",
                         NamedTextColor.DARK_RED);
             }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Player move — enter/leave own faction territory
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerMove(PlayerMoveEvent event) {
+        Location from = event.getFrom();
+        Location to   = event.getTo();
+
+        int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
+        int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
+        if (fromCX == toCX && fromCZ == toCZ) return; // same chunk, skip
+
+        Player player = event.getPlayer();
+        String worldName = player.getWorld().getName();
+
+        String fromFaction = FactionClaimManager.getClaimingFaction(worldName, fromCX, fromCZ);
+        String toFaction   = FactionClaimManager.getClaimingFaction(worldName, toCX,   toCZ);
+        boolean fromDonjon = DonjonManager.isChunkInDonjon(worldName, fromCX, fromCZ);
+        boolean toDonjon   = DonjonManager.isChunkInDonjon(worldName, toCX,   toCZ);
+
+        String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+
+        // Entering a faction chunk
+        if (toFaction != null) {
+            boolean wasAlreadyInSame = toFaction.equals(fromFaction);
+
+            if (!wasAlreadyInSame) {
+                Faction faction = FactionManager.getFaction(toFaction);
+                NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
+
+                TitleUtil.alert(player, toFaction + "\nYou enter " + toFaction, color);
+
+                if (toFaction.equals(playerFaction)) {
+                    player.playSound(player.getLocation(),
+                            Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
+                }
+            }
+
+            return;
+        }
+
+        // Entering wilderness (unclaimed, non-donjon) from any claimed area
+        if (!toDonjon && (fromFaction != null || fromDonjon)) {
+            TitleUtil.notify(player, "Wilderness\nEnter the Wilderness", NamedTextColor.GREEN);
         }
     }
 

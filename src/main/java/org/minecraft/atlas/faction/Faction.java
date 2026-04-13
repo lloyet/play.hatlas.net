@@ -1,6 +1,7 @@
 package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -19,10 +20,17 @@ public class Faction {
     private int level = 0;
     private int exp = 0;
     /**
-     * Checkpoint levels reached but whose crystal HP upgrade has not yet been applied
+     * Upgrade levels reached but whose crystal HP bonus has not yet been applied
      * via /faction upgrade apply. Persisted across restarts.
      */
     private final List<Integer> pendingUpgrades = new ArrayList<>();
+
+    /**
+     * Virtual double-chest storage — index → 54-slot ItemStack array.
+     * Persisted across restarts. Chests beyond getAvailableChests(level) are stored
+     * but not accessible via the GUI until the faction re-levels.
+     */
+    private final Map<Integer, ItemStack[]> chestContents = new HashMap<>();
 
     public Faction(String name, UUID owner) {
         this.name = name;
@@ -82,19 +90,33 @@ public class Faction {
         return pendingUpgrades;
     }
 
-    public void addPendingUpgrade(int checkpointLevel) {
-        pendingUpgrades.add(checkpointLevel);
+    public void addPendingUpgrade(int upgradeLevel) {
+        pendingUpgrades.add(upgradeLevel);
     }
 
     /**
      * Removes the specific upgrade level from the pending list.
      * Returns true if it was present and removed.
      */
-    public boolean removePendingUpgrade(int checkpointLevel) {
-        return pendingUpgrades.remove(Integer.valueOf(checkpointLevel));
+    public boolean removePendingUpgrade(int upgradeLevel) {
+        return pendingUpgrades.remove(Integer.valueOf(upgradeLevel));
     }
 
     public boolean hasPendingUpgrade() {
         return !pendingUpgrades.isEmpty();
+    }
+
+    /** Returns the contents of the virtual chest at {@code index} (54 slots), or an empty array if never written. */
+    public ItemStack[] getChestContents(int index) {
+        return chestContents.getOrDefault(index, new ItemStack[54]);
+    }
+
+    public void setChestContents(int index, ItemStack[] contents) {
+        chestContents.put(index, contents);
+    }
+
+    /** Direct access to the raw map — used only for persistence. */
+    public Map<Integer, ItemStack[]> getChestContentsMap() {
+        return chestContents;
     }
 }

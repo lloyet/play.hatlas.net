@@ -33,12 +33,10 @@ public class TradeCommand {
         return Component.text(msg, NamedTextColor.GOLD);
     }
 
-    private static Component helpEntry(String sub, String args, String desc) {
+    private static Component helpEntry(String sub, String desc) {
         Component line = Component.text("/trade ", NamedTextColor.GRAY)
                 .append(Component.text(sub, NamedTextColor.GOLD));
-        if (!args.isEmpty()) {
-            line = line.append(Component.text(" " + args, NamedTextColor.DARK_AQUA));
-        }
+
         return line.append(Component.text(" - " + desc, NamedTextColor.YELLOW));
     }
 
@@ -47,8 +45,8 @@ public class TradeCommand {
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendMessage(
                             Component.text("--- Trade Commands ---", NamedTextColor.GOLD)
-                                    .append(Component.newline()).append(helpEntry("accept", "", "Accept a trade invitation"))
-                                    .append(Component.newline()).append(helpEntry("decline", "", "Decline a trade invitation"))
+                                    .append(Component.newline()).append(helpEntry("accept", "Accept a trade invitation"))
+                                    .append(Component.newline()).append(helpEntry("decline", "Decline a trade invitation"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })

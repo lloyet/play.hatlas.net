@@ -19,7 +19,6 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -29,12 +28,14 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.donjon.DonjonManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -288,6 +289,13 @@ public class FactionCommand {
                                     if (existingClaim != null) {
                                         player.sendMessage(error("This chunk is already claimed by faction '"
                                                 + existingClaim + "'. Move to an unclaimed area."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    // Reject if the chunk belongs to a donjon
+                                    if (DonjonManager.isChunkInDonjon(
+                                            player.getWorld().getName(), chunk.getX(), chunk.getZ())) {
+                                        player.sendMessage(error("Cannot create a faction inside a donjon area."));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
@@ -676,39 +684,7 @@ public class FactionCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
 
-                            ClickCallback.Options singleUse = ClickCallback.Options.builder().uses(1).build();
-
-                            Component confirmMsg = Component.text("Disband '", NamedTextColor.YELLOW)
-                                    .append(Component.text(factionNameForDisband, grpForDisband.getColor()))
-                                    .append(Component.text("'? This cannot be undone!  ", NamedTextColor.YELLOW))
-                                    .append(Component.text("[Confirm]", NamedTextColor.GREEN)
-                                            .decorate(TextDecoration.BOLD)
-                                            .clickEvent(ClickEvent.callback(audience -> {
-                                                if (!(audience instanceof Player p)) return;
-                                                String fn = FactionManager.getPlayerFaction(p.getUniqueId());
-                                                if (fn == null) {
-                                                    p.sendMessage(error("You are no longer in a faction."));
-                                                    return;
-                                                }
-                                                Faction f = FactionManager.getFaction(fn);
-                                                if (!f.getOwner().equals(p.getUniqueId())) {
-                                                    p.sendMessage(error("You are no longer the Owner."));
-                                                    return;
-                                                }
-                                                FactionManager.broadcastToFaction(fn,
-                                                        error("The faction has been disbanded by " + p.getName() + "."),
-                                                        p.getUniqueId());
-                                                FactionManager.deleteFaction(p.getUniqueId());
-                                                p.sendMessage(success("Your faction has been disbanded."));
-                                            }, singleUse)))
-                                    .append(Component.text("  [Cancel]", NamedTextColor.RED)
-                                            .decorate(TextDecoration.BOLD)
-                                            .clickEvent(ClickEvent.callback(audience -> {
-                                                if (!(audience instanceof Player p)) return;
-                                                p.sendMessage(info("Disband cancelled."));
-                                            }, singleUse)));
-
-                            player.sendMessage(confirmMsg);
+                            CrystalGui.openDisbandConfirmMenu(player, grpForDisband);
                             return Command.SINGLE_SUCCESS;
                         })
                         // ----- admin disband <faction> -----
@@ -827,7 +803,7 @@ public class FactionCommand {
                                         ? "No description set." : g.getDescription();
                                 list = list.append(Component.newline())
                                         .append(Component.text(g.getName(), g.getColor()))
-                                        .append(Component.text(" [Lv." + g.getLevel() + "]", NamedTextColor.YELLOW))
+                                        .append(Component.text(" [LvL." + g.getLevel() + "]", NamedTextColor.YELLOW))
                                         .append(Component.text(" (" + total + " member" + (total == 1 ? "" : "s") + ")", NamedTextColor.GRAY))
                                         .append(Component.text(" - " + desc, NamedTextColor.DARK_GRAY));
                             }
@@ -957,7 +933,7 @@ public class FactionCommand {
                                     Faction faction = FactionManager.getFaction(fn);
                                     List<Integer> pending = faction.getPendingUpgrades();
                                     if (pending.isEmpty()) {
-                                        player.sendMessage(info("No pending upgrades. Gain exp to reach a checkpoint!"));
+                                        player.sendMessage(info("No pending upgrades. Gain exp to reach an upgrade level!"));
                                         return Command.SINGLE_SUCCESS;
                                     }
                                     Component msg = Component.text("--- Pending Upgrades ---", NamedTextColor.LIGHT_PURPLE);
@@ -965,7 +941,7 @@ public class FactionCommand {
                                         double bonus = FactionLevelManager.getUpgradeHp(cp);
                                         msg = msg.append(Component.newline())
                                                 .append(Component.text("  Upgrade " + cp, NamedTextColor.GOLD))
-                                                .append(Component.text(" (checkpoint Lv." + cp + ")", NamedTextColor.GRAY))
+                                                .append(Component.text(" (upgrade LvL." + cp + ")", NamedTextColor.GRAY))
                                                 .append(Component.text(" → +" + (int) bonus + " max HP", NamedTextColor.GREEN));
                                     }
                                     msg = msg.append(Component.newline())
@@ -1009,23 +985,31 @@ public class FactionCommand {
                                                     String upgradeNameStr = StringArgumentType.getString(ctx, "upgradeName");
                                                     String crystalName = StringArgumentType.getString(ctx, "crystal");
 
-                                                    int checkpointLevel;
+                                                    int upgradeLevel;
                                                     try {
-                                                        checkpointLevel = Integer.parseInt(upgradeNameStr);
+                                                        upgradeLevel = Integer.parseInt(upgradeNameStr);
                                                     } catch (NumberFormatException e) {
-                                                        player.sendMessage(error("Invalid upgrade name '" + upgradeNameStr + "'. Use the checkpoint level number (e.g. 5)."));
+                                                        player.sendMessage(error("Invalid upgrade name '" + upgradeNameStr + "'. Use the upgrade level number (e.g. 5)."));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+
+                                                    String fnForUpgrade = FactionManager.getPlayerFaction(player.getUniqueId());
+                                                    AtlasCrystal crystalForUpgrade = fnForUpgrade != null
+                                                            ? AtlasCrystalManager.getCrystalByName(fnForUpgrade, crystalName)
+                                                            : null;
+                                                    if (crystalForUpgrade == null) {
+                                                        player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
                                                         return Command.SINGLE_SUCCESS;
                                                     }
 
                                                     FactionManager.ApplyUpgradeResult result =
-                                                            FactionManager.applyUpgrade(player.getUniqueId(), checkpointLevel, crystalName);
+                                                            FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalForUpgrade.getEntity().getUniqueId());
 
                                                     switch (result) {
                                                         case SUCCESS -> {
                                                             String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-                                                            AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(fn, crystalName);
-                                                            int newMax = crystal != null ? (int) crystal.getMaxHp() : 0;
-                                                            player.sendMessage(success("Upgrade " + checkpointLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
+                                                            int newMax = (int) crystalForUpgrade.getMaxHp();
+                                                            player.sendMessage(success("Upgrade " + upgradeLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
                                                             FactionManager.broadcastToFaction(fn,
                                                                     info(player.getName() + " upgraded Atlas Crystal '" + crystalName + "'! New max HP: " + newMax),
                                                                     player.getUniqueId());
@@ -1039,7 +1023,7 @@ public class FactionCommand {
                                                         case NO_PERMISSION ->
                                                                 player.sendMessage(error("Only Owners and Leaders can apply upgrades."));
                                                         case UPGRADE_NOT_PENDING ->
-                                                                player.sendMessage(error("Upgrade " + checkpointLevel + " is not pending. Use /faction upgrade list to see available upgrades."));
+                                                                player.sendMessage(error("Upgrade " + upgradeLevel + " is not pending. Use /faction upgrade list to see available upgrades."));
                                                         case CRYSTAL_NOT_FOUND ->
                                                                 player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
                                                     }
@@ -1125,7 +1109,7 @@ public class FactionCommand {
                                                         null);
                                                 if (faction.hasPendingUpgrade()) {
                                                     FactionManager.broadcastToFaction(factionName,
-                                                            Component.text("⚡ Checkpoint reached! An Owner or Leader can run /faction upgrade list then /faction upgrade apply <upgradeName> <crystal> to upgrade a crystal!", NamedTextColor.LIGHT_PURPLE),
+                                                            Component.text("⚡ Upgrade level reached! An Owner or Leader can run /faction upgrade list then /faction upgrade apply <upgradeName> <crystal> to upgrade a crystal!", NamedTextColor.LIGHT_PURPLE),
                                                             null);
                                                 }
                                             }

@@ -2,20 +2,19 @@ package org.minecraft.atlas.faction;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.minecraft.atlas.donjon.DonjonManager;
 
 import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Manages territory claims for factions.
- *
  * Layout:
  *  Ring 0  → the single center chunk (claimed when the faction is created)
  *  Ring r  → all chunks at Chebyshev distance exactly r from the center
  *             (ring 1 = 8 chunks, ring 2 = 16 chunks, ring r = 8*r chunks)
- *
- * Each checkpoint level reached adds one more ring.
- * Each checkpoint level lost removes the outermost ring.
+ * Each upgrade level reached adds one more ring.
+ * Each upgrade level lost removes the outermost ring.
  * Disbanding removes every ring including the center.
  */
 public class FactionClaimManager {
@@ -42,7 +41,7 @@ public class FactionClaimManager {
 
     /**
      * Expands claims by one ring outward.
-     * Call once each time a checkpoint level is reached.
+     * Call once each time an upgrade level is reached.
      */
     public static void expandClaims(String factionName) {
         String[] center = factionCenters.get(factionName);
@@ -158,6 +157,8 @@ public class FactionClaimManager {
         for (int x = cx - r; x <= cx + r; x++) {
             for (int z = cz - r; z <= cz + r; z++) {
                 if (Math.max(Math.abs(x - cx), Math.abs(z - cz)) == r) {
+                    // Skip chunks that are part of a donjon's protected area
+                    if (DonjonManager.isChunkInDonjon(world, x, z)) continue;
                     claimedChunks.put(key(world, x, z), factionName);
                 }
             }

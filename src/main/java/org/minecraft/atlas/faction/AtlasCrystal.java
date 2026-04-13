@@ -8,6 +8,7 @@ import org.bukkit.entity.EnderCrystal;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Represents an atlas ender crystal entity that guards a faction.
@@ -23,12 +24,14 @@ public class AtlasCrystal {
     private Location home;
     private double hp;
     private double maxHp;
-    /** Checkpoint levels whose HP upgrade has been permanently applied to this crystal. */
+    /** Upgrade levels whose HP bonus has been permanently applied to this crystal. */
     private final Set<Integer> appliedUpgrades = new HashSet<>();
     /** System.currentTimeMillis() after which immunity ends. 0 = not immune. */
     private long immuneUntilMillis = 0;
     /** System.currentTimeMillis() of the last hit by an outside player. 0 = never attacked. */
     private long lastAttackMillis = 0;
+    /** UUID of the TextDisplay entity used as this crystal's overhead nametag. */
+    private UUID textDisplayUUID = null;
 
     public AtlasCrystal(EnderCrystal entity, String factionName, double hp, double maxHp) {
         this.entity = entity;
@@ -52,6 +55,8 @@ public class AtlasCrystal {
     public Set<Integer> getAppliedUpgrades() { return new HashSet<>(appliedUpgrades); }
     public long getImmuneUntilMillis() { return immuneUntilMillis; }
     public void setImmuneUntilMillis(long ts) { this.immuneUntilMillis = ts; }
+    public UUID getTextDisplayUUID() { return textDisplayUUID; }
+    public void setTextDisplayUUID(UUID id) { this.textDisplayUUID = id; }
 
     /** Directly sets HP (clamped to [0, maxHp]). Does NOT record an attack timestamp. */
     public void setHp(double hp) {
@@ -63,22 +68,22 @@ public class AtlasCrystal {
      * Used during PDC restore: records that an upgrade was previously applied without
      * re-adding the HP (maxHp is already the correct accumulated value restored from PDC).
      */
-    void restoreUpgrade(int checkpointLevel) {
-        appliedUpgrades.add(checkpointLevel);
+    void restoreUpgrade(int upgradeLevel) {
+        appliedUpgrades.add(upgradeLevel);
     }
 
     /**
-     * Applies a permanent HP upgrade from a checkpoint.
-     * Does nothing if this checkpoint level was already applied.
+     * Applies a permanent HP bonus from an upgrade level.
+     * Does nothing if this upgrade level was already applied.
      */
-    public void addUpgrade(int checkpointLevel, double upgradeHp) {
-        if (appliedUpgrades.add(checkpointLevel)) {
+    public void addUpgrade(int upgradeLevel, double upgradeHp) {
+        if (appliedUpgrades.add(upgradeLevel)) {
             maxHp += upgradeHp;
         }
     }
 
     /**
-     * Strips HP upgrades from checkpoint levels above the given threshold.
+     * Strips HP bonuses from upgrade levels above the given threshold.
      * Reduces maxHp accordingly and clamps hp if needed.
      */
     public void stripUpgradesAbove(int level, Map<Integer, Double> upgradeBonusMap) {
@@ -129,39 +134,44 @@ public class AtlasCrystal {
         return System.currentTimeMillis() - lastAttackMillis >= AtlasCrystalManager.regenTimeoutMs;
     }
 
-    /** Refreshes the entity's overhead nametag. */
-    public void updateNametag() {
-        if (entity.isDead()) return;
+    /** Builds the 3-line nametag Component without touching any entity. */
+    Component buildNametagComponent() {
         Faction faction = FactionManager.getFaction(factionName);
         NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
         int level = faction != null ? faction.getLevel() : 0;
 
+        // Line 1: "crystalname [factionname]" or "[factionname]" if unnamed
+        Component line1;
+        if (name != null && !name.isEmpty()) {
+            line1 = Component.text(name + " ", NamedTextColor.WHITE)
+                    .append(Component.text("[", NamedTextColor.GRAY))
+                    .append(Component.text(factionName, color))
+                    .append(Component.text("]", NamedTextColor.GRAY));
+        } else {
+            line1 = Component.text("[", NamedTextColor.GRAY)
+                    .append(Component.text(factionName, color))
+                    .append(Component.text("]", NamedTextColor.GRAY));
+        }
+
+        // Line 2: "LvL.X"
+        Component line2 = Component.text("LvL.", NamedTextColor.GRAY)
+                .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW));
+
+        // Line 3: "HP/MaxHP ♥" + optional [IMMUNE]
         Component immuneTag = isImmune()
                 ? Component.text(" [IMMUNE]", NamedTextColor.AQUA)
                 : Component.empty();
+        Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
+                .append(immuneTag);
 
-        Component tag;
-        if (name != null && !name.isEmpty()) {
-            tag = Component.text(name, NamedTextColor.WHITE)
-                    .append(Component.text(" [", NamedTextColor.GRAY))
-                    .append(Component.text(factionName, color))
-                    .append(Component.text(" Lv.", NamedTextColor.GRAY))
-                    .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
-                    .append(Component.text("] ", NamedTextColor.GRAY))
-                    .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED))
-                    .append(immuneTag);
-        } else {
-            tag = Component.text(factionName, color)
-                    .append(Component.text(" [Lv.", NamedTextColor.GRAY))
-                    .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
-                    .append(Component.text("] ", NamedTextColor.GRAY))
-                    .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED))
-                    .append(immuneTag);
-        }
+        return line1.append(Component.newline())
+                .append(line2).append(Component.newline())
+                .append(line3);
+    }
 
-        entity.customName(tag);
-        entity.setCustomNameVisible(true);
+    /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */
+    public void updateNametag() {
+        if (entity.isDead()) return;
+        AtlasCrystalManager.spawnOrUpdateNametagDisplay(this);
     }
 }

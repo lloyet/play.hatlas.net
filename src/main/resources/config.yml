@@ -7,34 +7,336 @@ claims: {}
 crystal:
   # HP regenerated per second when the crystal has not been attacked for regen_timeout_seconds.
   regen_per_second: 1.5
-  # Duration in seconds that a crystal is immune to damage after a checkpoint level drop.
+  # Duration in seconds that a crystal is immune to damage after an upgrade level drop.
   immunity_duration_seconds: 3600
   # Seconds of inactivity (no damage received) before a crystal starts regenerating HP.
   regen_timeout_seconds: 60
 
-# Faction level checkpoint configuration.
-# When a faction reaches a checkpoint level, an Owner or Leader can run
-# /faction checkpoint apply <crystalName> to permanently increase that crystal's max HP.
-checkpoints:
+# ============================================================
+# Donjon System
+# ============================================================
+donjon:
+
+  # How often (in hours) the system automatically activates one idle donjon.
+  activation_interval_hours: 6
+  # After this many hours an active donjon becomes idle again (even if not completed).
+  idle_timeout_hours: 24
+  # Maximum number of donjons the scheduler can keep active simultaneously.
+  max_active_donjons: 2
+  # Persisted at runtime — do not edit manually.
+  last_activation_time: 0
+  # Persisted at runtime — donjon instances are stored here.
+  instances: {}
+
+  # Difficulty level distribution.
+  # Each range defines the min/max level and its selection weight (weights are relative).
+  difficulty:
+    - min: 0
+      max: 9
+      weight: 66
+    - min: 10
+      max: 49
+      weight: 14
+    - min: 50
+      max: 74
+      weight: 10
+    - min: 75
+      max: 89
+      weight: 5
+    - min: 90
+      max: 94
+      weight: 3
+    - min: 95
+      max: 99
+      weight: 2
+
+  # Rarity selection weights (relative).
+  rarity:
+    common: 66
+    rare: 14
+    epic: 10
+    legendary: 5
+    mystic: 3
+    goddess: 2
+
+  # Per-type configuration. Add a new section here for each new DonjonType enum value.
+  types:
+    trial:
+      display_name: "Trial"
+      # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
+      structure_filename: "test.nbt"
+      # Words used to randomly generate the donjon's name.
+      name_adjectives:
+        - Ancient
+        - Forsaken
+        - Cursed
+        - Void
+        - Frozen
+        - Burning
+        - Forgotten
+        - Eternal
+        - Savage
+        - Twisted
+        - Crimson
+        - Shadow
+      name_nouns:
+        - Trial
+        - Ruins
+        - Depths
+        - Crypt
+        - Labyrinth
+        - Sanctum
+        - Chamber
+        - Vault
+        - Fortress
+        - Abyss
+        - Keep
+        - Dungeon
+
+      # Mob types that can appear in regular waves.
+      # Special values: BABY_ZOMBIE, CHICKEN_JOCKEY
+      mob_types:
+        - ZOMBIE
+        - BABY_ZOMBIE
+        - HUSK
+        - SKELETON
+        - STRAY
+        - BOGGED
+        - SPIDER
+        - CAVE_SPIDER
+        - SLIME
+        - SILVERFISH
+        - CHICKEN_JOCKEY
+
+      # Mob types used for the final boss wave.
+      boss_types:
+        - BREEZE
+
+      # Wave count range (scaled linearly by difficulty level).
+      min_waves: 3
+      max_waves: 10
+
+      # Mob count per regular wave (scaled linearly by difficulty level).
+      min_mobs_per_wave: 5
+      max_mobs_per_wave: 50
+
+      # HP multiplier range for regular mobs (scaled by difficulty level).
+      base_hp_multiplier: 1.0
+      max_hp_multiplier:  5.0
+
+      # Attack damage multiplier range for regular mobs.
+      base_attack_multiplier: 1.0
+      max_attack_multiplier:  3.0
+
+      # Boss-specific multipliers (applied on top of the regular wave multipliers).
+      boss_hp_multiplier:     10.0
+      boss_attack_multiplier:  2.0
+      boss_speed_multiplier:   0.5
+
+      # How many boss mobs spawn in the final wave.
+      boss_count_min: 1
+      boss_count_max: 3
+
+      # Experience awarded for completing the donjon (scaled by level & rarity).
+      min_exp_reward:   500
+      max_exp_reward: 10000
+
+      # Boss drop tables per rarity.
+      #   min_items / max_items: how many item stacks the boss drops
+      #   items: list of entries — chance is a relative weight
+      #   enchantments (optional): list of { enchantment: <name>, level: <n> }
+      boss_drops:
+        common:
+          min_items: 1
+          max_items: 2
+          items:
+            - material: IRON_INGOT
+              amount: 4
+              chance: 0.50
+            - material: GOLD_INGOT
+              amount: 2
+              chance: 0.30
+            - material: DIAMOND
+              amount: 1
+              chance: 0.20
+        rare:
+          min_items: 1
+          max_items: 3
+          items:
+            - material: GOLD_INGOT
+              amount: 4
+              chance: 0.40
+            - material: DIAMOND
+              amount: 2
+              chance: 0.35
+            - material: IRON_SWORD
+              amount: 1
+              chance: 0.25
+              enchantments:
+                - enchantment: sharpness
+                  level: 2
+                - enchantment: unbreaking
+                  level: 2
+        epic:
+          min_items: 2
+          max_items: 4
+          items:
+            - material: DIAMOND
+              amount: 3
+              chance: 0.40
+            - material: EMERALD
+              amount: 2
+              chance: 0.35
+            - material: DIAMOND_SWORD
+              amount: 1
+              chance: 0.25
+              enchantments:
+                - enchantment: sharpness
+                  level: 3
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: looting
+                  level: 2
+        legendary:
+          min_items: 2
+          max_items: 5
+          items:
+            - material: EMERALD
+              amount: 4
+              chance: 0.35
+            - material: NETHERITE_SCRAP
+              amount: 2
+              chance: 0.30
+            - material: DIAMOND_CHESTPLATE
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+            - material: DIAMOND_SWORD
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: sharpness
+                  level: 4
+                - enchantment: fire_aspect
+                  level: 2
+                - enchantment: mending
+                  level: 1
+        mystic:
+          min_items: 3
+          max_items: 5
+          items:
+            - material: NETHERITE_SCRAP
+              amount: 3
+              chance: 0.35
+            - material: NETHERITE_INGOT
+              amount: 2
+              chance: 0.30
+            - material: NETHERITE_SWORD
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: sharpness
+                  level: 5
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: looting
+                  level: 3
+            - material: NETHERITE_CHESTPLATE
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: thorns
+                  level: 3
+        goddess:
+          min_items: 4
+          max_items: 6
+          items:
+            - material: NETHERITE_INGOT
+              amount: 3
+              chance: 0.30
+            - material: NETHER_STAR
+              amount: 2
+              chance: 0.25
+            - material: NETHERITE_SWORD
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: sharpness
+                  level: 5
+                - enchantment: smite
+                  level: 5
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: looting
+                  level: 3
+            - material: NETHERITE_CHESTPLATE
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: protection
+                  level: 4
+                - enchantment: blast_protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: thorns
+                  level: 3
+            - material: DRAGON_EGG
+              amount: 1
+              chance: 0.10
+
+# Faction upgrade configuration.
+# When a faction reaches an upgrade level, an Owner or Leader can run
+# /faction upgrade apply <crystalName> to permanently increase that crystal's max HP.
+upgrades:
   - level: 1
     bonus_hp: 20
+    bonus_chest: 1
   - level: 3
     bonus_hp: 30
+    bonus_chest: 0
   - level: 5
     bonus_hp: 40
+    bonus_chest: 0
   - level: 9
     bonus_hp: 60
+    bonus_chest: 1
   - level: 21
     bonus_hp: 80
+    bonus_chest: 1
   - level: 42
     bonus_hp: 120
+    bonus_chest: 0
   - level: 58
     bonus_hp: 160
+    bonus_chest: 1
   - level: 64
     bonus_hp: 200
+    bonus_chest: 0
   - level: 81
     bonus_hp: 250
+    bonus_chest: 0
   - level: 97
     bonus_hp: 320
+    bonus_chest: 1
   - level: 100
     bonus_hp: 400
+    bonus_chest: 0

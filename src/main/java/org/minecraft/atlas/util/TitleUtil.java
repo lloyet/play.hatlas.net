@@ -97,6 +97,22 @@ public final class TitleUtil {
         for (Player p : players) alertBold(p, text, color);
     }
 
+    /**
+     * Always shows {@code text} in the <em>subtitle</em> slot only — never in the title slot —
+     * regardless of text length. Uses {@link #NOTIFY_TIMES}.
+     */
+    public static void subtitle(Player player, String text, NamedTextColor color) {
+        player.showTitle(Title.title(
+                Component.empty(),
+                Component.text(text, color),
+                NOTIFY_TIMES));
+    }
+
+    /** Sends a subtitle-only notification to every player in {@code players}. */
+    public static void broadcastSubtitle(Collection<? extends Player> players, String text, NamedTextColor color) {
+        for (Player p : players) subtitle(p, text, color);
+    }
+
     // -------------------------------------------------------------------------
     // Internal helpers
     // -------------------------------------------------------------------------
@@ -110,21 +126,31 @@ public final class TitleUtil {
      * </ul>
      */
     private static void send(Player player, String text, NamedTextColor color, boolean bold, Title.Times times) {
-        List<String> lines = wordWrap(text);
         Component titleComp;
         Component subtitleComp;
-        if (lines.size() == 1) {
-            titleComp = Component.empty();
-            subtitleComp = styled(lines.get(0), color, bold);
+
+        int nl = text.indexOf('\n');
+        if (nl >= 0) {
+            // Explicit split: everything before \n → title slot, everything after → subtitle slot
+            titleComp    = styled(text.substring(0, nl), color, bold);
+            subtitleComp = styled(text.substring(nl + 1), color, bold);
         } else {
-            titleComp = styled(lines.get(0), color, bold);
-            subtitleComp = styled(String.join(" ", lines.subList(1, lines.size())), color, bold);
+            List<String> lines = wordWrap(text);
+            if (lines.size() == 1) {
+                titleComp    = Component.empty();
+                subtitleComp = styled(lines.getFirst(), color, bold);
+            } else {
+                titleComp    = styled(lines.getFirst(), color, bold);
+                subtitleComp = styled(String.join(" ", lines.subList(1, lines.size())), color, bold);
+            }
         }
+
         player.showTitle(Title.title(titleComp, subtitleComp, times));
     }
 
     private static Component styled(String text, NamedTextColor color, boolean bold) {
         Component c = Component.text(text, color);
+
         return bold ? c.decorate(TextDecoration.BOLD) : c;
     }
 
@@ -147,8 +173,10 @@ public final class TitleUtil {
                 current = new StringBuilder(word);
             }
         }
+
         if (!current.isEmpty()) lines.add(current.toString());
         if (lines.isEmpty()) lines.add("");
+
         return lines;
     }
 }

@@ -16,13 +16,18 @@ public class HelpCommand {
                             Component.text("Use ", NamedTextColor.GRAY)
                                     .append(Component.text("/help <topic>", NamedTextColor.GOLD))
                                     .append(Component.text(" for help on a specific topic. Available: ", NamedTextColor.GRAY))
-                                    .append(Component.text("job", NamedTextColor.YELLOW))
+                                    .append(Component.text("job, donjon", NamedTextColor.YELLOW))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
                 .then(Commands.literal("job")
                         .executes(ctx -> {
                             ctx.getSource().getSender().sendMessage(buildJobHelp());
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                .then(Commands.literal("donjon")
+                        .executes(ctx -> {
+                            ctx.getSource().getSender().sendMessage(buildDonjonHelp());
                             return Command.SINGLE_SUCCESS;
                         }))
                 .build();
@@ -41,6 +46,17 @@ public class HelpCommand {
                 .append(entry("/job level set <player> <amount> level", "Set a player's level to an exact value (admin only)"))
                 .append(entry("/job level remove <player> <amount> xp", "Remove XP from a player (admin only)"))
                 .append(entry("/job level remove <player> <amount> level", "Remove levels from a player (admin only)"));
+    }
+
+    private static Component buildDonjonHelp() {
+        return Component.text("--- Donjon Commands ---", NamedTextColor.GOLD)
+                .append(entry("/donjon create <type>", "Create a donjon at your location (admin only)"))
+                .append(entry("/donjon list", "List all registered donjons (admin only)"))
+                .append(entry("/donjon info <id>", "Show detailed info about a donjon (admin only)"))
+                .append(entry("/donjon activate <id>", "Activate a donjon so players can start it (admin only)"))
+                .append(entry("/donjon reset <id>", "Reset a donjon to idle state (admin only)"))
+                .append(entry("/donjon tp <id>", "Teleport to a donjon (admin only)"))
+                .append(entry("/donjon delete <id>", "Permanently delete a donjon (admin only)"));
     }
 
     private static Component entry(String command, String description) {
