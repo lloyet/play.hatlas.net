@@ -18,7 +18,6 @@ import org.minecraft.atlas.donjon.DonjonType;
 
 import java.util.Map;
 
-@SuppressWarnings("UnstableApiUsage")
 public class DonjonCommand {
 
     /** Suggests all currently registered donjon IDs. */

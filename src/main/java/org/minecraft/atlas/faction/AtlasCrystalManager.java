@@ -354,7 +354,7 @@ public class AtlasCrystalManager {
 
     /**
      * Updates the faction name stored on every crystal that belongs to {@code oldName}.
-     * Also re-keys the factionCrystals map so that lookups by new name work correctly.
+     * Also, re-keys the factionCrystals map so that lookups by new name work correctly.
      * Call this after the faction has already been renamed in FactionManager.
      */
     public static void renameFactionCrystals(String oldName, String newName) {

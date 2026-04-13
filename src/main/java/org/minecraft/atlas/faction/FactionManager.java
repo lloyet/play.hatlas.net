@@ -356,7 +356,7 @@ public class FactionManager {
     /**
      * Adds exp to a faction and processes any resulting level-ups.
      * Reached upgrade levels are queued in the faction as pending upgrades.
-     * Returns the list of upgrade levels newly reached (may be empty).
+     * Returns the list of upgrade levels newly reached (maybe empty).
      */
     public static List<Integer> addExpToFaction(String factionName, int amount) {
         Faction faction = factions.get(factionName);

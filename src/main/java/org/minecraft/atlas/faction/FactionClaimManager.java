@@ -9,12 +9,10 @@ import java.util.Map;
 
 /**
  * Manages territory claims for factions.
- *
  * Layout:
  *  Ring 0  → the single center chunk (claimed when the faction is created)
  *  Ring r  → all chunks at Chebyshev distance exactly r from the center
  *             (ring 1 = 8 chunks, ring 2 = 16 chunks, ring r = 8*r chunks)
- *
  * Each upgrade level reached adds one more ring.
  * Each upgrade level lost removes the outermost ring.
  * Disbanding removes every ring including the center.

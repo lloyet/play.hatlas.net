@@ -207,7 +207,7 @@ public class TagManager {
 
     private static Component buildComponent(List<String> lines) {
         if (lines.isEmpty()) return Component.empty();
-        Component result = Component.text(lines.get(0), NamedTextColor.WHITE);
+        Component result = Component.text(lines.getFirst(), NamedTextColor.WHITE);
         for (int i = 1; i < lines.size(); i++) {
             result = result.append(Component.newline())
                            .append(Component.text(lines.get(i), NamedTextColor.WHITE));

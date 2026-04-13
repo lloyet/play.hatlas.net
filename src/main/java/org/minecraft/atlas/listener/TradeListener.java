@@ -123,18 +123,16 @@ public class TradeListener implements Listener {
         }
 
         // ── Click in the trade inventory (top half, rawSlot 0-53) ──
-        int slot = rawSlot;
+        if (rawSlot == Trade.CANCEL_SLOT) { trade.cancel(player); return; }
+        if (rawSlot == Trade.ACCEPT_SLOT) { trade.toggleAccept(isInitiator); return; }
+        if (Trade.isGlassSlot(rawSlot))   return; // separator – ignore
+        if (Trade.isRightSlot(rawSlot))   return; // read-only mirror – ignore
 
-        if (slot == Trade.CANCEL_SLOT) { trade.cancel(player); return; }
-        if (slot == Trade.ACCEPT_SLOT) { trade.toggleAccept(isInitiator); return; }
-        if (Trade.isGlassSlot(slot))   return; // separator – ignore
-        if (Trade.isRightSlot(slot))   return; // read-only mirror – ignore
-
-        if (!Trade.isLeftSlot(slot)) return;
+        if (!Trade.isLeftSlot(rawSlot)) return;
         if (isAccepted(trade, isInitiator)) return; // locked after accepting
 
         Inventory inv = getPlayerInv(trade, isInitiator);
-        handleLeftSlotClick(event, inv, slot, player);
+        handleLeftSlotClick(event, inv, rawSlot, player);
         trade.onItemChanged();
         trade.sync();
     }
