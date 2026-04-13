@@ -65,9 +65,6 @@ donjon:
       display_name: "Trial"
       # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
       structure_filename: "test.nbt"
-      # Vanilla structures that trigger this donjon type (use minecraft structure keys, e.g. trial_chambers).
-      structures:
-        - trial_chambers
       # Words used to randomly generate the donjon's name.
       name_adjectives:
         - Ancient

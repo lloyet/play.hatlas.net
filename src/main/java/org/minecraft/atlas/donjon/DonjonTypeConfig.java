@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * @param bossDrops Per-rarity boss drop tables. A rarity with no entry uses an empty loot table.
  */
-public record DonjonTypeConfig(String displayName, String structureFilename, List<String> structures,
+public record DonjonTypeConfig(String displayName, String structureFilename,
                                List<String> nameAdjectives, List<String> nameNouns,
                                List<String> mobTypes, List<String> bossTypes, int minWaves, int maxWaves,
                                int minMobsPerWave, int maxMobsPerWave, double baseHpMultiplier, double maxHpMultiplier,
@@ -21,7 +21,6 @@ public record DonjonTypeConfig(String displayName, String structureFilename, Lis
     public static DonjonTypeConfig load(ConfigurationSection s) {
         String displayName = s.getString("display_name", "Unknown");
         String structureFilename = s.getString("structure_filename", "");
-        List<String> structures = s.getStringList("structures");
         List<String> adjectives = s.getStringList("name_adjectives");
         List<String> nouns = s.getStringList("name_nouns");
         List<String> mobTypes = s.getStringList("mob_types");
@@ -54,7 +53,7 @@ public record DonjonTypeConfig(String displayName, String structureFilename, Lis
             }
         }
 
-        return new DonjonTypeConfig(displayName, structureFilename, structures, adjectives, nouns,
+        return new DonjonTypeConfig(displayName, structureFilename, adjectives, nouns,
                 mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
                 baseHp, maxHp, baseAtk, maxAtk, bossHp, bossAtk, bossSpd,
                 bossMin, bossMax, minExp, maxExp, bossDrops);

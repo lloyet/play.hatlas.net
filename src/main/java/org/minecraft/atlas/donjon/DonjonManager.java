@@ -391,17 +391,27 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     /**
+     * Activates a donjon via the scheduler — assigns a fresh random level and rarity first.
+     */
+    public static void activateDonjon(Donjon donjon) {
+        donjon.setLevel(randomLevel());
+        donjon.setRarity(randomRarity());
+        doActivateDonjon(donjon);
+    }
+
+    /**
      * Force-activates a donjon via an enchanted Ominous Trial Key.
-     * Upgrades level to 50–99 and rarity to LEGENDARY/MYSTIC/GODDESS before activating.
+     * Assigns a high level (50–99) and LEGENDARY/MYSTIC/GODDESS rarity before activating.
      */
     public static void forceActivateDonjon(Donjon donjon) {
         donjon.setLevel(ThreadLocalRandom.current().nextInt(50, 100));
         DonjonRarity[] forcedRarities = {DonjonRarity.LEGENDARY, DonjonRarity.MYSTIC, DonjonRarity.GODDESS};
         donjon.setRarity(forcedRarities[ThreadLocalRandom.current().nextInt(forcedRarities.length)]);
-        activateDonjon(donjon);
+        doActivateDonjon(donjon);
     }
 
-    public static void activateDonjon(Donjon donjon) {
+    /** Internal activation: sets ACTIVE state, updates nametag, and broadcasts. */
+    private static void doActivateDonjon(Donjon donjon) {
         donjon.setStatus(DonjonStatus.ACTIVE);
         donjon.setActivationTime(System.currentTimeMillis());
         donjon.setTimeoutWarned(false);
@@ -803,8 +813,19 @@ public class DonjonManager {
             statusLine = Component.text("◇ IDLE ◇", NamedTextColor.DARK_GRAY);
         }
 
-        return Component.text("[" + typeName + "] ", NamedTextColor.GRAY)
-                .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
+        boolean idle = donjon.getStatus() == DonjonStatus.IDLE && !donjon.isInProgress();
+
+        Component nameLine = Component.text("[" + typeName + "] ", NamedTextColor.GRAY)
+                .append(Component.text(donjon.getName(),
+                        idle ? NamedTextColor.DARK_GRAY : donjon.getRarity().getColor()));
+
+        if (idle) {
+            return nameLine
+                    .append(Component.newline())
+                    .append(statusLine);
+        }
+
+        return nameLine
                 .append(Component.newline())
                 .append(Component.text("Lv." + donjon.getLevel() + " ✦ ", NamedTextColor.YELLOW))
                 .append(Component.text(donjon.getRarity().getDisplayName(), donjon.getRarity().getColor()))
@@ -1157,8 +1178,6 @@ public class DonjonManager {
         if (idle.isEmpty()) return;
 
         Donjon selected = idle.get(ThreadLocalRandom.current().nextInt(idle.size()));
-        selected.setLevel(randomLevel());
-        selected.setRarity(randomRarity());
         activateDonjon(selected);
     }
 

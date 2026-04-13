@@ -129,39 +129,40 @@ public class AtlasCrystal {
         return System.currentTimeMillis() - lastAttackMillis >= AtlasCrystalManager.regenTimeoutMs;
     }
 
-    /** Refreshes the entity's overhead nametag. */
+    /** Refreshes the entity's overhead nametag (3 lines). */
     public void updateNametag() {
         if (entity.isDead()) return;
         Faction faction = FactionManager.getFaction(factionName);
         NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
         int level = faction != null ? faction.getLevel() : 0;
 
+        // Line 1: "crystalname [factionname]" or "[factionname]" if unnamed
+        Component line1;
+        if (name != null && !name.isEmpty()) {
+            line1 = Component.text(name + " ", NamedTextColor.WHITE)
+                    .append(Component.text("[", NamedTextColor.GRAY))
+                    .append(Component.text(factionName, color))
+                    .append(Component.text("]", NamedTextColor.GRAY));
+        } else {
+            line1 = Component.text("[", NamedTextColor.GRAY)
+                    .append(Component.text(factionName, color))
+                    .append(Component.text("]", NamedTextColor.GRAY));
+        }
+
+        // Line 2: "LvL.X"
+        Component line2 = Component.text("LvL.", NamedTextColor.GRAY)
+                .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW));
+
+        // Line 3: "HP/MaxHP ♥" + optional [IMMUNE]
         Component immuneTag = isImmune()
                 ? Component.text(" [IMMUNE]", NamedTextColor.AQUA)
                 : Component.empty();
+        Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
+                .append(immuneTag);
 
-        Component tag;
-        if (name != null && !name.isEmpty()) {
-            tag = Component.text(name, NamedTextColor.WHITE)
-                    .append(Component.text(" [", NamedTextColor.GRAY))
-                    .append(Component.text(factionName, color))
-                    .append(Component.text(" LvL.", NamedTextColor.GRAY))
-                    .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
-                    .append(Component.text("] ", NamedTextColor.GRAY))
-                    .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED))
-                    .append(immuneTag);
-        } else {
-            tag = Component.text(factionName, color)
-                    .append(Component.text(" [LvL.", NamedTextColor.GRAY))
-                    .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW))
-                    .append(Component.text("] ", NamedTextColor.GRAY))
-                    .append(Component.text((int) hp + "/" + (int) maxHp, NamedTextColor.RED))
-                    .append(Component.text("♥", NamedTextColor.DARK_RED))
-                    .append(immuneTag);
-        }
-
-        entity.customName(tag);
+        entity.customName(line1.append(Component.newline())
+                .append(line2).append(Component.newline())
+                .append(line3));
         entity.setCustomNameVisible(true);
     }
 }
