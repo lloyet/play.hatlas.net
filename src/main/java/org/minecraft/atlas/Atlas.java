@@ -21,7 +21,6 @@ import org.minecraft.atlas.listener.ChatListener;
 import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
 import org.minecraft.atlas.listener.TagListener;
-import org.minecraft.atlas.command.HelpCommand;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
 import org.minecraft.atlas.job.JobGui;
@@ -67,6 +66,7 @@ public final class Atlas extends JavaPlugin {
         GolemListener.schedule(this);
         AtlasCrystalManager.schedule(this);
         DonjonManager.schedule(this);
+        JobManager.scheduleExpiry(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -76,7 +76,6 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(FactionCommand.build());
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
-                        event.registrar().register(HelpCommand.build());
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
                         event.registrar().register(TagCommand.build());

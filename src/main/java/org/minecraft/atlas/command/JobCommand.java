@@ -13,6 +13,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
+import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
@@ -122,6 +124,26 @@ public class JobCommand {
                             ctx.getSource().getSender().sendMessage(msg);
                             return Command.SINGLE_SUCCESS;
                         }))
+                // /job npc spawn <job>
+                .then(Commands.literal("npc")
+                        .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
+                        .then(Commands.literal("spawn")
+                                .then(Commands.argument("job", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            for (Job j : Job.values()) builder.suggest(j.name().toLowerCase());
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            Job job = parseJob(player, StringArgumentType.getString(ctx, "job"));
+                                            if (job == null) return Command.SINGLE_SUCCESS;
+                                            doSpawnNpc(player, job);
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
                 // /job level [add|set|remove <player> <amount> xp|level]
                 .then(Commands.literal("level")
                         .executes(ctx -> {
@@ -188,6 +210,23 @@ public class JobCommand {
             executor.sendMessage(error("Unknown job '" + input + "'. Valid jobs: " + valid + "."));
             return null;
         }
+    }
+
+    private static void doSpawnNpc(Player player, Job job) {
+        player.getWorld().spawn(player.getLocation(), Villager.class, v -> {
+            v.setProfession(job.getProfession());
+            v.setAI(false);
+            v.setInvulnerable(true);
+            v.setRemoveWhenFarAway(false);
+            v.customName(Component.text(job.getDisplayName(), job.getColor()));
+            v.setCustomNameVisible(true);
+            v.getPersistentDataContainer().set(
+                JobManager.getKeyNpcJob(),
+                PersistentDataType.STRING,
+                job.name()
+            );
+        });
+        player.sendMessage(success("Spawned " + job.getDisplayName() + " NPC."));
     }
 
     private static void doRemove(Player executor, Player target) {

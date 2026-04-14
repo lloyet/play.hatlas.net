@@ -7,6 +7,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.*;
@@ -48,7 +49,8 @@ public class FactionManager {
 
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
-        faction.getMembers().forEach(playerFaction::remove);
+        faction.getMembers().forEach(uuid -> { playerFaction.remove(uuid); JobManager.removeJob(uuid); });
+        JobManager.removeJob(requesterUUID);
         playerFaction.remove(requesterUUID);
         factions.remove(factionName);
 
@@ -132,6 +134,7 @@ public class FactionManager {
         faction.removeMember(playerUUID);
         faction.removeRole(playerUUID);
         playerFaction.remove(playerUUID);
+        JobManager.removeJob(playerUUID);
 
         return true;
     }
@@ -150,6 +153,7 @@ public class FactionManager {
         faction.removeMember(targetUUID);
         faction.removeRole(targetUUID);
         playerFaction.remove(targetUUID);
+        JobManager.removeJob(targetUUID);
 
         return true;
     }
@@ -323,7 +327,8 @@ public class FactionManager {
 
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
-        faction.getMembers().forEach(playerFaction::remove);
+        faction.getMembers().forEach(uuid -> { playerFaction.remove(uuid); JobManager.removeJob(uuid); });
+        JobManager.removeJob(faction.getOwner());
         playerFaction.remove(faction.getOwner());
         factions.remove(factionName);
     }

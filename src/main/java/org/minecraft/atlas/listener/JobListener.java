@@ -1,13 +1,19 @@
 package org.minecraft.atlas.listener;
 
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Villager;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.job.Job;
+import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.PlayerJobData;
 
@@ -36,6 +42,29 @@ public class JobListener implements Listener {
         Material.WHEAT, Material.CARROTS, Material.POTATOES, Material.BEETROOTS,
         Material.NETHER_WART, Material.COCOA, Material.SUGAR_CANE, Material.MELON, Material.PUMPKIN
     );
+
+    @EventHandler
+    public void onEntityInteract(PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof Villager villager)) return;
+        String jobName = villager.getPersistentDataContainer()
+                .get(JobManager.getKeyNpcJob(), PersistentDataType.STRING);
+        if (jobName == null) return;
+
+        event.setCancelled(true);
+
+        Job npcJob;
+        try { npcJob = Job.valueOf(jobName); }
+        catch (IllegalArgumentException e) { return; }
+
+        Player player = event.getPlayer();
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
+        if (data == null || data.getJob() != npcJob) {
+            player.sendMessage(Component.text("This NPC is for " + npcJob.getDisplayName() + "s only.", NamedTextColor.RED));
+            return;
+        }
+
+        JobGui.openJobMain(player);
+    }
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
