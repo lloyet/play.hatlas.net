@@ -16,6 +16,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.persistence.PersistentDataType;
+import org.minecraft.atlas.gui.JobQuestListHolder;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
@@ -155,6 +156,23 @@ public class JobCommand {
                         .then(levelAdminBranch("add"))
                         .then(levelAdminBranch("set"))
                         .then(levelAdminBranch("remove")))
+
+                // /job quests — open quest tracker
+                .then(Commands.literal("quests")
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (!JobManager.hasJob(player.getUniqueId())) {
+                                player.sendMessage(error("You don't have a job yet."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            new JobQuestListHolder(player).open(player);
+                            return Command.SINGLE_SUCCESS;
+                        }))
+
                 .build();
     }
 

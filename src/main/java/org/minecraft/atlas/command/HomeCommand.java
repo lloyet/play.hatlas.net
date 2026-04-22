@@ -26,14 +26,21 @@ public class HomeCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
-                            boolean updated = HomeManager.hasHome(player.getUniqueId(), name);
-                            HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
+                            boolean alreadyExists = HomeManager.hasHome(player.getUniqueId(), name);
 
+                            if (!alreadyExists && HomeManager.hasAnyHome(player.getUniqueId())) {
+                                player.sendMessage(Component.text(
+                                        "You already have a home set. Delete it first or use the same name to update it.",
+                                        NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
                             HomeManager.saveHomes(Atlas.instance.getConfig());
                             Atlas.instance.saveConfig();
 
                             player.sendMessage(Component.text(
-                                    (updated ? "Home updated" : "Home set") + ": '" + name + "'.",
+                                    (alreadyExists ? "Home updated" : "Home set") + ": '" + name + "'.",
                                     NamedTextColor.GREEN));
                             return Command.SINGLE_SUCCESS;
                         }))

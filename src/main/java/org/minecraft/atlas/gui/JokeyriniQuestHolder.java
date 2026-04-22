@@ -111,12 +111,11 @@ public class JokeyriniQuestHolder implements AtlasHolder {
                             GuiUtil.difficultyColor(task.getDifficulty())).decoration(TextDecoration.ITALIC, false))
                     .append(Component.text(" ×" + task.getAmount(), NamedTextColor.WHITE)
                             .decoration(TextDecoration.ITALIC, false)));
-            if (!task.getTargets().isEmpty()) {
-                String targets = String.join(", ", task.getTargets().stream()
-                        .map(GuiUtil::formatMaterial).toList());
-                lore.add(Component.text("    " + targets, NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
+            String verb = GuiUtil.actionVerb(task.getActionType());
+            String targetSuffix = task.getTargets().isEmpty() ? "" : ": " + String.join(", ",
+                    task.getTargets().stream().map(GuiUtil::formatMaterial).toList());
+            lore.add(Component.text("    " + verb + targetSuffix, NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
         long totalTime = tasks.stream().mapToLong(GeneratedTask::getTimeLimitMs).sum();
@@ -170,12 +169,11 @@ public class JokeyriniQuestHolder implements AtlasHolder {
                     .append(Component.text(" " + gathered + "/" + required,
                             done ? NamedTextColor.GREEN : NamedTextColor.WHITE)
                             .decoration(TextDecoration.ITALIC, false)));
-            if (!task.getTargets().isEmpty()) {
-                String targets = String.join(", ", task.getTargets().stream()
-                        .map(GuiUtil::formatMaterial).toList());
-                lore.add(Component.text("    " + targets, NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
+            String verb = GuiUtil.actionVerb(task.getActionType());
+            String targetSuffix = task.getTargets().isEmpty() ? "" : ": " + String.join(", ",
+                    task.getTargets().stream().map(GuiUtil::formatMaterial).toList());
+            lore.add(Component.text("    " + verb + targetSuffix, NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
         meta.lore(lore);

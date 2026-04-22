@@ -108,3 +108,9 @@ permissions:
   atlas.faction.msg:
     description: Send a message to all online faction members
     default: true
+  atlas.faction.ally:
+    description: Manage faction alliances (leader/owner only)
+    default: true
+  atlas.faction.outpost:
+    description: Create a faction outpost (leader/owner only)
+    default: true

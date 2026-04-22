@@ -18,6 +18,13 @@ public class SpawnProtectionListener implements Listener {
         pvpRadius = config.getDouble("spawn_protection.pvp_radius", 64.0);
     }
 
+    public static double getRadius() { return pvpRadius; }
+
+    public static boolean isInSpawnProtection(Location location) {
+        Location spawn = location.getWorld().getSpawnLocation();
+        return location.distanceSquared(spawn) <= pvpRadius * pvpRadius;
+    }
+
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) return;

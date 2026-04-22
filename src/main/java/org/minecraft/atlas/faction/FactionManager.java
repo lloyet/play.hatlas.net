@@ -142,15 +142,25 @@ public class FactionManager {
     }
 
     /** Kicks a member from the faction. Only the owner can do this. */
-    public static boolean kickPlayer(UUID ownerUUID, UUID targetUUID) {
-        String factionName = playerFaction.get(ownerUUID);
+    public static boolean kickPlayer(UUID requesterUUID, UUID targetUUID) {
+        String factionName = playerFaction.get(requesterUUID);
 
         if (factionName == null) return false;
 
         Faction faction = factions.get(factionName);
 
-        if (!faction.getOwner().equals(ownerUUID)) return false;
+        boolean requesterIsOwner = faction.getOwner().equals(requesterUUID);
+        FactionRole requesterRole = requesterIsOwner ? null : faction.getRole(requesterUUID);
+
+        if (!requesterIsOwner && !requesterRole.isAtLeast(FactionRole.MODERATOR)) return false;
         if (!faction.getMembers().contains(targetUUID)) return false;
+
+        // Prevent kicking someone of equal or higher rank
+        FactionRole targetRole = faction.getRole(targetUUID);
+        if (!requesterIsOwner) {
+            if (requesterRole == FactionRole.MODERATOR && targetRole != FactionRole.MEMBER) return false;
+            if (requesterRole == FactionRole.LEADER && targetRole == FactionRole.LEADER) return false;
+        }
 
         faction.removeMember(targetUUID);
         faction.removeRole(targetUUID);

@@ -31,6 +31,7 @@ import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.util.TitleUtil;
+import org.minecraft.atlas.listener.SpawnProtectionListener;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
@@ -366,7 +367,17 @@ public class FactionListener implements Listener {
         boolean fromDonjon = DonjonManager.isChunkInDonjon(worldName, fromCX, fromCZ);
         boolean toDonjon   = DonjonManager.isChunkInDonjon(worldName, toCX,   toCZ);
 
+        boolean fromInSpawn = SpawnProtectionListener.isInSpawnProtection(from);
+        boolean toInSpawn   = SpawnProtectionListener.isInSpawnProtection(to);
+
         String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+
+        // Spawn protection boundary
+        if (!fromInSpawn && toInSpawn && toFaction == null) {
+            TitleUtil.alert(player, "Spawn Protection\nYou enter the protected zone",
+                    NamedTextColor.YELLOW);
+            return;
+        }
 
         // Entering a faction chunk
         if (toFaction != null) {
@@ -387,8 +398,8 @@ public class FactionListener implements Listener {
             return;
         }
 
-        // Entering wilderness (unclaimed, non-donjon) from any claimed area
-        if (!toDonjon && (fromFaction != null || fromDonjon)) {
+        // Entering wilderness (unclaimed, non-donjon) from any claimed area or spawn protection
+        if (!toDonjon && !toInSpawn && (fromFaction != null || fromDonjon || fromInSpawn)) {
             TitleUtil.notify(player, "Wilderness\nEnter the Wilderness", NamedTextColor.GREEN);
         }
     }

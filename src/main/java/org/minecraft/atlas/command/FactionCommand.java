@@ -36,6 +36,7 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.listener.SpawnProtectionListener;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -301,6 +302,13 @@ public class FactionCommand {
                                     if (DonjonManager.isChunkInDonjon(
                                             player.getWorld().getName(), chunk.getX(), chunk.getZ())) {
                                         player.sendMessage(error("Cannot create a faction inside a donjon area."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    // Reject if inside spawn protection
+                                    if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
+                                        player.sendMessage(error("You cannot create a faction inside the spawn protection zone ("
+                                                + (int) SpawnProtectionListener.getRadius() + " blocks from spawn)."));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
@@ -662,7 +670,7 @@ public class FactionCommand {
                                                 info(target.getName() + " has been kicked from the faction."),
                                                 player.getUniqueId());
                                     } else {
-                                        player.sendMessage(error("Could not kick " + target.getName() + ". Make sure you are the Owner and that player is in your faction."));
+                                        player.sendMessage(error("Could not kick " + target.getName() + ". You can only kick members with a lower role than yours."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
@@ -1160,6 +1168,11 @@ public class FactionCommand {
                             if (DonjonManager.isChunkInDonjon(
                                     player.getWorld().getName(), chunk.getX(), chunk.getZ())) {
                                 player.sendMessage(error("Cannot place an outpost crystal inside a donjon area."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
+                                player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone ("
+                                        + (int) SpawnProtectionListener.getRadius() + " blocks from spawn)."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             int centerX = chunk.getX() * 16 + 8;
