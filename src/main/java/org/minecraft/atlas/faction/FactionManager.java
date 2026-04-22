@@ -20,6 +20,8 @@ public class FactionManager {
     private static final Map<UUID, String> playerFaction = new HashMap<>();
     // invitedUUID -> factionName (pending invitations)
     private static final Map<UUID, String> pendingInvitations = new HashMap<>();
+    // targetFactionName -> set of requesting faction names (in-memory, not persisted)
+    private static final Map<String, Set<String>> pendingAllyRequests = new HashMap<>();
 
     /** Result type for applyUpgrade. */
     public enum ApplyUpgradeResult {
@@ -467,6 +469,10 @@ public class FactionManager {
                 ConfigurationSection rolesSection = s.createSection("roles");
                 roles.forEach((uuid, role) -> rolesSection.set(uuid.toString(), role.name()));
             }
+
+            if (!faction.getAllies().isEmpty()) {
+                s.set("allies", new ArrayList<>(faction.getAllies()));
+            }
         }
     }
 
@@ -538,7 +544,63 @@ public class FactionManager {
                 }
             }
 
+            for (String ally : s.getStringList("allies")) {
+                faction.addAlly(ally);
+            }
+
             factions.put(factionName, faction);
         }
+    }
+
+    // ── Alliance request helpers ──────────────────────────────────────────────
+
+    /** Returns true if {@code fromFaction} already sent a pending ally request to {@code toFaction}. */
+    public static boolean hasPendingAllyRequest(String fromFaction, String toFaction) {
+        Set<String> requests = pendingAllyRequests.get(toFaction);
+        return requests != null && requests.contains(fromFaction);
+    }
+
+    /** Registers a pending ally request from {@code fromFaction} to {@code toFaction}. */
+    public static void sendAllyRequest(String fromFaction, String toFaction) {
+        pendingAllyRequests.computeIfAbsent(toFaction, k -> new HashSet<>()).add(fromFaction);
+    }
+
+    /**
+     * Accepts the ally request: links both factions, removes the pending request.
+     * Returns false if the request doesn't exist or either faction is missing.
+     */
+    public static boolean acceptAllyRequest(String acceptingFaction, String requestingFaction) {
+        Set<String> requests = pendingAllyRequests.get(acceptingFaction);
+        if (requests == null || !requests.remove(requestingFaction)) return false;
+        if (requests.isEmpty()) pendingAllyRequests.remove(acceptingFaction);
+
+        Faction f1 = factions.get(acceptingFaction);
+        Faction f2 = factions.get(requestingFaction);
+        if (f1 == null || f2 == null) return false;
+
+        f1.addAlly(requestingFaction);
+        f2.addAlly(acceptingFaction);
+        return true;
+    }
+
+    /**
+     * Denies the ally request and removes it.
+     * Returns false if the request doesn't exist.
+     */
+    public static boolean denyAllyRequest(String denyingFaction, String requestingFaction) {
+        Set<String> requests = pendingAllyRequests.get(denyingFaction);
+        if (requests == null || !requests.remove(requestingFaction)) return false;
+        if (requests.isEmpty()) pendingAllyRequests.remove(denyingFaction);
+        return true;
+    }
+
+    // ── Alliance helpers ──────────────────────────────────────────────────────
+
+    public static boolean areAllied(String faction1, String faction2) {
+        if (faction1 == null || faction2 == null) return false;
+        if (faction1.equals(faction2)) return true;
+        Faction f1 = factions.get(faction1);
+        Faction f2 = factions.get(faction2);
+        return f1 != null && f2 != null && f1.hasAlly(faction2) && f2.hasAlly(faction1);
     }
 }

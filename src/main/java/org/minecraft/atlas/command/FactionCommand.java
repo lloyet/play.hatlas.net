@@ -251,7 +251,12 @@ public class FactionCommand {
                             .append(Component.newline()).append(helpEntry("members", "", "Show members of your faction"))
                             .append(Component.newline()).append(helpEntry("home", "[crystal]", "Teleport to faction home"))
                             .append(Component.newline()).append(helpEntry("upgrade", "list", "List pending upgrade bonuses (owner/leader)"))
-                            .append(Component.newline()).append(helpEntry("upgrade", "apply <upgradeName> <crystal>", "Apply a pending upgrade bonus (owner/leader)"));
+                            .append(Component.newline()).append(helpEntry("upgrade", "apply <upgradeName> <crystal>", "Apply a pending upgrade bonus (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("outpost", "", "Place a second Atlas Crystal (level 21+, owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("ally", "<faction>", "Send an alliance request (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("allyaccept", "<faction>", "Accept an alliance request (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("allydeny", "<faction>", "Deny an alliance request (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("unally", "<faction>", "Break an alliance (owner/leader)"));
 
                     if (sender.hasPermission("atlas.faction.debug")) {
                         help = help
@@ -1116,6 +1121,253 @@ public class FactionCommand {
 
                                             return Command.SINGLE_SUCCESS;
                                         }))))
+                // ----- outpost -----
+                .then(Commands.literal("outpost")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.outpost"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Faction faction = FactionManager.getFaction(factionName);
+                            boolean isOwner = faction.getOwner().equals(player.getUniqueId());
+                            boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                            if (!isOwner && !isLeader) {
+                                player.sendMessage(error("Only the Owner or a Leader can place an outpost crystal."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (faction.getLevel() < 21) {
+                                player.sendMessage(error("Your faction must reach level 21 to place an outpost crystal."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (AtlasCrystalManager.getFactionCrystals(factionName).size() >= 2) {
+                                player.sendMessage(error("Your faction already has 2 Atlas Crystals. No more outposts can be placed."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Chunk chunk = player.getLocation().getChunk();
+                            String existingClaim = FactionClaimManager.getClaimingFaction(
+                                    player.getWorld().getName(), chunk.getX(), chunk.getZ());
+                            if (existingClaim != null) {
+                                player.sendMessage(error("This chunk is already claimed. Move to an unclaimed area."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (DonjonManager.isChunkInDonjon(
+                                    player.getWorld().getName(), chunk.getX(), chunk.getZ())) {
+                                player.sendMessage(error("Cannot place an outpost crystal inside a donjon area."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            int centerX = chunk.getX() * 16 + 8;
+                            int centerZ = chunk.getZ() * 16 + 8;
+                            int highestY = player.getWorld().getHighestBlockYAt(centerX, centerZ);
+                            Location spawnLoc = new Location(player.getWorld(),
+                                    centerX + 0.5, highestY + 2.0, centerZ + 0.5);
+                            EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
+                            crystalEntity.setShowingBottom(true);
+                            AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, factionName);
+                            FactionClaimManager.claimOutpostChunk(factionName,
+                                    player.getWorld().getName(), chunk.getX(), chunk.getZ());
+                            Location home = spawnLoc.clone();
+                            home.setY(highestY + 1.0);
+                            home.setPitch(0);
+                            atlasCrystal.setHome(home);
+                            AtlasCrystalManager.saveHome(atlasCrystal);
+                            AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
+                            openNamingDialog(player, atlasCrystal, null);
+                            player.sendMessage(success("Outpost crystal placed! Name it to complete setup."));
+                            FactionManager.broadcastToFaction(factionName,
+                                    info(player.getName() + " placed a faction outpost crystal!"),
+                                    player.getUniqueId());
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                // ----- ally -----
+                .then(Commands.literal("ally")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    FactionManager.getFactions().keySet().forEach(builder::suggest);
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String myFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (myFactionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction myFaction = FactionManager.getFaction(myFactionName);
+                                    boolean isOwner = myFaction.getOwner().equals(player.getUniqueId());
+                                    boolean isLeader = myFaction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                                    if (!isOwner && !isLeader) {
+                                        player.sendMessage(error("Only the Owner or a Leader can manage alliances."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String targetName = StringArgumentType.getString(ctx, "faction");
+                                    if (myFactionName.equalsIgnoreCase(targetName)) {
+                                        player.sendMessage(error("You cannot ally your own faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction targetFaction = FactionManager.getFaction(targetName);
+                                    if (targetFaction == null) {
+                                        player.sendMessage(error("Faction '" + targetName + "' does not exist."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    if (FactionManager.areAllied(myFactionName, targetName)) {
+                                        player.sendMessage(error("You are already allied with " + targetName + "."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    if (FactionManager.hasPendingAllyRequest(myFactionName, targetName)) {
+                                        player.sendMessage(error("An alliance request to " + targetName + " is already pending."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    FactionManager.sendAllyRequest(myFactionName, targetName);
+                                    player.sendMessage(info("Alliance request sent to faction " + targetName + "."));
+
+                                    // Notify online owners and leaders of the target faction
+                                    Component requestMsg = info("[" + myFactionName + "] ")
+                                            .append(Component.text("wants to form an alliance with your faction!  ", NamedTextColor.YELLOW))
+                                            .append(Component.text("[Accept]", NamedTextColor.GREEN)
+                                                    .clickEvent(ClickEvent.runCommand("/faction allyaccept " + myFactionName)))
+                                            .append(Component.text("  "))
+                                            .append(Component.text("[Deny]", NamedTextColor.RED)
+                                                    .clickEvent(ClickEvent.runCommand("/faction allydeny " + myFactionName)));
+
+                                    for (Player member : FactionManager.getOnlineFactionMembers(targetName, null)) {
+                                        boolean tOwner = targetFaction.getOwner().equals(member.getUniqueId());
+                                        boolean tLeader = targetFaction.getRole(member.getUniqueId()) == FactionRole.LEADER;
+                                        if (tOwner || tLeader) member.sendMessage(requestMsg);
+                                    }
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                // ----- allyaccept -----
+                .then(Commands.literal("allyaccept")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String myFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (myFactionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction myFaction = FactionManager.getFaction(myFactionName);
+                                    boolean isOwner = myFaction.getOwner().equals(player.getUniqueId());
+                                    boolean isLeader = myFaction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                                    if (!isOwner && !isLeader) {
+                                        player.sendMessage(error("Only the Owner or a Leader can accept alliance requests."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String requestingName = StringArgumentType.getString(ctx, "faction");
+                                    if (!FactionManager.hasPendingAllyRequest(requestingName, myFactionName)) {
+                                        player.sendMessage(error("No pending alliance request from " + requestingName + "."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    if (!FactionManager.acceptAllyRequest(myFactionName, requestingName)) {
+                                        player.sendMessage(error("Could not accept alliance — faction may no longer exist."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    FactionManager.broadcastToFaction(myFactionName,
+                                            success("⚔ Your faction is now allied with " + requestingName + "!"), null);
+                                    FactionManager.broadcastToFaction(requestingName,
+                                            success("⚔ Faction " + myFactionName + " accepted your alliance request!"), null);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                // ----- allydeny -----
+                .then(Commands.literal("allydeny")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String myFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (myFactionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction myFaction = FactionManager.getFaction(myFactionName);
+                                    boolean isOwner = myFaction.getOwner().equals(player.getUniqueId());
+                                    boolean isLeader = myFaction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                                    if (!isOwner && !isLeader) {
+                                        player.sendMessage(error("Only the Owner or a Leader can deny alliance requests."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String requestingName = StringArgumentType.getString(ctx, "faction");
+                                    if (!FactionManager.hasPendingAllyRequest(requestingName, myFactionName)) {
+                                        player.sendMessage(error("No pending alliance request from " + requestingName + "."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    FactionManager.denyAllyRequest(myFactionName, requestingName);
+                                    player.sendMessage(Component.text("Alliance request from " + requestingName + " denied.", NamedTextColor.RED));
+                                    FactionManager.broadcastToFaction(requestingName,
+                                            error("Faction " + myFactionName + " denied your alliance request."), null);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                // ----- unally -----
+                .then(Commands.literal("unally")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .then(Commands.argument("faction", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (executor instanceof Player player) {
+                                        String fn = FactionManager.getPlayerFaction(player.getUniqueId());
+                                        if (fn != null) {
+                                            Faction f = FactionManager.getFaction(fn);
+                                            if (f != null) f.getAllies().forEach(builder::suggest);
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String myFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (myFactionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction myFaction = FactionManager.getFaction(myFactionName);
+                                    boolean isOwner = myFaction.getOwner().equals(player.getUniqueId());
+                                    boolean isLeader = myFaction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                                    if (!isOwner && !isLeader) {
+                                        player.sendMessage(error("Only the Owner or a Leader can manage alliances."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String targetName = StringArgumentType.getString(ctx, "faction");
+                                    if (!myFaction.hasAlly(targetName)) {
+                                        player.sendMessage(error("You are not allied with " + targetName + "."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    myFaction.removeAlly(targetName);
+                                    Faction targetFaction = FactionManager.getFaction(targetName);
+                                    if (targetFaction != null) targetFaction.removeAlly(myFactionName);
+                                    player.sendMessage(success("Alliance with " + targetName + " has been dissolved."));
+                                    FactionManager.broadcastToFaction(myFactionName,
+                                            info("Your faction ended the alliance with " + targetName + "."),
+                                            player.getUniqueId());
+                                    FactionManager.broadcastToFaction(targetName,
+                                            info("Faction " + myFactionName + " has ended their alliance with you."),
+                                            null);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
                 .build();
     }
 }

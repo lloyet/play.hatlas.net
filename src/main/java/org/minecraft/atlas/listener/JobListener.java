@@ -6,16 +6,27 @@ import org.bukkit.Material;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
+import org.bukkit.entity.WanderingTrader;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.inventory.CraftItemEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
+import org.minecraft.atlas.gui.JobMainHolder;
+import org.minecraft.atlas.gui.JokeyriniQuestHolder;
+import org.minecraft.atlas.gui.NpcJobSwitchHolder;
 import org.minecraft.atlas.job.Job;
-import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
+import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.Set;
 
@@ -43,8 +54,25 @@ public class JobListener implements Listener {
         Material.NETHER_WART, Material.COCOA, Material.SUGAR_CANE, Material.MELON, Material.PUMPKIN
     );
 
+    // ── NPC right-click ───────────────────────────────────────────────────────
+
     @EventHandler
     public void onEntityInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        Player player = event.getPlayer();
+
+        // Jokeyrini WanderingTrader
+        if (event.getRightClicked() instanceof WanderingTrader trader) {
+            String tag = trader.getPersistentDataContainer()
+                    .get(JokeyriniManager.getKeyNpc(), PersistentDataType.STRING);
+            if ("JOKEYRINI".equals(tag)) {
+                event.setCancelled(true);
+                new JokeyriniQuestHolder(player).open(player);
+            }
+            return;
+        }
+
+        // Regular job Villager NPC
         if (!(event.getRightClicked() instanceof Villager villager)) return;
         String jobName = villager.getPersistentDataContainer()
                 .get(JobManager.getKeyNpcJob(), PersistentDataType.STRING);
@@ -55,38 +83,69 @@ public class JobListener implements Listener {
         Job npcJob;
         try { npcJob = Job.valueOf(jobName); }
         catch (IllegalArgumentException e) { return; }
+        if (npcJob == Job.JOKEYRINI) return; // guard — not a regular job
 
-        Player player = event.getPlayer();
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null || data.getJob() != npcJob) {
-            player.sendMessage(Component.text("This NPC is for " + npcJob.getDisplayName() + "s only.", NamedTextColor.RED));
+
+        if (data == null) {
+            if (JobManager.isOnJobCooldown(player.getUniqueId())) {
+                long remaining = JobManager.getJobCooldownRemaining(player.getUniqueId());
+                player.sendMessage(Component.text("You recently reset your job. ", NamedTextColor.RED)
+                        .append(Component.text("You can select a new job in ", NamedTextColor.GRAY))
+                        .append(Component.text(GuiUtil.formatTime(remaining), NamedTextColor.YELLOW))
+                        .append(Component.text(".", NamedTextColor.GRAY)));
+                return;
+            }
+            new NpcJobSwitchHolder(player, npcJob, false).open(player);
             return;
         }
 
-        JobGui.openJobMain(player);
+        if (data.getJob() == npcJob) {
+            new JobMainHolder(player).open(player);
+            return;
+        }
+
+        new NpcJobSwitchHolder(player, npcJob, true).open(player);
     }
+
+    // ── NPC damage protection ─────────────────────────────────────────────────
+
+    @EventHandler(ignoreCancelled = true)
+    public void onNpcDamage(EntityDamageByEntityEvent event) {
+        if (event.getEntity() instanceof Villager villager) {
+            if (villager.getPersistentDataContainer().has(JobManager.getKeyNpcJob(), PersistentDataType.STRING)) {
+                event.setCancelled(true);
+            }
+        } else if (event.getEntity() instanceof WanderingTrader trader) {
+            if (trader.getPersistentDataContainer().has(JokeyriniManager.getKeyNpc(), PersistentDataType.STRING)) {
+                event.setCancelled(true);
+            }
+        }
+    }
+
+    // ── Block break ───────────────────────────────────────────────────────────
 
     @EventHandler
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
-        if (data == null) return;
+        String blockName = event.getBlock().getType().name().toLowerCase();
 
-        Material type = event.getBlock().getType();
-        int progress = 0;
-
-        if (data.getJob() == Job.MINER && MINER_BLOCKS.contains(type)) {
-            progress = 1;
-        } else if (data.getJob() == Job.LUMBERJACK && LUMBERJACK_LOGS.contains(type)) {
-            progress = 1;
-        } else if (data.getJob() == Job.FARMER && FARMER_CROPS.contains(type)) {
-            progress = 1;
+        if (data != null) {
+            Material type = event.getBlock().getType();
+            boolean relevant = (data.getJob() == Job.MINER    && MINER_BLOCKS.contains(type))
+                            || (data.getJob() == Job.LUMBERJACK && LUMBERJACK_LOGS.contains(type))
+                            || (data.getJob() == Job.FARMER    && FARMER_CROPS.contains(type));
+            if (relevant) {
+                JobManager.addProgress(player.getUniqueId(), 1, player);
+                JobManager.onTargetGathered(player.getUniqueId(), "break_block", blockName, player);
+            }
         }
 
-        if (progress > 0) {
-            JobManager.addProgress(player.getUniqueId(), progress, player);
-        }
+        JokeyriniManager.onTargetGathered(player.getUniqueId(), "break_block", blockName, player);
     }
+
+    // ── Entity kill ───────────────────────────────────────────────────────────
 
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
@@ -94,9 +153,61 @@ public class JobListener implements Listener {
         Player killer = entity.getKiller();
         if (killer == null) return;
 
+        String entityType = entity.getType().name().toLowerCase();
         PlayerJobData data = JobManager.getJobData(killer.getUniqueId());
-        if (data == null || data.getJob() != Job.HUNTER) return;
 
-        JobManager.addProgress(killer.getUniqueId(), 1, killer);
+        if (data != null && (data.getJob() == Job.HUNTER || data.getJob() == Job.ALCHEMIST)) {
+            JobManager.addProgress(killer.getUniqueId(), 1, killer);
+            JobManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
+        }
+
+        JokeyriniManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
+    }
+
+    // ── Brewing stand pickup ──────────────────────────────────────────────────
+
+    @EventHandler
+    public void onBrewingPickup(InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.getInventory().getType() != InventoryType.BREWING) return;
+        if (event.isCancelled()) return;
+
+        int slot = event.getSlot();
+        if (slot < 0 || slot > 2) return; // only output bottle slots
+
+        ItemStack current = event.getCurrentItem();
+        if (current == null || current.getType() == Material.AIR) return;
+        if (!current.getType().name().contains("POTION")) return;
+
+        String target = current.getType().name().toLowerCase();
+
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
+        if (data != null && data.getJob() == Job.ALCHEMIST) {
+            JobManager.addProgress(player.getUniqueId(), 1, player);
+            JobManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
+        }
+
+        JokeyriniManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
+    }
+
+    // ── Crafting table ────────────────────────────────────────────────────────
+
+    @EventHandler
+    public void onCraftItem(CraftItemEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+        if (event.isCancelled()) return;
+
+        ItemStack result = event.getRecipe().getResult();
+        if (result == null || result.getType() == Material.AIR) return;
+
+        String target = result.getType().name().toLowerCase();
+
+        PlayerJobData data = JobManager.getJobData(player.getUniqueId());
+        if (data != null && data.getJob() == Job.ALCHEMIST) {
+            JobManager.addProgress(player.getUniqueId(), 1, player);
+            JobManager.onTargetGathered(player.getUniqueId(), "craft_item", target, player);
+        }
+
+        JokeyriniManager.onTargetGathered(player.getUniqueId(), "craft_item", target, player);
     }
 }

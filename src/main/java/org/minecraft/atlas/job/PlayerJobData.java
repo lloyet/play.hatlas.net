@@ -18,11 +18,13 @@ public class PlayerJobData {
 
     /** Epoch-day when today's daily offer was generated (0 = never). */
     long dailyResetEpochDay = 0;
+
     /**
-     * Maps generated questId → list of taskIds for today's offered quests.
+     * Maps generated questId → list of GeneratedTasks for today's offered quests.
      * Insertion order is preserved so the GUI slot order stays consistent.
      */
-    final Map<String, List<String>> dailyOfferedQuestTasks = new LinkedHashMap<>();
+    final Map<String, List<GeneratedTask>> dailyOfferedQuests = new LinkedHashMap<>();
+
     /** IDs of quests the player selected today (max 2). */
     final List<String> dailySelectedIds = new ArrayList<>();
 

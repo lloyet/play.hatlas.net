@@ -10,8 +10,8 @@ import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
-import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionClaimManager;
@@ -23,8 +23,9 @@ import org.minecraft.atlas.listener.FactionListener;
 import org.minecraft.atlas.listener.TagListener;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
-import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.job.JokeyriniManager;
+import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -46,6 +47,7 @@ public final class Atlas extends JavaPlugin {
         FactionManager.loadFactions(configFile);
         FactionClaimManager.loadClaims(configFile);
         JobManager.loadJobs(configFile);
+        JokeyriniManager.loadJokeyrini(configFile);
         DonjonManager.loadConfig(configFile);
         DonjonManager.loadDonjons(configFile);
         TagManager.init();
@@ -57,10 +59,10 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TradeListener(), this);
         getServer().getPluginManager().registerEvents(new GolemListener(), this);
         getServer().getPluginManager().registerEvents(new JobListener(), this);
-        getServer().getPluginManager().registerEvents(new JobGui(), this);
         getServer().getPluginManager().registerEvents(new DonjonListener(), this);
         getServer().getPluginManager().registerEvents(new TagListener(), this);
         getServer().getPluginManager().registerEvents(new CrystalGui(), this);
+        getServer().getPluginManager().registerEvents(new GuiListener(), this);
 
         // Scheduler with ticks
         GolemListener.schedule(this);
@@ -94,6 +96,7 @@ public final class Atlas extends JavaPlugin {
         FactionManager.saveFactions(configFile);
         FactionClaimManager.saveClaims(configFile);
         JobManager.saveJobs(configFile);
+        JokeyriniManager.saveJokeyrini(configFile);
         DonjonManager.saveDonjonConfig(configFile);
         TagManager.saveTags(configFile);
         saveConfig();

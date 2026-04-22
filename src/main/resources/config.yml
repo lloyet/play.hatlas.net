@@ -159,6 +159,12 @@ donjon:
             - material: DIAMOND
               amount: 1
               chance: 0.20
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
         rare:
           min_items: 1
           max_items: 3
@@ -177,6 +183,12 @@ donjon:
                   level: 2
                 - enchantment: unbreaking
                   level: 2
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
         epic:
           min_items: 2
           max_items: 4
@@ -197,6 +209,12 @@ donjon:
                   level: 3
                 - enchantment: looting
                   level: 2
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
         legendary:
           min_items: 2
           max_items: 5
@@ -227,6 +245,12 @@ donjon:
                   level: 2
                 - enchantment: mending
                   level: 1
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
         mystic:
           min_items: 3
           max_items: 5
@@ -261,6 +285,12 @@ donjon:
                   level: 1
                 - enchantment: thorns
                   level: 3
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
         goddess:
           min_items: 4
           max_items: 6
@@ -302,12 +332,18 @@ donjon:
             - material: DRAGON_EGG
               amount: 1
               chance: 0.10
+            - material: TNT
+              amount: 1
+              chance: 0.15
+            - material: CREEPER_SPAWN_EGG
+              amount: 1
+              chance: 0.08
 
 # ============================================================
 # Quest System
 # Tasks are combined randomly into dynamic daily quests.
-# A quest is generated when the player opens the daily quest NPC menu.
-# Only tasks whose min_level <= faction_level <= max_level are eligible.
+# Difficulty (1–4), amount, time limit, and item reward amounts are all
+# generated at runtime — they are NOT configurable here.
 #
 # Task fields:
 #   id              — unique identifier (used internally)
@@ -315,13 +351,11 @@ donjon:
 #   name            — display name shown in inventory
 #   description     — short task description
 #   action_type     — event category: break_block | kill_entity | harvest_crop
-#   min_level       — minimum faction level required to receive this task
-#   max_level       — maximum faction level at which this task can appear
-#   difficulty      — 1=easy, 2=normal, 3=hard (affects exp formula)
-#   time_limit_seconds — seconds until a quest containing this task auto-expires
 #   targets         — list of relevant block/entity names for the action type
-#   item_rewards    — list of { material, amount } given on completion
+#   item_rewards    — list of { material } to reward on completion
+#                     (amounts are computed at runtime: ≤30% of gather count, scaled by level)
 #
+# All tasks are eligible regardless of player level.
 # Exp reward formula (applied once per quest, not per task):
 #   exp = exp_base_reward * sum(task difficulties) * sqrt(faction_level + 1)
 # ============================================================
@@ -336,96 +370,66 @@ quests:
       name: "Coal Runner"
       description: "Supply coal to keep the furnaces burning."
       action_type: break_block
-      min_level: 0
-      max_level: 20
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - COAL_ORE
         - DEEPSLATE_COAL_ORE
       item_rewards:
         - material: COAL
-          amount: 32
 
     - id: mine_iron
       job: miner
       name: "Iron Gatherer"
       description: "Gather iron for the faction's forge."
       action_type: break_block
-      min_level: 0
-      max_level: 40
-      difficulty: 1
-      time_limit_seconds: 3600
       targets:
         - IRON_ORE
         - DEEPSLATE_IRON_ORE
       item_rewards:
         - material: IRON_INGOT
-          amount: 16
 
     - id: mine_redstone
       job: miner
       name: "Redstone Engineer"
       description: "Collect redstone for the faction engineers."
       action_type: break_block
-      min_level: 5
-      max_level: 50
-      difficulty: 2
-      time_limit_seconds: 3600
       targets:
         - REDSTONE_ORE
         - DEEPSLATE_REDSTONE_ORE
       item_rewards:
         - material: REDSTONE
-          amount: 32
 
     - id: mine_gold
       job: miner
       name: "Gold Rush"
       description: "Mine gold to fund faction trade."
       action_type: break_block
-      min_level: 10
-      max_level: 60
-      difficulty: 2
-      time_limit_seconds: 5400
       targets:
         - GOLD_ORE
         - DEEPSLATE_GOLD_ORE
         - NETHER_GOLD_ORE
       item_rewards:
         - material: GOLD_INGOT
-          amount: 12
 
     - id: mine_diamond
       job: miner
       name: "Diamond Hunt"
       description: "Venture deep and bring back diamonds."
       action_type: break_block
-      min_level: 20
-      max_level: 100
-      difficulty: 3
-      time_limit_seconds: 7200
       targets:
         - DIAMOND_ORE
         - DEEPSLATE_DIAMOND_ORE
       item_rewards:
         - material: DIAMOND
-          amount: 3
 
     - id: mine_ancient_debris
       job: miner
       name: "Nether Excavation"
       description: "Brave the Nether and recover ancient debris."
       action_type: break_block
-      min_level: 50
-      max_level: 100
-      difficulty: 3
-      time_limit_seconds: 7200
       targets:
         - ANCIENT_DEBRIS
       item_rewards:
-        - material: NETHERITE_SCRAP
-          amount: 1
+        - material: NETHERITE_INGOT
 
     # ── Lumberjack ───────────────────────────────────────────────────────────
     - id: chop_oak
@@ -433,93 +437,62 @@ quests:
       name: "Oak Supplier"
       description: "Chop oak logs for the faction stockpile."
       action_type: break_block
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - OAK_LOG
       item_rewards:
         - material: OAK_LOG
-          amount: 32
 
     - id: chop_birch
       job: lumberjack
       name: "Birch Harvester"
       description: "Harvest birch logs for construction."
       action_type: break_block
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - BIRCH_LOG
       item_rewards:
         - material: BIRCH_LOG
-          amount: 32
 
     - id: chop_spruce
       job: lumberjack
       name: "Spruce Logging"
       description: "Cut spruce logs for the faction's needs."
       action_type: break_block
-      min_level: 0
-      max_level: 40
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - SPRUCE_LOG
       item_rewards:
         - material: SPRUCE_LOG
-          amount: 32
 
     - id: chop_jungle
       job: lumberjack
       name: "Jungle Expedition"
       description: "Harvest jungle wood from the deep forest."
       action_type: break_block
-      min_level: 10
-      max_level: 60
-      difficulty: 2
-      time_limit_seconds: 3600
       targets:
         - JUNGLE_LOG
       item_rewards:
         - material: JUNGLE_LOG
-          amount: 24
 
     - id: chop_dark_oak
       job: lumberjack
       name: "Dark Oak Lumbering"
       description: "Fell dark oak for premium lumber."
       action_type: break_block
-      min_level: 15
-      max_level: 70
-      difficulty: 2
-      time_limit_seconds: 3600
       targets:
         - DARK_OAK_LOG
       item_rewards:
         - material: DARK_OAK_LOG
-          amount: 24
 
     - id: chop_crimson
       job: lumberjack
       name: "Nether Forester"
       description: "Harvest crimson and warped stems from the Nether."
       action_type: break_block
-      min_level: 40
-      max_level: 100
-      difficulty: 3
-      time_limit_seconds: 5400
       targets:
         - CRIMSON_STEM
         - WARPED_STEM
       item_rewards:
         - material: CRIMSON_STEM
-          amount: 16
         - material: WARPED_STEM
-          amount: 16
 
     # ── Hunter ───────────────────────────────────────────────────────────────
     - id: hunt_zombies
@@ -527,95 +500,64 @@ quests:
       name: "Undead Slayer"
       description: "Eliminate zombies threatening the faction."
       action_type: kill_entity
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 3600
       targets:
         - ZOMBIE
         - HUSK
       item_rewards:
         - material: ROTTEN_FLESH
-          amount: 16
 
     - id: hunt_skeletons
       job: hunter
       name: "Bone Collector"
       description: "Defeat skeletons and collect their bones."
       action_type: kill_entity
-      min_level: 0
-      max_level: 40
-      difficulty: 1
-      time_limit_seconds: 3600
       targets:
         - SKELETON
         - STRAY
       item_rewards:
         - material: BONE
-          amount: 16
         - material: ARROW
-          amount: 32
 
     - id: hunt_spiders
       job: hunter
       name: "Web Clearer"
       description: "Hunt spiders and bring back their silk."
       action_type: kill_entity
-      min_level: 5
-      max_level: 50
-      difficulty: 1
-      time_limit_seconds: 3600
       targets:
         - SPIDER
         - CAVE_SPIDER
       item_rewards:
         - material: STRING
-          amount: 24
 
     - id: hunt_creepers
       job: hunter
       name: "Creeper Hunter"
       description: "Take down creepers before they cause damage."
       action_type: kill_entity
-      min_level: 10
-      max_level: 60
-      difficulty: 2
-      time_limit_seconds: 5400
       targets:
         - CREEPER
       item_rewards:
         - material: GUNPOWDER
-          amount: 12
 
     - id: hunt_endermen
       job: hunter
       name: "Void Walker"
       description: "Hunt endermen for their pearls."
       action_type: kill_entity
-      min_level: 25
-      max_level: 80
-      difficulty: 2
-      time_limit_seconds: 7200
       targets:
         - ENDERMAN
       item_rewards:
         - material: ENDER_PEARL
-          amount: 8
 
     - id: hunt_blazes
       job: hunter
       name: "Blaze Extinguisher"
       description: "Defeat blazes and retrieve their rods."
       action_type: kill_entity
-      min_level: 40
-      max_level: 100
-      difficulty: 3
-      time_limit_seconds: 7200
       targets:
         - BLAZE
       item_rewards:
         - material: BLAZE_ROD
-          amount: 8
 
     # ── Farmer ───────────────────────────────────────────────────────────────
     - id: farm_wheat
@@ -623,90 +565,178 @@ quests:
       name: "Wheat Harvest"
       description: "Harvest wheat to feed the faction."
       action_type: harvest_crop
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - WHEAT
       item_rewards:
         - material: BREAD
-          amount: 16
 
     - id: farm_carrots
       job: farmer
       name: "Carrot Crop"
       description: "Grow and harvest carrots for the storehouse."
       action_type: harvest_crop
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - CARROTS
       item_rewards:
         - material: CARROT
-          amount: 32
 
     - id: farm_potatoes
       job: farmer
       name: "Potato Supply"
       description: "Harvest potatoes to sustain the faction."
       action_type: harvest_crop
-      min_level: 0
-      max_level: 30
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - POTATOES
       item_rewards:
         - material: BAKED_POTATO
-          amount: 24
 
     - id: farm_beetroot
       job: farmer
       name: "Beetroot Harvest"
       description: "Collect beetroot for faction recipes."
       action_type: harvest_crop
-      min_level: 5
-      max_level: 50
-      difficulty: 1
-      time_limit_seconds: 2400
       targets:
         - BEETROOTS
       item_rewards:
         - material: BEETROOT
-          amount: 32
 
     - id: farm_melon
       job: farmer
       name: "Melon Patch"
       description: "Harvest melons from the faction garden."
       action_type: harvest_crop
-      min_level: 10
-      max_level: 60
-      difficulty: 2
-      time_limit_seconds: 3600
       targets:
         - MELON
       item_rewards:
         - material: MELON_SLICE
-          amount: 32
 
     - id: farm_nether_wart
       job: farmer
       name: "Nether Alchemist"
       description: "Harvest nether wart for the faction's potions."
       action_type: harvest_crop
-      min_level: 30
-      max_level: 100
-      difficulty: 3
-      time_limit_seconds: 5400
       targets:
         - NETHER_WART
       item_rewards:
         - material: NETHER_WART
-          amount: 24
+
+    # ── Alchemist ─────────────────────────────────────────────────────────────
+    - id: brew_potions
+      job: alchemist
+      name: "Potion Brewer"
+      description: "Brew potions at a brewing stand."
+      action_type: brew_potion
+      targets:
+        - POTION
+        - SPLASH_POTION
+        - LINGERING_POTION
+      item_rewards:
+        - material: GLASS_BOTTLE
+
+    - id: craft_golden_items
+      job: alchemist
+      name: "Golden Crafter"
+      description: "Craft golden food items used in potions."
+      action_type: craft_item
+      targets:
+        - GOLDEN_CARROT
+        - GOLDEN_APPLE
+      item_rewards:
+        - material: GOLD_NUGGET
+
+    - id: craft_potion_ingredients
+      job: alchemist
+      name: "Ingredient Gatherer"
+      description: "Craft essential alchemical ingredients."
+      action_type: craft_item
+      targets:
+        - SUGAR
+        - BLAZE_POWDER
+        - MAGMA_CREAM
+        - FERMENTED_SPIDER_EYE
+      item_rewards:
+        - material: NETHER_WART
+
+    - id: craft_tipped_arrows
+      job: alchemist
+      name: "Arrow Infuser"
+      description: "Craft tipped arrows for the faction."
+      action_type: craft_item
+      targets:
+        - TIPPED_ARROW
+      item_rewards:
+        - material: ARROW
+
+    - id: hunt_nether_alchemist
+      job: alchemist
+      name: "Nether Hunter"
+      description: "Hunt nether creatures for alchemical components."
+      action_type: kill_entity
+      targets:
+        - BLAZE
+        - GHAST
+        - WITHER_SKELETON
+        - MAGMA_CUBE
+      item_rewards:
+        - material: BLAZE_ROD
+
+# ============================================================
+# Jokeyrini — the wandering trader of challenges.
+# Tasks combine into one daily quest with 2–3 tasks at Hard/Hardcore
+# difficulty. Reward: 1–2 Donjon Keys (based on max difficulty reached).
+#
+# Task fields are the same as regular quest tasks.
+# item_rewards should be left empty — the donjon key is always given
+# automatically on completion.
+# ============================================================
+jokeyrini:
+  special_quest_chance: 0.15
+  tasks:
+    - id: jok_nether_slayer
+      name: "Nether Slayer"
+      description: "Exterminate the most dangerous Nether mobs."
+      action_type: kill_entity
+      targets:
+        - BLAZE
+        - GHAST
+        - WITHER_SKELETON
+        - PIGLIN_BRUTE
+      item_rewards: []
+
+    - id: jok_ancient_miner
+      name: "Ancient Miner"
+      description: "Excavate ancient debris deep in the Nether."
+      action_type: break_block
+      targets:
+        - ANCIENT_DEBRIS
+      item_rewards: []
+
+    - id: jok_master_brewer
+      name: "Master Brewer"
+      description: "Brew potent lingering or splash potions."
+      action_type: brew_potion
+      targets:
+        - LINGERING_POTION
+        - SPLASH_POTION
+      item_rewards: []
+
+    - id: jok_golden_crafter
+      name: "Golden Artisan"
+      description: "Craft powerful golden items."
+      action_type: craft_item
+      targets:
+        - GOLDEN_APPLE
+        - GOLDEN_CARROT
+      item_rewards: []
+
+    - id: jok_diamond_miner
+      name: "Diamond Seeker"
+      description: "Mine diamonds from the deep."
+      action_type: break_block
+      targets:
+        - DIAMOND_ORE
+        - DEEPSLATE_DIAMOND_ORE
+      item_rewards: []
 
 # Faction upgrade configuration.
 # When a faction reaches an upgrade level, an Owner or Leader can run
