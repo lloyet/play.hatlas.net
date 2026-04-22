@@ -2,6 +2,7 @@ package org.minecraft.atlas.tag;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
@@ -207,10 +208,10 @@ public class TagManager {
 
     private static Component buildComponent(List<String> lines) {
         if (lines.isEmpty()) return Component.empty();
-        Component result = Component.text(lines.getFirst(), NamedTextColor.WHITE);
+        Component result = LegacyComponentSerializer.legacyAmpersand().deserialize(lines.getFirst());
         for (int i = 1; i < lines.size(); i++) {
             result = result.append(Component.newline())
-                           .append(Component.text(lines.get(i), NamedTextColor.WHITE));
+                    .append(LegacyComponentSerializer.legacyAmpersand().deserialize(lines.get(i)));
         }
         return result;
     }

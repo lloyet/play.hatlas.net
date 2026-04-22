@@ -6,11 +6,15 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.jspecify.annotations.NonNull;
+import org.minecraft.atlas.command.AirCommand;
+import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.SpawnTeleportManager;
 import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
@@ -20,6 +24,7 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.ChatListener;
 import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
+import org.minecraft.atlas.listener.SpawnProtectionListener;
 import org.minecraft.atlas.listener.TagListener;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
@@ -43,6 +48,9 @@ public final class Atlas extends JavaPlugin {
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
         AtlasCrystalManager.loadConfig(configFile);
+        SpawnProtectionListener.loadConfig(configFile);
+        AirTeleportManager.loadConfig(configFile);
+        SpawnTeleportManager.loadConfig(configFile);
         FactionLevelManager.loadUpgrades(configFile);
         FactionManager.loadFactions(configFile);
         FactionClaimManager.loadClaims(configFile);
@@ -63,6 +71,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TagListener(), this);
         getServer().getPluginManager().registerEvents(new CrystalGui(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
+        getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
 
         // Scheduler with ticks
         GolemListener.schedule(this);
@@ -81,6 +90,8 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
                         event.registrar().register(TagCommand.build());
+                        event.registrar().register(AirCommand.build());
+                        event.registrar().register(SpawnCommand.build());
                     }
                 }
         );

@@ -1,7 +1,11 @@
 package org.minecraft.atlas.donjon;
 
 public enum DonjonType {
-    TRIAL("trial", "Trial");
+    TRIAL("trial", "Trial"),
+    DESERT("desert", "Desert"),
+    NETHER_CASTLE("nether_castle", "Nether Castle"),
+    PLAIN("plain", "Plains"),
+    SKY("sky", "Sky");
 
     private final String configKey;
     private final String displayName;

@@ -37,7 +37,9 @@ import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.faction.AirTeleportManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.faction.SpawnTeleportManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -88,6 +90,12 @@ public class FactionListener implements Listener {
     public void onPlayerDamagedCancelTeleport(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
         if (HomeTeleportManager.cancelTeleport(player.getUniqueId())) {
+            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
+        }
+        if (AirTeleportManager.cancelTeleport(player.getUniqueId())) {
+            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
+        }
+        if (SpawnTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
     }
