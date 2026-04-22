@@ -15,6 +15,8 @@ import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.faction.AirTeleportManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.SpawnTeleportManager;
@@ -62,6 +64,8 @@ public final class Atlas extends JavaPlugin {
         JokeyriniManager.loadJokeyrini(configFile);
         DonjonManager.loadConfig(configFile);
         DonjonManager.loadDonjons(configFile);
+        ElectricalCreeperManager.init();
+        RaiderPickaxe.init();
         TagManager.init();
         TagManager.loadTags(configFile);
         HomeManager.loadHomes(configFile);

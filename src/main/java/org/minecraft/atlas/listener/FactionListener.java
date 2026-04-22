@@ -30,6 +30,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.util.TitleUtil;
 import org.minecraft.atlas.listener.SpawnProtectionListener;
 import org.minecraft.atlas.faction.AtlasCrystal;
@@ -128,6 +129,7 @@ public class FactionListener implements Listener {
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
         if (isAllowedInChunk(player, event.getBlock().getChunk())) return;
+        if (RaiderPickaxe.isRaiderPickaxe(player.getInventory().getItemInMainHand())) return;
         event.setCancelled(true);
         player.sendActionBar(Component.text("⚔ Enemy territory — can't break!", NamedTextColor.RED));
     }
