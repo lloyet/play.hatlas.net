@@ -26,14 +26,14 @@ public class HomeCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
-                            boolean hadHome = HomeManager.hasHome(player.getUniqueId());
+                            boolean updated = HomeManager.hasHome(player.getUniqueId(), name);
                             HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
 
                             HomeManager.saveHomes(Atlas.instance.getConfig());
                             Atlas.instance.saveConfig();
 
                             player.sendMessage(Component.text(
-                                    (hadHome ? "Home updated" : "Home set") + ": '" + name + "'.",
+                                    (updated ? "Home updated" : "Home set") + ": '" + name + "'.",
                                     NamedTextColor.GREEN));
                             return Command.SINGLE_SUCCESS;
                         }))
@@ -43,6 +43,8 @@ public class HomeCommand {
     public static LiteralCommandNode<CommandSourceStack> buildHome() {
         return Commands.literal("home")
                 .requires(src -> src.getSender().hasPermission("atlas.home"))
+
+                // /home — teleport to first home
                 .executes(ctx -> {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
@@ -50,9 +52,31 @@ public class HomeCommand {
                                 Component.text("Only players can use this command.", NamedTextColor.RED));
                         return Command.SINGLE_SUCCESS;
                     }
-                    HomeManager.startTeleport(player);
+                    HomeManager.startTeleport(player, null);
                     return Command.SINGLE_SUCCESS;
                 })
+
+                // /home <name> — teleport to named home
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (executor instanceof Player player) {
+                                HomeManager.getHomeNames(player.getUniqueId()).forEach(builder::suggest);
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(
+                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String name = StringArgumentType.getString(ctx, "name");
+                            HomeManager.startTeleport(player, name);
+                            return Command.SINGLE_SUCCESS;
+                        }))
+
                 .build();
     }
 }

@@ -12,16 +12,20 @@ import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.util.TitleUtil;
 
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class HomeManager {
 
-    private record PlayerHome(String name, Location location) {
-    }
+    /**
+     * UUID → (home name → location), insertion-ordered so "first home" is deterministic.
+     */
+    private static final Map<UUID, LinkedHashMap<String, Location>> homes = new HashMap<>();
 
-    private static final Map<UUID, PlayerHome> homes = new HashMap<>();
     private static final Map<UUID, BukkitRunnable> activeTeleports = new HashMap<>();
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
@@ -45,19 +49,29 @@ public class HomeManager {
                 continue;
             }
 
-            ConfigurationSection hs = sec.getConfigurationSection(key);
-            if (hs == null) continue;
+            ConfigurationSection playerSec = sec.getConfigurationSection(key);
+            if (playerSec == null) continue;
 
-            String worldName = hs.getString("world");
-            if (worldName == null) continue;
-            World world = Bukkit.getWorld(worldName);
-            if (world == null) continue;
+            LinkedHashMap<String, Location> playerHomes = new LinkedHashMap<>();
 
-            String name = hs.getString("name", "home");
-            Location loc = new Location(world,
-                    hs.getDouble("x"), hs.getDouble("y"), hs.getDouble("z"),
-                    (float) hs.getDouble("yaw"), (float) hs.getDouble("pitch"));
-            homes.put(uuid, new PlayerHome(name, loc));
+            if (playerSec.contains("world")) {
+                // Legacy single-home format: migrate transparently
+                Location loc = readLocation(playerSec);
+                if (loc != null) {
+                    String name = playerSec.getString("name", "home");
+                    playerHomes.put(name, loc);
+                }
+            } else {
+                // Current format: each sub-key is a named home
+                for (String homeName : playerSec.getKeys(false)) {
+                    ConfigurationSection hs = playerSec.getConfigurationSection(homeName);
+                    if (hs == null) continue;
+                    Location loc = readLocation(hs);
+                    if (loc != null) playerHomes.put(homeName, loc);
+                }
+            }
+
+            if (!playerHomes.isEmpty()) homes.put(uuid, playerHomes);
         }
     }
 
@@ -66,18 +80,32 @@ public class HomeManager {
         if (homes.isEmpty()) return;
 
         ConfigurationSection sec = config.createSection("player_homes");
-        for (Map.Entry<UUID, PlayerHome> entry : homes.entrySet()) {
-            ConfigurationSection hs = sec.createSection(entry.getKey().toString());
-            PlayerHome ph = entry.getValue();
-            Location loc = ph.location();
-            hs.set("name", ph.name());
-            hs.set("world", loc.getWorld().getName());
-            hs.set("x", loc.getX());
-            hs.set("y", loc.getY());
-            hs.set("z", loc.getZ());
-            hs.set("yaw", loc.getYaw());
-            hs.set("pitch", loc.getPitch());
+        for (Map.Entry<UUID, LinkedHashMap<String, Location>> entry : homes.entrySet()) {
+            ConfigurationSection playerSec = sec.createSection(entry.getKey().toString());
+            for (Map.Entry<String, Location> homeEntry : entry.getValue().entrySet()) {
+                ConfigurationSection hs = playerSec.createSection(homeEntry.getKey());
+                writeLocation(hs, homeEntry.getValue());
+            }
         }
+    }
+
+    private static Location readLocation(ConfigurationSection s) {
+        String worldName = s.getString("world");
+        if (worldName == null) return null;
+        World world = Bukkit.getWorld(worldName);
+        if (world == null) return null;
+        return new Location(world,
+                s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
+                (float) s.getDouble("yaw"), (float) s.getDouble("pitch"));
+    }
+
+    private static void writeLocation(ConfigurationSection s, Location loc) {
+        s.set("world", loc.getWorld().getName());
+        s.set("x", loc.getX());
+        s.set("y", loc.getY());
+        s.set("z", loc.getZ());
+        s.set("yaw", loc.getYaw());
+        s.set("pitch", loc.getPitch());
     }
 
     // -------------------------------------------------------------------------
@@ -85,33 +113,58 @@ public class HomeManager {
     // -------------------------------------------------------------------------
 
     public static void setHome(UUID playerUUID, String name, Location location) {
-        homes.put(playerUUID, new PlayerHome(name, location.clone()));
+        homes.computeIfAbsent(playerUUID, k -> new LinkedHashMap<>())
+                .put(name, location.clone());
     }
 
-    public static boolean hasHome(UUID playerUUID) {
-        return homes.containsKey(playerUUID);
+    public static boolean hasAnyHome(UUID playerUUID) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        return m != null && !m.isEmpty();
     }
 
-    public static String getHomeName(UUID playerUUID) {
-        PlayerHome ph = homes.get(playerUUID);
-        return ph != null ? ph.name() : null;
+    public static boolean hasHome(UUID playerUUID, String name) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        return m != null && m.containsKey(name);
     }
 
-    public static Location getHomeLocation(UUID playerUUID) {
-        PlayerHome ph = homes.get(playerUUID);
-        return ph != null ? ph.location() : null;
+    public static Location getHomeLocation(UUID playerUUID, String name) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        return m != null ? m.get(name) : null;
+    }
+
+    public static String getFirstHomeName(UUID playerUUID) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        if (m == null || m.isEmpty()) return null;
+        return m.keySet().iterator().next();
+    }
+
+    public static Set<String> getHomeNames(UUID playerUUID) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        return m != null ? Collections.unmodifiableSet(m.keySet()) : Collections.emptySet();
     }
 
     // -------------------------------------------------------------------------
     // Teleport
     // -------------------------------------------------------------------------
 
-    public static boolean startTeleport(Player player) {
+    /**
+     * Starts the teleport countdown.
+     * Pass {@code null} for {@code homeName} to use the first (oldest) home.
+     */
+    public static boolean startTeleport(Player player, String homeName) {
         UUID uuid = player.getUniqueId();
 
-        if (!hasHome(uuid)) {
+        if (!hasAnyHome(uuid)) {
             player.sendMessage(Component.text(
-                    "You have no home set. Use /sethome <name> to set one.", NamedTextColor.RED));
+                    "You have no home set. Use /sethome <name> first.", NamedTextColor.RED));
+            return false;
+        }
+
+        String resolvedName = (homeName == null) ? getFirstHomeName(uuid) : homeName;
+        Location dest = getHomeLocation(uuid, resolvedName);
+        if (dest == null) {
+            player.sendMessage(Component.text(
+                    "Home '" + resolvedName + "' not found.", NamedTextColor.RED));
             return false;
         }
 
@@ -129,9 +182,8 @@ public class HomeManager {
             return false;
         }
 
-        Location dest = getHomeLocation(uuid);
-        String homeName = getHomeName(uuid);
         Location startLocation = player.getLocation().clone();
+        String displayName = resolvedName;
 
         BukkitRunnable task = new BukkitRunnable() {
             int remaining = COUNTDOWN_SECONDS;
@@ -155,7 +207,7 @@ public class HomeManager {
                 }
                 if (remaining > 0) {
                     player.sendActionBar(Component.text(
-                            "Teleporting to home '" + homeName + "' in " + remaining + "s…",
+                            "Teleporting to '" + displayName + "' in " + remaining + "s…",
                             NamedTextColor.YELLOW));
                     remaining--;
                 } else {
@@ -163,7 +215,7 @@ public class HomeManager {
                     cancel();
                     player.teleport(dest);
                     player.sendActionBar(Component.text(
-                            "Teleported to home '" + homeName + "'!", NamedTextColor.GREEN));
+                            "Teleported to '" + displayName + "'!", NamedTextColor.GREEN));
                     cooldownExpiry.put(uuid, System.currentTimeMillis() + COOLDOWN_MS);
                 }
             }

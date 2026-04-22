@@ -2,6 +2,7 @@ package org.minecraft.atlas.listener;
 
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -16,13 +17,18 @@ public class ChatListener implements Listener {
         Player player = event.getPlayer();
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
         Faction faction = factionName != null ? FactionManager.getFaction(factionName) : null;
+        boolean isOp = player.isOp();
 
         event.renderer((source, sourceDisplayName, message, viewer) -> {
+            Component nameComponent = isOp
+                    ? Component.text(player.getName(), NamedTextColor.DARK_RED)
+                    : sourceDisplayName;
+
             if (faction == null) {
-                return sourceDisplayName.append(Component.text(": ")).append(message);
+                return nameComponent.append(Component.text(": ")).append(message);
             }
             return Component.text("[" + factionName + "] ", faction.getColor())
-                    .append(sourceDisplayName)
+                    .append(nameComponent)
                     .append(Component.text(": "))
                     .append(message);
         });

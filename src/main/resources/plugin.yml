@@ -90,7 +90,7 @@ permissions:
   atlas.tag.admin:
     description: Full access to /tag (create, delete, add, edit, list)
     default: op
-  atlas.air.tp:
+  atlas.rtp:
     description: Randomly teleport within the configured radius around spawn
     default: true
   atlas.spawn:

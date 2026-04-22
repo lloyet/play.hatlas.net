@@ -13,19 +13,18 @@ import org.minecraft.atlas.faction.AirTeleportManager;
 public class AirCommand {
 
     public static LiteralCommandNode<CommandSourceStack> build() {
-        return Commands.literal("air")
-                .then(Commands.literal("tp")
-                        .requires(src -> src.getSender().hasPermission("atlas.air.tp"))
-                        .executes(ctx -> {
-                            Entity executor = ctx.getSource().getExecutor();
-                            if (!(executor instanceof Player player)) {
-                                ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
-                                return Command.SINGLE_SUCCESS;
-                            }
-                            AirTeleportManager.startTeleport(player);
-                            return Command.SINGLE_SUCCESS;
-                        }))
+        return Commands.literal("rtp")
+                .requires(src -> src.getSender().hasPermission("atlas.rtp"))
+                .executes(ctx -> {
+                    Entity executor = ctx.getSource().getExecutor();
+                    if (!(executor instanceof Player player)) {
+                        ctx.getSource().getSender().sendMessage(
+                                Component.text("Only players can use this command.", NamedTextColor.RED));
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    AirTeleportManager.startTeleport(player);
+                    return Command.SINGLE_SUCCESS;
+                })
                 .build();
     }
 }
