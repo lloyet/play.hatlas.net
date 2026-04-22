@@ -118,12 +118,11 @@ public class JobQuestListHolder implements AtlasHolder {
                             GuiUtil.difficultyColor(task.getDifficulty())).decoration(TextDecoration.ITALIC, false))
                     .append(Component.text(" " + progressStr, progressColor).decoration(TextDecoration.ITALIC, false)));
 
-            if (!task.getTargets().isEmpty()) {
-                String targetList = String.join(", ", task.getTargets().stream()
-                        .map(GuiUtil::formatMaterial).toList());
-                lore.add(Component.text("    " + targetList, NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
+            String verb = GuiUtil.actionVerb(task.getActionType());
+            String targetSuffix = task.getTargets().isEmpty() ? "" : ": " + String.join(", ",
+                    task.getTargets().stream().map(GuiUtil::formatMaterial).toList());
+            lore.add(Component.text("    " + verb + targetSuffix, NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
         List<ItemStack> rewards = qt.getItemRewards();
@@ -167,12 +166,11 @@ public class JobQuestListHolder implements AtlasHolder {
                     .append(Component.text(" " + gathered + "/" + required,
                             done ? NamedTextColor.GREEN : NamedTextColor.WHITE)
                             .decoration(TextDecoration.ITALIC, false)));
-            if (!task.getTargets().isEmpty()) {
-                String targetList = String.join(", ", task.getTargets().stream()
-                        .map(GuiUtil::formatMaterial).toList());
-                lore.add(Component.text("    " + targetList, NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false));
-            }
+            String verb = GuiUtil.actionVerb(task.getActionType());
+            String targetSuffix = task.getTargets().isEmpty() ? "" : ": " + String.join(", ",
+                    task.getTargets().stream().map(GuiUtil::formatMaterial).toList());
+            lore.add(Component.text("    " + verb + targetSuffix, NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
         }
 
         lore.add(Component.empty());
