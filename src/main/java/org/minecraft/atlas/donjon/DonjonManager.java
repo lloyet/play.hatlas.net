@@ -871,6 +871,8 @@ public class DonjonManager {
             case "BABY_ZOMBIE" -> w.spawn(loc, Zombie.class, Ageable::setBaby);
             case "HUSK" -> w.spawn(loc, Husk.class);
             case "DROWNED" -> w.spawn(loc, Drowned.class);
+            case "GUARDIAN" -> w.spawn(loc, Guardian.class);
+            case "ELDER_GUARDIAN" -> w.spawn(loc, ElderGuardian.class);
             case "SKELETON" -> w.spawn(loc, Skeleton.class);
             case "STRAY" -> w.spawn(loc, Stray.class);
             case "BOGGED" -> w.spawn(loc, Bogged.class);

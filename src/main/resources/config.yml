@@ -1160,6 +1160,210 @@ donjon:
                 - enchantment: thorns
                   level: 3
 
+    # ── Ocean ─────────────────────────────────────────────────────────────────
+    ocean:
+      display_name: "Ocean"
+      structure_filename: "ocean_dungeon.nbt"
+      name_adjectives:
+        - Sunken
+        - Abyssal
+        - Drowned
+        - Tidal
+        - Flooded
+        - Murky
+        - Ancient
+        - Brackish
+        - Forsaken
+        - Submerged
+      name_nouns:
+        - Temple
+        - Depths
+        - Ruin
+        - Monument
+        - Grotto
+        - Trench
+        - Vault
+        - Shrine
+        - Catacomb
+        - Sanctum
+
+      mob_types:
+        - DROWNED
+        - GUARDIAN
+        - WITCH
+        - SKELETON
+
+      boss_types:
+        - ELDER_GUARDIAN
+        - GUARDIAN
+
+      min_waves: 3
+      max_waves: 9
+
+      min_mobs_per_wave: 4
+      max_mobs_per_wave: 35
+
+      base_hp_multiplier: 1.1
+      max_hp_multiplier: 5.5
+
+      base_attack_multiplier: 1.0
+      max_attack_multiplier: 3.0
+
+      boss_hp_multiplier: 12.0
+      boss_attack_multiplier: 2.5
+      boss_speed_multiplier: 0.4
+
+      boss_count_min: 1
+      boss_count_max: 2
+
+      min_exp_reward: 550
+      max_exp_reward: 11000
+
+      boss_drops:
+        common:
+          min_items: 1
+          max_items: 2
+          items:
+            - material: PRISMARINE_SHARD
+              amount: 8
+              chance: 0.50
+            - material: COD
+              amount: 4
+              chance: 0.40
+            - material: INK_SAC
+              amount: 6
+              chance: 0.35
+            - material: GOLD_INGOT
+              amount: 2
+              chance: 0.25
+        rare:
+          min_items: 1
+          max_items: 3
+          items:
+            - material: PRISMARINE_CRYSTALS
+              amount: 6
+              chance: 0.40
+            - material: GOLD_INGOT
+              amount: 4
+              chance: 0.35
+            - material: DIAMOND
+              amount: 2
+              chance: 0.25
+            - material: SPONGE
+              amount: 2
+              chance: 0.20
+        epic:
+          min_items: 2
+          max_items: 4
+          items:
+            - material: DIAMOND
+              amount: 3
+              chance: 0.40
+            - material: EMERALD
+              amount: 3
+              chance: 0.35
+            - material: SEA_LANTERN
+              amount: 4
+              chance: 0.30
+            - material: IRON_CHESTPLATE
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: aqua_affinity
+                  level: 1
+                - enchantment: respiration
+                  level: 3
+                - enchantment: protection
+                  level: 3
+                - enchantment: unbreaking
+                  level: 2
+        legendary:
+          min_items: 2
+          max_items: 5
+          items:
+            - material: EMERALD
+              amount: 5
+              chance: 0.35
+            - material: NETHERITE_SCRAP
+              amount: 2
+              chance: 0.25
+            - material: DIAMOND_CHESTPLATE
+              amount: 1
+              chance: 0.20
+              enchantments:
+                - enchantment: aqua_affinity
+                  level: 1
+                - enchantment: respiration
+                  level: 3
+                - enchantment: protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+            - material: HEART_OF_THE_SEA
+              amount: 1
+              chance: 0.15
+        mystic:
+          min_items: 3
+          max_items: 5
+          items:
+            - material: NETHERITE_SCRAP
+              amount: 3
+              chance: 0.35
+            - material: NETHERITE_INGOT
+              amount: 1
+              chance: 0.25
+            - material: HEART_OF_THE_SEA
+              amount: 1
+              chance: 0.30
+            - material: NETHERITE_SWORD
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: sharpness
+                  level: 5
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: looting
+                  level: 3
+        goddess:
+          min_items: 4
+          max_items: 6
+          items:
+            - material: NETHERITE_INGOT
+              amount: 3
+              chance: 0.30
+            - material: NETHER_STAR
+              amount: 1
+              chance: 0.20
+            - material: HEART_OF_THE_SEA
+              amount: 2
+              chance: 0.25
+            - material: CONDUIT
+              amount: 1
+              chance: 0.15
+            - material: NETHERITE_CHESTPLATE
+              amount: 1
+              chance: 0.15
+              enchantments:
+                - enchantment: aqua_affinity
+                  level: 1
+                - enchantment: respiration
+                  level: 3
+                - enchantment: protection
+                  level: 4
+                - enchantment: blast_protection
+                  level: 4
+                - enchantment: unbreaking
+                  level: 3
+                - enchantment: mending
+                  level: 1
+                - enchantment: thorns
+                  level: 3
+
 # ============================================================
 # Quest System
 # Tasks are combined randomly into dynamic daily quests.

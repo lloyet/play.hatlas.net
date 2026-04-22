@@ -5,7 +5,8 @@ public enum DonjonType {
     DESERT("desert", "Desert"),
     NETHER_CASTLE("nether_castle", "Nether Castle"),
     PLAIN("plain", "Plains"),
-    SKY("sky", "Sky");
+    SKY("sky", "Sky"),
+    OCEAN("ocean", "Ocean");
 
     private final String configKey;
     private final String displayName;
