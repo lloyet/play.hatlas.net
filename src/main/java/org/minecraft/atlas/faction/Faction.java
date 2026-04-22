@@ -5,8 +5,10 @@ import org.bukkit.inventory.ItemStack;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 public class Faction {
@@ -119,4 +121,13 @@ public class Faction {
     public Map<Integer, ItemStack[]> getChestContentsMap() {
         return chestContents;
     }
+
+    // ── Allies ────────────────────────────────────────────────────────────────
+
+    private final Set<String> allies = new HashSet<>();
+
+    public Set<String> getAllies() { return allies; }
+    public boolean hasAlly(String factionName) { return allies.contains(factionName); }
+    public void addAlly(String factionName) { allies.add(factionName); }
+    public void removeAlly(String factionName) { allies.remove(factionName); }
 }

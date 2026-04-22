@@ -156,6 +156,36 @@ public class DonjonListener implements Listener {
     }
 
     // -------------------------------------------------------------------------
+    // Friendly-fire protection inside donjon chunks
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onPlayerDamagePlayer(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof Player target)) return;
+
+        Player attacker = null;
+        if (event.getDamager() instanceof Player p) {
+            attacker = p;
+        } else if (event.getDamager() instanceof Projectile proj && proj.getShooter() instanceof Player p) {
+            attacker = p;
+        }
+        if (attacker == null) return;
+        if (attacker.equals(target)) return;
+
+        long chunkKey = Chunk.getChunkKey(target.getChunk().getX(), target.getChunk().getZ());
+        Donjon donjon = DonjonManager.getDonjonAtChunk(target.getWorld(), chunkKey);
+        if (donjon == null || !donjon.isInProgress()) return;
+
+        String attackerFaction = FactionManager.getPlayerFaction(attacker.getUniqueId());
+        String targetFaction   = FactionManager.getPlayerFaction(target.getUniqueId());
+        if (!FactionManager.areAllied(attackerFaction, targetFaction)) return;
+
+        event.setCancelled(true);
+        attacker.sendActionBar(net.kyori.adventure.text.Component.text(
+                target.getName() + " is your ally.", NamedTextColor.GREEN));
+    }
+
+    // -------------------------------------------------------------------------
     // Boss damage tracking
     // -------------------------------------------------------------------------
 

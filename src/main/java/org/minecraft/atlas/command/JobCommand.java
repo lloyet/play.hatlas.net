@@ -14,11 +14,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
+import org.bukkit.entity.WanderingTrader;
 import org.bukkit.persistence.PersistentDataType;
-import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
 
 import java.util.Arrays;
@@ -30,6 +31,15 @@ public class JobCommand {
     private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
     private static Component info(String msg) { return Component.text(msg, NamedTextColor.GOLD); }
 
+    private static Component helpEntry(String sub, String args, String desc) {
+        Component line = Component.text("/job ", NamedTextColor.GRAY)
+                .append(Component.text(sub, NamedTextColor.GOLD));
+        if (!args.isEmpty()) {
+            line = line.append(Component.text(" " + args, NamedTextColor.DARK_AQUA));
+        }
+        return line.append(Component.text(" - " + desc, NamedTextColor.YELLOW));
+    }
+
     // -------------------------------------------------------------------------
     // Command tree
     // -------------------------------------------------------------------------
@@ -37,22 +47,21 @@ public class JobCommand {
     public static LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("job")
                 .requires(src -> src.getSender().hasPermission("atlas.job"))
-                // /job — open selection GUI
+                // /job — show help
                 .executes(ctx -> {
-                    Entity executor = ctx.getSource().getExecutor();
-                    if (!(executor instanceof Player player)) {
-                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                        return Command.SINGLE_SUCCESS;
+                    var sender = ctx.getSource().getSender();
+                    Component help = Component.text("--- Job Commands ---", NamedTextColor.GOLD)
+                            .append(Component.newline()).append(helpEntry("level", "", "View your current job level and progress"));
+
+                    if (sender.hasPermission("atlas.job.admin")) {
+                        help = help
+                                .append(Component.newline()).append(helpEntry("set", "<job> [player]", "[admin] Force-set a job"))
+                                .append(Component.newline()).append(helpEntry("remove", "[player]", "[admin] Remove a player's job"))
+                                .append(Component.newline()).append(helpEntry("level", "add|set|remove <player> <amount> xp|level", "[admin] Modify job level/xp"))
+                                .append(Component.newline()).append(helpEntry("npc", "spawn <job>", "[admin] Spawn a job NPC"));
                     }
-                    if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
-                        player.sendMessage(error("You must join or create a faction before choosing a job."));
-                        return Command.SINGLE_SUCCESS;
-                    }
-                    if (JobManager.hasJob(player.getUniqueId())) {
-                        player.sendMessage(error("You already have a job. Use /job level to view your progress."));
-                        return Command.SINGLE_SUCCESS;
-                    }
-                    JobGui.open(player);
+
+                    sender.sendMessage(help);
                     return Command.SINGLE_SUCCESS;
                 })
                 // /job remove [player]
@@ -112,18 +121,6 @@ public class JobCommand {
                                             doAdminSet(player, target, job);
                                             return Command.SINGLE_SUCCESS;
                                         }))))
-                // /job list
-                .then(Commands.literal("list")
-                        .executes(ctx -> {
-                            Component msg = Component.text("--- Available Jobs ---", NamedTextColor.GOLD);
-                            for (Job j : Job.values()) {
-                                msg = msg.append(Component.newline())
-                                        .append(Component.text("• ", NamedTextColor.GRAY))
-                                        .append(Component.text(j.getDisplayName(), j.getColor()));
-                            }
-                            ctx.getSource().getSender().sendMessage(msg);
-                            return Command.SINGLE_SUCCESS;
-                        }))
                 // /job npc spawn <job>
                 .then(Commands.literal("npc")
                         .requires(src -> src.getSender().hasPermission("atlas.job.admin"))
@@ -213,6 +210,22 @@ public class JobCommand {
     }
 
     private static void doSpawnNpc(Player player, Job job) {
+        if (job == Job.JOKEYRINI) {
+            player.getWorld().spawn(player.getLocation(), WanderingTrader.class, wt -> {
+                wt.setAI(false);
+                wt.setInvulnerable(true);
+                wt.setRemoveWhenFarAway(false);
+                wt.customName(Component.text(job.getDisplayName(), job.getColor()));
+                wt.setCustomNameVisible(true);
+                wt.getPersistentDataContainer().set(
+                    JokeyriniManager.getKeyNpc(),
+                    PersistentDataType.STRING,
+                    job.name()
+                );
+            });
+            player.sendMessage(success("Spawned " + job.getDisplayName() + " NPC."));
+            return;
+        }
         player.getWorld().spawn(player.getLocation(), Villager.class, v -> {
             v.setProfession(job.getProfession());
             v.setAI(false);

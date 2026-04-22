@@ -7,12 +7,11 @@ import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
-import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.gui.TradeHolder;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -44,29 +43,6 @@ public class Trade {
     public static final int   ACCEPT_SLOT = 31;
 
     private static final int COUNTDOWN_TICKS = 60; // 3 s × 20 ticks/s
-
-    // -------------------------------------------------------------------------
-    // Per-inventory holder — lets the listener identify which trade/side is open
-    // -------------------------------------------------------------------------
-
-    public static class Holder implements InventoryHolder {
-        private final Trade trade;
-        private final boolean isInitiator;
-        private Inventory inv;
-
-        Holder(Trade trade, boolean isInitiator) {
-            this.trade = trade;
-            this.isInitiator = isInitiator;
-        }
-
-        void setInventory(Inventory inv) { this.inv = inv; }
-
-        public Trade getTrade()       { return trade; }
-        public boolean isInitiator()  { return isInitiator; }
-
-        @Override
-        public @NotNull Inventory getInventory() { return inv; }
-    }
 
     // -------------------------------------------------------------------------
     // State
@@ -101,8 +77,8 @@ public class Trade {
         this.savedTargetLevel    = target.getLevel();
         this.savedTargetExp      = target.getExp();
 
-        Holder initiatorHolder = new Holder(this, true);
-        Holder targetHolder    = new Holder(this, false);
+        TradeHolder initiatorHolder = new TradeHolder(this, true);
+        TradeHolder targetHolder    = new TradeHolder(this, false);
 
         this.initiatorInv = Bukkit.createInventory(initiatorHolder, 54,
                 Component.text("Trade with " + target.getName()));

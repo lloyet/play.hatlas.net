@@ -6,10 +6,13 @@ import org.bukkit.entity.Villager;
 
 public enum Job {
 
-    MINER    ("Miner",     Material.IRON_PICKAXE, NamedTextColor.GRAY,   Villager.Profession.MASON),
-    LUMBERJACK("Lumberjack", Material.IRON_AXE,   NamedTextColor.GREEN,  Villager.Profession.FLETCHER),
-    HUNTER   ("Hunter",    Material.BOW,           NamedTextColor.RED,    Villager.Profession.WEAPONSMITH),
-    FARMER   ("Farmer",    Material.WHEAT_SEEDS,   NamedTextColor.YELLOW, Villager.Profession.FARMER);
+    MINER     ("Miner",     Material.IRON_PICKAXE, NamedTextColor.GRAY,         Villager.Profession.MASON),
+    LUMBERJACK("Lumberjack", Material.IRON_AXE,  NamedTextColor.GREEN,        Villager.Profession.FLETCHER),
+    HUNTER    ("Hunter",    Material.BOW,          NamedTextColor.RED,          Villager.Profession.WEAPONSMITH),
+    FARMER    ("Farmer",    Material.WHEAT_SEEDS,  NamedTextColor.YELLOW,       Villager.Profession.FARMER),
+    ALCHEMIST ("Alchemist", Material.BLAZE_POWDER, NamedTextColor.LIGHT_PURPLE, Villager.Profession.CLERIC),
+    /** Used only for Jokeyrini task templates — not a playable regular job. */
+    JOKEYRINI ("Jokeyrini", Material.NETHER_STAR,  NamedTextColor.DARK_PURPLE,  Villager.Profession.NITWIT);
 
     private final String               displayName;
     private final Material             icon;

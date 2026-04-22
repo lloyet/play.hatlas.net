@@ -4,8 +4,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.minecraft.atlas.donjon.DonjonManager;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Manages territory claims for factions.
@@ -27,6 +31,9 @@ public class FactionClaimManager {
 
     /** factionName → current outer ring radius (0 = only center chunk) */
     private static final Map<String, Integer> factionRingCount = new HashMap<>();
+
+    /** factionName → set of "world:chunkX:chunkZ" keys for outpost (non-ring) claims */
+    private static final Map<String, Set<String>> outpostChunks = new HashMap<>();
 
     // -------------------------------------------------------------------------
     // Claim lifecycle
@@ -76,6 +83,7 @@ public class FactionClaimManager {
     public static void removeAllClaims(String factionName) {
         factionCenters.remove(factionName);
         factionRingCount.remove(factionName);
+        outpostChunks.remove(factionName);
         claimedChunks.values().removeIf(fn -> fn.equals(factionName));
     }
 
@@ -85,12 +93,21 @@ public class FactionClaimManager {
         if (center != null) factionCenters.put(newName, center);
         Integer rings = factionRingCount.remove(oldName);
         if (rings != null) factionRingCount.put(newName, rings);
+        Set<String> outposts = outpostChunks.remove(oldName);
+        if (outposts != null) outpostChunks.put(newName, outposts);
         claimedChunks.replaceAll((k, v) -> v.equals(oldName) ? newName : v);
     }
 
     // -------------------------------------------------------------------------
     // Queries
     // -------------------------------------------------------------------------
+
+    /** Claims a single chunk for an outpost (independent of the ring system). */
+    public static void claimOutpostChunk(String factionName, String worldName, int chunkX, int chunkZ) {
+        String chunkKey = key(worldName, chunkX, chunkZ);
+        claimedChunks.put(chunkKey, factionName);
+        outpostChunks.computeIfAbsent(factionName, k -> new HashSet<>()).add(chunkKey);
+    }
 
     /** Returns the faction name that owns the given chunk, or null if unclaimed. */
     public static String getClaimingFaction(String worldName, int chunkX, int chunkZ) {
@@ -113,6 +130,10 @@ public class FactionClaimManager {
             s.set("chunk_x", Integer.parseInt(center[1]));
             s.set("chunk_z", Integer.parseInt(center[2]));
             s.set("rings", factionRingCount.getOrDefault(factionName, 0));
+            Set<String> outposts = outpostChunks.get(factionName);
+            if (outposts != null && !outposts.isEmpty()) {
+                s.set("outpost_chunks", new ArrayList<>(outposts));
+            }
         }
     }
 
@@ -120,6 +141,7 @@ public class FactionClaimManager {
         claimedChunks.clear();
         factionCenters.clear();
         factionRingCount.clear();
+        outpostChunks.clear();
 
         ConfigurationSection claimsSection = config.getConfigurationSection("claims");
         if (claimsSection == null) return;
@@ -141,6 +163,14 @@ public class FactionClaimManager {
             claimedChunks.put(key(worldName, chunkX, chunkZ), factionName);
             for (int r = 1; r <= rings; r++) {
                 addRing(worldName, chunkX, chunkZ, r, factionName);
+            }
+
+            // Restore outpost chunk claims
+            List<String> outposts = s.getStringList("outpost_chunks");
+            if (!outposts.isEmpty()) {
+                Set<String> outpostSet = new HashSet<>(outposts);
+                outpostChunks.put(factionName, outpostSet);
+                outpostSet.forEach(chunkKey -> claimedChunks.put(chunkKey, factionName));
             }
         }
     }
