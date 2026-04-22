@@ -96,3 +96,15 @@ permissions:
   atlas.spawn:
     description: Teleport to world spawn with a 10-second countdown
     default: true
+  atlas.tpa:
+    description: Send and respond to teleport-to-player requests
+    default: true
+  atlas.home:
+    description: Teleport to your personal home
+    default: true
+  atlas.home.set:
+    description: Set your personal home with /sethome
+    default: true
+  atlas.faction.msg:
+    description: Send a message to all online faction members
+    default: true

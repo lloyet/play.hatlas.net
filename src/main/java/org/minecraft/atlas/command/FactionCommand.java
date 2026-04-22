@@ -1319,6 +1319,32 @@ public class FactionCommand {
                                     return Command.SINGLE_SUCCESS;
                                 })))
                 // ----- unally -----
+                // /faction msg <text>
+                .then(Commands.literal("msg")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.msg"))
+                        .then(Commands.argument("text", StringArgumentType.greedyString())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can use this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String myFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (myFactionName == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Faction myFaction = FactionManager.getFaction(myFactionName);
+                                    String text = StringArgumentType.getString(ctx, "text");
+                                    net.kyori.adventure.text.format.NamedTextColor factionColor =
+                                            myFaction != null ? myFaction.getColor() : net.kyori.adventure.text.format.NamedTextColor.WHITE;
+                                    Component msg = Component.text("[" + myFactionName + "] ", factionColor)
+                                            .append(Component.text(player.getName() + ": ", net.kyori.adventure.text.format.NamedTextColor.WHITE))
+                                            .append(Component.text(text, net.kyori.adventure.text.format.NamedTextColor.GRAY));
+                                    FactionManager.broadcastToFaction(myFactionName, msg, null);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
                 .then(Commands.literal("unally")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
                         .then(Commands.argument("faction", StringArgumentType.word())
