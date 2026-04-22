@@ -969,30 +969,22 @@ public class DonjonManager {
     }
 
     /**
-     * Creates a donjon of the given type with its NBT structure at the north-west corner of {@code chunk}.
+     * Creates a donjon of the given type, placing the NBT structure with its NW-bottom corner
+     * at {@code origin} (the player's feet). The donjon center is set to the same location.
      * Used exclusively by the {@code /donjon create} admin command.
      *
      * @return the created {@link Donjon}, or {@code null} on failure.
      */
-    public static Donjon generateDonjon(DonjonType type, Chunk chunk) {
-        World world = chunk.getWorld();
-        int chunkCenterX = (chunk.getX() << 4) + 8;
-        int chunkCenterZ = (chunk.getZ() << 4) + 8;
-        int centerY = world.getHighestBlockYAt(chunkCenterX, chunkCenterZ, HeightMap.OCEAN_FLOOR);
-        Location chunkCenter = new Location(world, chunkCenterX, centerY, chunkCenterZ);
-
-        if (donjonExistsNear(chunkCenter, 64)) return null;
+    public static Donjon generateDonjon(DonjonType type, Location origin) {
+        if (donjonExistsNear(origin, 64)) return null;
 
         DonjonTypeConfig cfg = typeConfigMap.get(type);
         if (cfg == null) return null;
 
-        // Place the NBT structure at the NW-top corner of the chunk, on the solid surface
-        int originX = chunk.getX() << 4;
-        int originZ = chunk.getZ() << 4;
-        int originY = world.getHighestBlockYAt(originX, originZ, HeightMap.OCEAN_FLOOR);
-        PlacedStructureResult placed = placeStructure(cfg, new Location(world, originX, originY, originZ));
+        Location blockOrigin = origin.toBlockLocation();
+        PlacedStructureResult placed = placeStructure(cfg, blockOrigin);
 
-        Donjon donjon = createDonjon(type, chunkCenter);
+        Donjon donjon = createDonjon(type, blockOrigin);
         if (donjon == null) return null;
         if (placed != null) {
             donjon.setNametagLocation(placed.nametagLocation());

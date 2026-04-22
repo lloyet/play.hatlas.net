@@ -22,15 +22,16 @@ public class ChatListener implements Listener {
         event.renderer((source, sourceDisplayName, message, viewer) -> {
             Component nameComponent = isOp
                     ? Component.text(player.getName(), NamedTextColor.DARK_RED)
-                    : sourceDisplayName;
+                    : Component.text(player.getName(), NamedTextColor.WHITE);
+
+            Component suffix = Component.text(": ", NamedTextColor.WHITE).append(message);
 
             if (faction == null) {
-                return nameComponent.append(Component.text(": ")).append(message);
+                return nameComponent.append(suffix);
             }
             return Component.text("[" + factionName + "] ", faction.getColor())
                     .append(nameComponent)
-                    .append(Component.text(": "))
-                    .append(message);
+                    .append(suffix);
         });
     }
 }

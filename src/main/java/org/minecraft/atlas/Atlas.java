@@ -119,6 +119,7 @@ public final class Atlas extends JavaPlugin {
         DonjonManager.saveDonjonConfig(configFile);
         TagManager.saveTags(configFile);
         HomeManager.saveHomes(configFile);
+        AtlasCrystalManager.saveCrystalHomes(configFile);
         saveConfig();
 
         getLogger().info("Atlas disabled.");

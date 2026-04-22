@@ -15,6 +15,8 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
 
+import org.bukkit.configuration.ConfigurationSection;
+
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -101,6 +103,42 @@ public class AtlasCrystalManager {
         regenPerSecond     = config.getDouble("crystal.regen_per_second", 1.5);
         immunityDurationMs = config.getLong("crystal.immunity_duration_seconds", 3600L) * 1000L;
         regenTimeoutMs     = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+        loadCrystalHomes(config);
+    }
+
+    public static void loadCrystalHomes(FileConfiguration config) {
+        factionHomes.clear();
+        ConfigurationSection sec = config.getConfigurationSection("crystal_homes");
+        if (sec == null) return;
+        for (String uuidStr : sec.getKeys(false)) {
+            ConfigurationSection entry = sec.getConfigurationSection(uuidStr);
+            if (entry == null) continue;
+            String factionName = entry.getString("faction");
+            String homeStr = entry.getString("home");
+            if (factionName == null || homeStr == null) continue;
+            UUID uuid;
+            try {
+                uuid = UUID.fromString(uuidStr);
+            } catch (IllegalArgumentException e) {
+                continue;
+            }
+            Location home = decodeHome(homeStr);
+            if (home == null) continue;
+            factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>()).put(uuid, home);
+        }
+    }
+
+    public static void saveCrystalHomes(FileConfiguration config) {
+        config.set("crystal_homes", null);
+        if (factionHomes.isEmpty()) return;
+        ConfigurationSection sec = config.createSection("crystal_homes");
+        for (Map.Entry<String, LinkedHashMap<UUID, Location>> fEntry : factionHomes.entrySet()) {
+            for (Map.Entry<UUID, Location> hEntry : fEntry.getValue().entrySet()) {
+                ConfigurationSection entry = sec.createSection(hEntry.getKey().toString());
+                entry.set("faction", fEntry.getKey());
+                entry.set("home", encodeHome(hEntry.getValue()));
+            }
+        }
     }
 
     /** entityUUID → AtlasCrystal */
@@ -115,6 +153,13 @@ public class AtlasCrystalManager {
 
     /** playerUUID → AtlasCrystal awaiting a name from the naming dialog. */
     private static final Map<UUID, AtlasCrystal> pendingNaming = new ConcurrentHashMap<>();
+
+    /**
+     * factionName → (crystalEntityUUID → home location).
+     * Persisted to config.yml so homes are accessible even when the crystal entity is unloaded
+     * (e.g. the player is in a different world or the chunk is unloaded).
+     */
+    private static final Map<String, LinkedHashMap<UUID, Location>> factionHomes = new LinkedHashMap<>();
 
     // -------------------------------------------------------------------------
     // Register / restore
@@ -146,17 +191,22 @@ public class AtlasCrystalManager {
         crystal.updateNametag();
     }
 
-    /** Persists a crystal's home location to PDC. Call after setting crystal.setHome(). */
+    /**
+     * Persists a crystal's home location to PDC and to config.yml. Call after setting crystal.setHome().
+     */
     public static void saveHome(AtlasCrystal crystal) {
         Location home = crystal.getHome();
 
         if (home == null || home.getWorld() == null) return;
 
-        String encoded = home.getWorld().getName() + ","
-                + home.getX() + "," + home.getY() + "," + home.getZ() + ","
-                + home.getYaw() + "," + home.getPitch();
+        String encoded = encodeHome(home);
         crystal.getEntity().getPersistentDataContainer()
                 .set(getKeyHome(), PersistentDataType.STRING, encoded);
+
+        factionHomes.computeIfAbsent(crystal.getFactionName(), k -> new LinkedHashMap<>())
+                .put(crystal.getEntity().getUniqueId(), home);
+        saveCrystalHomes(Atlas.instance.getConfig());
+        Atlas.instance.saveConfig();
     }
 
     /**
@@ -201,6 +251,10 @@ public class AtlasCrystalManager {
         if (homeStr != null) {
             Location home = decodeHome(homeStr);
             crystal.setHome(home);
+            if (home != null) {
+                factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
+                        .put(entity.getUniqueId(), home);
+            }
         }
 
         // Restore applied upgrades (stored as comma-separated upgrade levels)
@@ -323,13 +377,21 @@ public class AtlasCrystalManager {
         return map.values();
     }
 
-    /** Returns the home of the first (oldest) named crystal placed by this faction, or null if none. */
+    /** Returns the home of the first crystal with a home set for this faction, or null if none. */
     public static Location getFirstHome(String factionName) {
+        // Check loaded crystals first
         Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);
-
-        if (map == null || map.isEmpty()) return null;
-
-        return map.values().iterator().next().getHome();
+        if (map != null) {
+            for (AtlasCrystal c : map.values()) {
+                if (c.getHome() != null) return c.getHome();
+            }
+        }
+        // Fall back to persisted homes (covers unloaded chunks / different worlds)
+        LinkedHashMap<UUID, Location> homes = factionHomes.get(factionName);
+        if (homes != null && !homes.isEmpty()) {
+            return homes.values().iterator().next();
+        }
+        return null;
     }
 
     // -------------------------------------------------------------------------
@@ -369,8 +431,11 @@ public class AtlasCrystalManager {
         }
         // Re-key the factionCrystals map
         Map<UUID, AtlasCrystal> map = factionCrystals.remove(oldName);
-
         if (map != null) factionCrystals.put(newName, map);
+
+        // Re-key the factionHomes map
+        LinkedHashMap<UUID, Location> homes = factionHomes.remove(oldName);
+        if (homes != null) factionHomes.put(newName, homes);
     }
 
     /**
@@ -404,6 +469,9 @@ public class AtlasCrystalManager {
 
         Map<UUID, AtlasCrystal> map = factionCrystals.get(crystal.getFactionName());
         if (map != null) map.remove(entityUUID);
+
+        LinkedHashMap<UUID, Location> homes = factionHomes.get(crystal.getFactionName());
+        if (homes != null) homes.remove(entityUUID);
     }
 
     /** Removes and despawns all crystals belonging to a faction. Called when a faction is disbanded. */
@@ -420,6 +488,8 @@ public class AtlasCrystalManager {
                 crystal.getEntity().remove();
             }
         }
+
+        factionHomes.remove(factionName);
     }
 
     // -------------------------------------------------------------------------
@@ -457,6 +527,12 @@ public class AtlasCrystalManager {
     // -------------------------------------------------------------------------
     // Helpers
     // -------------------------------------------------------------------------
+
+    private static String encodeHome(Location home) {
+        return home.getWorld().getName() + ","
+                + home.getX() + "," + home.getY() + "," + home.getZ() + ","
+                + home.getYaw() + "," + home.getPitch();
+    }
 
     private static Location decodeHome(String encoded) {
         String[] parts = encoded.split(",", 6);

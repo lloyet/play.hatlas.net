@@ -77,7 +77,7 @@ public class DonjonCommand {
                                     }
 
                                     Donjon donjon = DonjonManager.generateDonjon(
-                                            type, player.getLocation().getChunk());
+                                            type, player.getLocation());
                                     if (donjon == null) {
                                         player.sendMessage(Component.text(
                                                 "Failed to create donjon (no config or structure for type?).", NamedTextColor.RED));

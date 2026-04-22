@@ -167,6 +167,25 @@ public final class GuiUtil {
         return sb.toString();
     }
 
+    // ── Action type helpers ───────────────────────────────────────────────────
+
+    public static String actionVerb(String actionType) {
+        if (actionType == null) return "Doing";
+        return switch (actionType.toLowerCase()) {
+            case "break_block" -> "Mining";
+            case "kill_entity" -> "Hunting";
+            case "harvest_crop" -> "Harvesting";
+            case "brew_potion" -> "Brewing";
+            case "craft_item" -> "Crafting";
+            default -> capitalize(actionType.replace('_', ' '));
+        };
+    }
+
+    private static String capitalize(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
+    }
+
     // ── Difficulty helpers ────────────────────────────────────────────────────
 
     public static String difficultyLabel(int difficulty) {
