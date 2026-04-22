@@ -7,13 +7,16 @@ import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.jspecify.annotations.NonNull;
 import org.minecraft.atlas.command.AirCommand;
+import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SpawnCommand;
+import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.SpawnTeleportManager;
 import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
@@ -32,6 +35,7 @@ import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
+import org.minecraft.atlas.util.ItemClearManager;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.minecraft.atlas.listener.GolemListener;
@@ -60,6 +64,7 @@ public final class Atlas extends JavaPlugin {
         DonjonManager.loadDonjons(configFile);
         TagManager.init();
         TagManager.loadTags(configFile);
+        HomeManager.loadHomes(configFile);
 
         // Register all listeners
         getServer().getPluginManager().registerEvents(new ChatListener(), this);
@@ -73,11 +78,12 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
 
-        // Scheduler with ticks
+        // Schedulers
         GolemListener.schedule(this);
         AtlasCrystalManager.schedule(this);
         DonjonManager.schedule(this);
         JobManager.scheduleExpiry(this);
+        ItemClearManager.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -92,12 +98,14 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(TagCommand.build());
                         event.registrar().register(AirCommand.build());
                         event.registrar().register(SpawnCommand.build());
+                        event.registrar().register(TpaCommand.build());
+                        event.registrar().register(HomeCommand.buildSetHome());
+                        event.registrar().register(HomeCommand.buildHome());
                     }
                 }
         );
 
         getLogger().info("Atlas enabled.");
-
     }
 
     @Override
@@ -110,7 +118,9 @@ public final class Atlas extends JavaPlugin {
         JokeyriniManager.saveJokeyrini(configFile);
         DonjonManager.saveDonjonConfig(configFile);
         TagManager.saveTags(configFile);
+        HomeManager.saveHomes(configFile);
         saveConfig();
 
-        getLogger().info("Atlas disabled.");    }
+        getLogger().info("Atlas disabled.");
+    }
 }
