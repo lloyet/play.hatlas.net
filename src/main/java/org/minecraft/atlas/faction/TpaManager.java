@@ -6,6 +6,7 @@ import net.kyori.adventure.text.event.HoverEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
@@ -26,7 +27,11 @@ public class TpaManager {
 
     private static final long REQUEST_EXPIRY_MS = 30_000L;
     private static final int COUNTDOWN_SECONDS = 10;
-    private static final long COOLDOWN_MS = 30_000L;
+    private static long cooldownMs = 60_000L;
+
+    public static void loadConfig(FileConfiguration config) {
+        cooldownMs = config.getLong("tpa.cooldown_seconds", 60L) * 1000L;
+    }
 
     public static boolean sendRequest(Player requester, Player target) {
         UUID rUUID = requester.getUniqueId();
@@ -179,7 +184,7 @@ public class TpaManager {
                     cancel();
                     r.teleport(t.getLocation());
                     r.sendActionBar(Component.text("Teleported to " + t.getName() + "!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(rUUID, System.currentTimeMillis() + COOLDOWN_MS);
+                    cooldownExpiry.put(rUUID, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

@@ -9,6 +9,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.util.TitleUtil;
 
@@ -30,7 +31,11 @@ public class HomeManager {
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
     private static final int COUNTDOWN_SECONDS = 5;
-    private static final long COOLDOWN_MS = 30_000L;
+    private static long cooldownMs = 300_000L;
+
+    public static void loadConfig(FileConfiguration config) {
+        cooldownMs = config.getLong("home_teleport.cooldown_seconds", 300L) * 1000L;
+    }
 
     // -------------------------------------------------------------------------
     // Persistence
@@ -216,7 +221,7 @@ public class HomeManager {
                     player.teleport(dest);
                     player.sendActionBar(Component.text(
                             "Teleported to '" + displayName + "'!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + COOLDOWN_MS);
+                    cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

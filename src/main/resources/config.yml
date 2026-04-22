@@ -9,6 +9,21 @@ player_homes: { }
 spawn_protection:
   pvp_radius: 64
 
+# Personal home command settings for /home
+home_teleport:
+  # Cooldown in seconds after a successful /home teleport
+  cooldown_seconds: 300
+
+# Faction home command settings for /faction home
+faction_home:
+  # Cooldown in seconds after a successful /faction home teleport
+  cooldown_seconds: 300
+
+# Teleport-to-player settings for /tpa
+tpa:
+  # Cooldown in seconds after a completed /tpa teleport
+  cooldown_seconds: 60
+
 # Spawn command settings for /spawn
 spawn_teleport:
   # Cooldown in seconds after a successful teleport to spawn
@@ -26,9 +41,9 @@ crystal:
   # HP regenerated per second when the crystal has not been attacked for regen_timeout_seconds.
   regen_per_second: 1.5
   # Duration in seconds that a crystal is immune to damage after an upgrade level drop.
-  immunity_duration_seconds: 3600
+  immunity_duration_seconds: 1800
   # Seconds of inactivity (no damage received) before a crystal starts regenerating HP.
-  regen_timeout_seconds: 60
+  regen_timeout_seconds: 30
 
 # ============================================================
 # Donjon System
@@ -36,9 +51,9 @@ crystal:
 donjon:
 
   # How often (in hours) the system automatically activates one idle donjon.
-  activation_interval_hours: 6
+  activation_interval_hours: 4
   # After this many hours an active donjon becomes idle again (even if not completed).
-  idle_timeout_hours: 24
+  idle_timeout_hours: 12
   # Maximum number of donjons the scheduler can keep active simultaneously.
   max_active_donjons: 2
   # Persisted at runtime — do not edit manually.
@@ -1458,6 +1473,110 @@ quests:
       item_rewards:
         - material: NETHERITE_INGOT
 
+    - id: mine_emerald
+      job: miner
+      name: "Emerald Hunter"
+      description: "Find rare emeralds hidden in mountain ore veins."
+      action_type: break_block
+      targets:
+        - EMERALD_ORE
+        - DEEPSLATE_EMERALD_ORE
+      item_rewards:
+        - material: EMERALD
+
+    - id: mine_lapis
+      job: miner
+      name: "Lapis Extractor"
+      description: "Mine lapis lazuli for enchanting and dyes."
+      action_type: break_block
+      targets:
+        - LAPIS_ORE
+        - DEEPSLATE_LAPIS_ORE
+      item_rewards:
+        - material: LAPIS_LAZULI
+
+    - id: mine_copper
+      job: miner
+      name: "Copper Prospector"
+      description: "Prospect copper ore veins for the faction smiths."
+      action_type: break_block
+      targets:
+        - COPPER_ORE
+        - DEEPSLATE_COPPER_ORE
+      item_rewards:
+        - material: COPPER_INGOT
+
+    - id: mine_quartz
+      job: miner
+      name: "Nether Quartz Run"
+      description: "Venture into the Nether and mine quartz crystals."
+      action_type: break_block
+      targets:
+        - NETHER_QUARTZ_ORE
+      item_rewards:
+        - material: QUARTZ
+
+    - id: mine_obsidian
+      job: miner
+      name: "Obsidian Quarrier"
+      description: "Mine obsidian for the faction's strongest defenses."
+      action_type: break_block
+      targets:
+        - OBSIDIAN
+      item_rewards:
+        - material: OBSIDIAN
+
+    - id: mine_gravel
+      job: miner
+      name: "Gravel Sifter"
+      description: "Sift through gravel to collect flint for tools."
+      action_type: break_block
+      targets:
+        - GRAVEL
+      item_rewards:
+        - material: FLINT
+
+    - id: mine_clay
+      job: miner
+      name: "Clay Collector"
+      description: "Collect clay from riverbeds for the faction potters."
+      action_type: break_block
+      targets:
+        - CLAY
+      item_rewards:
+        - material: CLAY_BALL
+
+    - id: mine_magma
+      job: miner
+      name: "Magma Harvester"
+      description: "Harvest magma blocks from volcanic caverns."
+      action_type: break_block
+      targets:
+        - MAGMA_BLOCK
+      item_rewards:
+        - material: MAGMA_CREAM
+
+    - id: mine_prismarine
+      job: miner
+      name: "Ocean Quarrier"
+      description: "Mine prismarine from underwater monuments."
+      action_type: break_block
+      targets:
+        - PRISMARINE
+        - DARK_PRISMARINE
+      item_rewards:
+        - material: PRISMARINE_SHARD
+
+    - id: mine_glowstone
+      job: miner
+      name: "Glowstone Miner"
+      description: "Mine glowstone from Nether ceilings for lighting."
+      action_type: break_block
+      targets:
+        - GLOWSTONE
+      item_rewards:
+        - material: GLOWSTONE_DUST
+
     # ── Lumberjack ───────────────────────────────────────────────────────────
     - id: chop_oak
       job: lumberjack
@@ -1520,6 +1639,111 @@ quests:
       item_rewards:
         - material: CRIMSON_STEM
         - material: WARPED_STEM
+
+    - id: chop_acacia
+      job: lumberjack
+      name: "Acacia Logger"
+      description: "Harvest acacia logs from savanna biomes."
+      action_type: break_block
+      targets:
+        - ACACIA_LOG
+      item_rewards:
+        - material: ACACIA_LOG
+
+    - id: chop_mangrove
+      job: lumberjack
+      name: "Mangrove Forager"
+      description: "Harvest mangrove wood from swamp forests."
+      action_type: break_block
+      targets:
+        - MANGROVE_LOG
+      item_rewards:
+        - material: MANGROVE_LOG
+
+    - id: chop_cherry
+      job: lumberjack
+      name: "Cherry Grove Harvest"
+      description: "Gather cherry logs from the enchanting cherry groves."
+      action_type: break_block
+      targets:
+        - CHERRY_LOG
+      item_rewards:
+        - material: CHERRY_LOG
+
+    - id: chop_bamboo_block
+      job: lumberjack
+      name: "Bamboo Sawyer"
+      description: "Process bamboo blocks from jungle plantations."
+      action_type: break_block
+      targets:
+        - BAMBOO_BLOCK
+      item_rewards:
+        - material: BAMBOO
+
+    - id: chop_pale_oak
+      job: lumberjack
+      name: "Pale Forest Logger"
+      description: "Fell pale oak trees from the eerie pale forests."
+      action_type: break_block
+      targets:
+        - PALE_OAK_LOG
+      item_rewards:
+        - material: PALE_OAK_LOG
+
+    - id: chop_leaves
+      job: lumberjack
+      name: "Leaf Stripper"
+      description: "Clear leaves from logged trees to gather sticks."
+      action_type: break_block
+      targets:
+        - OAK_LEAVES
+        - BIRCH_LEAVES
+        - SPRUCE_LEAVES
+      item_rewards:
+        - material: STICK
+
+    - id: chop_mushroom
+      job: lumberjack
+      name: "Mushroom Woodcutter"
+      description: "Harvest giant mushroom blocks for crafting."
+      action_type: break_block
+      targets:
+        - BROWN_MUSHROOM_BLOCK
+        - RED_MUSHROOM_BLOCK
+      item_rewards:
+        - material: BOWL
+
+    - id: chop_chorus
+      job: lumberjack
+      name: "End Forester"
+      description: "Harvest chorus plants from the End islands."
+      action_type: break_block
+      targets:
+        - CHORUS_PLANT
+        - CHORUS_FLOWER
+      item_rewards:
+        - material: CHORUS_FRUIT
+
+    - id: chop_hyphae
+      job: lumberjack
+      name: "Nether Mycelium Logger"
+      description: "Harvest hyphae from Nether fungal forests."
+      action_type: break_block
+      targets:
+        - CRIMSON_HYPHAE
+        - WARPED_HYPHAE
+      item_rewards:
+        - material: CRIMSON_STEM
+
+    - id: chop_bamboo
+      job: lumberjack
+      name: "Bamboo Harvester"
+      description: "Harvest bamboo stalks from jungle groves."
+      action_type: break_block
+      targets:
+        - BAMBOO
+      item_rewards:
+        - material: BAMBOO
 
     # ── Hunter ───────────────────────────────────────────────────────────────
     - id: hunt_zombies
@@ -1586,6 +1810,112 @@ quests:
       item_rewards:
         - material: BLAZE_ROD
 
+    - id: hunt_witches
+      job: hunter
+      name: "Witch Hunter"
+      description: "Track down and eliminate witches lurking in swamps."
+      action_type: kill_entity
+      targets:
+        - WITCH
+      item_rewards:
+        - material: GLASS_BOTTLE
+        - material: SPIDER_EYE
+
+    - id: hunt_guardians
+      job: hunter
+      name: "Ocean Guardian"
+      description: "Dive into ocean monuments and defeat the guardians."
+      action_type: kill_entity
+      targets:
+        - GUARDIAN
+        - ELDER_GUARDIAN
+      item_rewards:
+        - material: PRISMARINE_SHARD
+
+    - id: hunt_phantoms
+      job: hunter
+      name: "Phantom Slayer"
+      description: "Hunt down phantoms haunting the night sky."
+      action_type: kill_entity
+      targets:
+        - PHANTOM
+      item_rewards:
+        - material: PHANTOM_MEMBRANE
+
+    - id: hunt_pillagers
+      job: hunter
+      name: "Pillager Purge"
+      description: "Raid the raiders and bring back their loot."
+      action_type: kill_entity
+      targets:
+        - PILLAGER
+        - VINDICATOR
+      item_rewards:
+        - material: EMERALD
+
+    - id: hunt_piglins
+      job: hunter
+      name: "Nether Warrior"
+      description: "Defeat piglins in their Nether domain."
+      action_type: kill_entity
+      targets:
+        - PIGLIN
+        - PIGLIN_BRUTE
+      item_rewards:
+        - material: GOLD_INGOT
+
+    - id: hunt_wither_skeletons
+      job: hunter
+      name: "Wither Skull Hunter"
+      description: "Brave the Nether Fortress to slay wither skeletons."
+      action_type: kill_entity
+      targets:
+        - WITHER_SKELETON
+      item_rewards:
+        - material: COAL
+        - material: BONE
+
+    - id: hunt_drowned
+      job: hunter
+      name: "Drowned Diver"
+      description: "Dive underwater to take down the drowned."
+      action_type: kill_entity
+      targets:
+        - DROWNED
+      item_rewards:
+        - material: NAUTILUS_SHELL
+
+    - id: hunt_slimes
+      job: hunter
+      name: "Slime Squasher"
+      description: "Squash slimes and magma cubes for their cores."
+      action_type: kill_entity
+      targets:
+        - SLIME
+        - MAGMA_CUBE
+      item_rewards:
+        - material: SLIME_BALL
+
+    - id: hunt_ghasts
+      job: hunter
+      name: "Ghast Tearer"
+      description: "Bring down ghasts over the Nether wastes."
+      action_type: kill_entity
+      targets:
+        - GHAST
+      item_rewards:
+        - material: GHAST_TEAR
+
+    - id: hunt_shulkers
+      job: hunter
+      name: "Shell Breaker"
+      description: "Defeat shulkers defending End city treasures."
+      action_type: kill_entity
+      targets:
+        - SHULKER
+      item_rewards:
+        - material: SHULKER_SHELL
+
     # ── Farmer ───────────────────────────────────────────────────────────────
     - id: farm_wheat
       job: farmer
@@ -1647,6 +1977,107 @@ quests:
       item_rewards:
         - material: NETHER_WART
 
+    - id: farm_pumpkin
+      job: farmer
+      name: "Pumpkin Patch"
+      description: "Harvest pumpkins from the faction's autumn garden."
+      action_type: harvest_crop
+      targets:
+        - PUMPKIN
+      item_rewards:
+        - material: PUMPKIN_SEEDS
+
+    - id: farm_cocoa
+      job: farmer
+      name: "Cocoa Plantation"
+      description: "Harvest cocoa pods from jungle trees."
+      action_type: harvest_crop
+      targets:
+        - COCOA
+      item_rewards:
+        - material: COCOA_BEANS
+
+    - id: farm_sugarcane
+      job: farmer
+      name: "Sugar Rush"
+      description: "Harvest sugar cane from river banks."
+      action_type: break_block
+      targets:
+        - SUGAR_CANE
+      item_rewards:
+        - material: SUGAR
+
+    - id: farm_bamboo_farm
+      job: farmer
+      name: "Bamboo Grove"
+      description: "Tend the bamboo grove and harvest stalks."
+      action_type: break_block
+      targets:
+        - BAMBOO
+      item_rewards:
+        - material: BAMBOO
+
+    - id: farm_cactus
+      job: farmer
+      name: "Cactus Harvester"
+      description: "Harvest cacti from the desert faction plots."
+      action_type: break_block
+      targets:
+        - CACTUS
+      item_rewards:
+        - material: CACTUS
+
+    - id: farm_kelp
+      job: farmer
+      name: "Kelp Diver"
+      description: "Harvest kelp from underwater ocean farms."
+      action_type: break_block
+      targets:
+        - KELP
+        - KELP_PLANT
+      item_rewards:
+        - material: DRIED_KELP
+
+    - id: farm_chorus
+      job: farmer
+      name: "End Orchard"
+      description: "Harvest chorus fruits from End island orchards."
+      action_type: break_block
+      targets:
+        - CHORUS_PLANT
+      item_rewards:
+        - material: CHORUS_FRUIT
+
+    - id: farm_sweet_berries
+      job: farmer
+      name: "Berry Picker"
+      description: "Pick sweet berries from bushes in taiga forests."
+      action_type: harvest_crop
+      targets:
+        - SWEET_BERRY_BUSH
+      item_rewards:
+        - material: SWEET_BERRIES
+
+    - id: farm_cave_vines
+      job: farmer
+      name: "Glow Berry Farmer"
+      description: "Gather glow berries from cave vine clusters."
+      action_type: harvest_crop
+      targets:
+        - CAVE_VINES_PLANT
+      item_rewards:
+        - material: GLOW_BERRIES
+
+    - id: farm_torchflower
+      job: farmer
+      name: "Torchflower Garden"
+      description: "Cultivate rare torchflowers for the faction gardens."
+      action_type: harvest_crop
+      targets:
+        - TORCHFLOWER_CROP
+      item_rewards:
+        - material: TORCHFLOWER_SEEDS
+
     # ── Alchemist ─────────────────────────────────────────────────────────────
     - id: brew_potions
       job: alchemist
@@ -1706,6 +2137,119 @@ quests:
         - MAGMA_CUBE
       item_rewards:
         - material: BLAZE_ROD
+
+    - id: gather_mushrooms
+      job: alchemist
+      name: "Mushroom Picker"
+      description: "Gather mushrooms for potions and brewing."
+      action_type: break_block
+      targets:
+        - BROWN_MUSHROOM
+        - RED_MUSHROOM
+      item_rewards:
+        - material: MUSHROOM_STEW
+
+    - id: gather_sugar_cane
+      job: alchemist
+      name: "Sugar Alchemist"
+      description: "Collect sugar cane for brewing awkward potions."
+      action_type: break_block
+      targets:
+        - SUGAR_CANE
+      item_rewards:
+        - material: SUGAR
+
+    - id: craft_fire_charge
+      job: alchemist
+      name: "Pyromancer"
+      description: "Craft fire charges for explosive experiments."
+      action_type: craft_item
+      targets:
+        - FIRE_CHARGE
+      item_rewards:
+        - material: COAL
+
+    - id: craft_ender_eye
+      job: alchemist
+      name: "Eye Crafter"
+      description: "Craft Eyes of Ender to track strongholds."
+      action_type: craft_item
+      targets:
+        - ENDER_EYE
+      item_rewards:
+        - material: ENDER_PEARL
+
+    - id: craft_glistering_melon
+      job: alchemist
+      name: "Melon Gilding"
+      description: "Craft glistering melon slices for healing potions."
+      action_type: craft_item
+      targets:
+        - GLISTERING_MELON_SLICE
+      item_rewards:
+        - material: GOLD_NUGGET
+
+    - id: craft_spectral_arrow
+      job: alchemist
+      name: "Spectral Infuser"
+      description: "Craft spectral arrows glowing with alchemical power."
+      action_type: craft_item
+      targets:
+        - SPECTRAL_ARROW
+      item_rewards:
+        - material: GLOWSTONE_DUST
+
+    - id: hunt_cave_creatures
+      job: alchemist
+      name: "Cave Exterminator"
+      description: "Eliminate cave creatures for rare alchemy drops."
+      action_type: kill_entity
+      targets:
+        - SILVERFISH
+        - CAVE_SPIDER
+      item_rewards:
+        - material: SPIDER_EYE
+
+    - id: hunt_swamp_beasts
+      job: alchemist
+      name: "Swamp Stalker"
+      description: "Hunt witches and slimes in the murky swamps."
+      action_type: kill_entity
+      targets:
+        - WITCH
+        - SLIME
+      item_rewards:
+        - material: SLIME_BALL
+
+    - id: hunt_ocean_horrors
+      job: alchemist
+      name: "Deep Sea Hunter"
+      description: "Dive into the depths and take down the drowned."
+      action_type: kill_entity
+      targets:
+        - DROWNED
+      item_rewards:
+        - material: NAUTILUS_SHELL
+
+    - id: gather_glowstone
+      job: alchemist
+      name: "Glowstone Collector"
+      description: "Harvest glowstone dust for potion enhancement."
+      action_type: break_block
+      targets:
+        - GLOWSTONE
+      item_rewards:
+        - material: GLOWSTONE_DUST
+
+    - id: craft_respawn_anchor
+      job: alchemist
+      name: "Anchor Architect"
+      description: "Craft respawn anchors using Nether materials."
+      action_type: craft_item
+      targets:
+        - RESPAWN_ANCHOR
+      item_rewards:
+        - material: GLOWSTONE
 
 # ============================================================
 # Jokeyrini — the wandering trader of challenges.
