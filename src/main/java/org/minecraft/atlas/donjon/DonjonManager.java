@@ -201,6 +201,15 @@ public class DonjonManager {
             if (d.getTextDisplayUUID() != null) {
                 s.set("text_display_uuid", d.getTextDisplayUUID().toString());
             }
+
+            Location ts = d.getTeleportSpawn();
+            if (ts != null) {
+                s.set("teleport_spawn_x",     ts.getX());
+                s.set("teleport_spawn_y",     ts.getY());
+                s.set("teleport_spawn_z",     ts.getZ());
+                s.set("teleport_spawn_yaw",   (double) ts.getYaw());
+                s.set("teleport_spawn_pitch", (double) ts.getPitch());
+            }
         }
     }
 
@@ -261,6 +270,16 @@ public class DonjonManager {
                 catch (IllegalArgumentException ignored) {}
             }
 
+            if (s.contains("teleport_spawn_x")) {
+                Location ts = new Location(world,
+                        s.getDouble("teleport_spawn_x"),
+                        s.getDouble("teleport_spawn_y"),
+                        s.getDouble("teleport_spawn_z"),
+                        (float) s.getDouble("teleport_spawn_yaw"),
+                        (float) s.getDouble("teleport_spawn_pitch"));
+                donjon.setTeleportSpawn(ts);
+            }
+
             computeProtectedChunks(donjon);
             donjons.put(id, donjon);
         }
@@ -292,8 +311,8 @@ public class DonjonManager {
         if (!donjons.isEmpty() && (now - lastActivationTime) >= activationIntervalMs) {
             activateRandomDonjon();
             lastActivationTime = now;
-            Atlas.instance.getConfig().set("donjon.last_activation_time", lastActivationTime);
-            Atlas.instance.saveConfig();
+            Atlas.donjonsConfig.set("donjon.last_activation_time", lastActivationTime);
+            Atlas.saveDonjonsConfig();
         }
 
         // Timeout checks
@@ -1027,8 +1046,8 @@ public class DonjonManager {
         }
 
         Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
-            saveDonjonConfig(Atlas.instance.getConfig());
-            Atlas.instance.saveConfig();
+            saveDonjonConfig(Atlas.donjonsConfig);
+            Atlas.saveDonjonsConfig();
         }, 20L);
 
         return donjon;

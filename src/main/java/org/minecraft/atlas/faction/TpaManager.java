@@ -44,7 +44,7 @@ public class TpaManager {
 
         long now = System.currentTimeMillis();
         Long expiry = cooldownExpiry.get(rUUID);
-        if (expiry != null && now < expiry) {
+        if (!requester.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             requester.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before using /tpa again.", NamedTextColor.RED));
@@ -113,11 +113,16 @@ public class TpaManager {
         }
 
         target.sendMessage(Component.text("Teleport request accepted.", NamedTextColor.GREEN));
-        requester.sendMessage(Component.text(
-                target.getName() + " accepted. Teleporting in " + COUNTDOWN_SECONDS + "s… Don't move!",
-                NamedTextColor.YELLOW));
 
-        startCountdown(requester, target);
+        if (requester.isOp()) {
+            requester.teleport(target.getLocation());
+            requester.sendActionBar(Component.text("Teleported to " + target.getName() + "!", NamedTextColor.GREEN));
+        } else {
+            requester.sendMessage(Component.text(
+                    target.getName() + " accepted. Teleporting in " + COUNTDOWN_SECONDS + "s… Don't move!",
+                    NamedTextColor.YELLOW));
+            startCountdown(requester, target);
+        }
         return true;
     }
 
@@ -184,7 +189,7 @@ public class TpaManager {
                     cancel();
                     r.teleport(t.getLocation());
                     r.sendActionBar(Component.text("Teleported to " + t.getName() + "!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(rUUID, System.currentTimeMillis() + cooldownMs);
+                    if (!r.isOp()) cooldownExpiry.put(rUUID, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

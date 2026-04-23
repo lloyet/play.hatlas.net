@@ -27,8 +27,8 @@ public class AirTeleportManager {
     private static int teleportRadius = 1024;
 
     public static void loadConfig(FileConfiguration config) {
-        cooldownMs = config.getLong("air_teleport.cooldown_seconds", 30L) * 1000L;
-        teleportRadius = config.getInt("air_teleport.radius", 1024);
+        cooldownMs = config.getLong("random_teleport.cooldown_seconds", 30L) * 1000L;
+        teleportRadius = config.getInt("random_teleport.radius", 1024);
     }
 
     public static boolean startTeleport(Player player) {
@@ -36,7 +36,7 @@ public class AirTeleportManager {
         long now = System.currentTimeMillis();
 
         Long expiry = cooldownExpiry.get(uuid);
-        if (expiry != null && now < expiry) {
+        if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             player.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before using /air tp again.", NamedTextColor.RED));
@@ -53,6 +53,12 @@ public class AirTeleportManager {
             player.sendMessage(Component.text(
                     "Could not find a safe location. Please try again.", NamedTextColor.RED));
             return false;
+        }
+
+        if (player.isOp()) {
+            player.teleport(dest);
+            player.sendActionBar(Component.text("Teleported!", NamedTextColor.GREEN));
+            return true;
         }
 
         Location startLocation = player.getLocation().clone();
@@ -86,7 +92,7 @@ public class AirTeleportManager {
                     cancel();
                     player.teleport(dest);
                     player.sendActionBar(Component.text("Teleported!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
+                    if (!player.isOp()) cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

@@ -4,6 +4,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -14,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
-import org.minecraft.atlas.donjon.FerrymanManager;
+import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -31,7 +32,7 @@ public class DonjonListHolder implements AtlasHolder {
         int size = donjons.isEmpty() ? 9 : Math.min(54, (int) Math.ceil(donjons.size() / 9.0) * 9);
 
         this.inventory = Bukkit.createInventory(this, size,
-                Component.text("⚓ Ferryman's Chart", NamedTextColor.AQUA));
+                Component.text("⚓ Smuggler's Chart", NamedTextColor.AQUA));
 
         UUID playerUUID = player.getUniqueId();
         for (int i = 0; i < donjons.size() && i < size; i++) {
@@ -75,25 +76,26 @@ public class DonjonListHolder implements AtlasHolder {
             return;
         }
 
-        if (FerrymanManager.isOnCooldown(uuid)) {
-            long remaining = (FerrymanManager.getRemainingCooldown(uuid) + 999) / 1000;
+        if (!player.isOp() && SmugglerManager.isOnCooldown(uuid)) {
+            long remaining = (SmugglerManager.getRemainingCooldown(uuid) + 999) / 1000;
             player.sendMessage(Component.text(
-                    "The ferryman's map is on cooldown. " + remaining + "s remaining.",
+                    "The smuggler's map is on cooldown. " + remaining + "s remaining.",
                     NamedTextColor.RED));
             return;
         }
 
         player.closeInventory();
-        player.teleport(donjon.getCenter());
-        FerrymanManager.startCooldown(uuid);
-        player.sendMessage(Component.text("The ferryman has sent you to ", NamedTextColor.AQUA)
+        Location dest = donjon.getTeleportSpawn() != null ? donjon.getTeleportSpawn() : donjon.getCenter();
+        player.teleport(dest);
+        if (!player.isOp()) SmugglerManager.startCooldown(uuid);
+        player.sendMessage(Component.text("The smuggler has sent you to ", NamedTextColor.AQUA)
                 .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
                 .append(Component.text("!", NamedTextColor.AQUA)));
     }
 
     private static ItemStack buildDonjonItem(Donjon donjon, boolean visited) {
         boolean active = donjon.getStatus() == DonjonStatus.ACTIVE;
-        Material mat = active ? Material.TRIAL_SPAWNER : Material.VAULT;
+        Material mat = active ? Material.VAULT : Material.TRIAL_SPAWNER;
 
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
@@ -113,7 +115,9 @@ public class DonjonListHolder implements AtlasHolder {
             lore.add(Component.text("  ✦ Click to teleport", NamedTextColor.YELLOW)
                     .decoration(TextDecoration.ITALIC, false));
         } else {
-            lore.add(Component.text("  ⚠ Visit this dungeon first!", NamedTextColor.RED)
+            lore.add(Component.text("  ⚠ You must visit this dungeon first", NamedTextColor.RED)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("  to unlock teleportation.", NamedTextColor.RED)
                     .decoration(TextDecoration.ITALIC, false));
         }
 

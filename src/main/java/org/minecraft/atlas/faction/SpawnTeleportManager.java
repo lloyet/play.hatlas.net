@@ -30,7 +30,7 @@ public class SpawnTeleportManager {
         long now = System.currentTimeMillis();
 
         Long expiry = cooldownExpiry.get(uuid);
-        if (expiry != null && now < expiry) {
+        if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             player.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before using /spawn again.", NamedTextColor.RED));
@@ -42,7 +42,14 @@ public class SpawnTeleportManager {
             return false;
         }
 
-        Location dest = player.getWorld().getSpawnLocation();
+        Location dest = SpawnManager.getSpawn(player.getWorld());
+
+        if (player.isOp()) {
+            player.teleport(dest);
+            player.sendActionBar(Component.text("Teleported to spawn!", NamedTextColor.GREEN));
+            return true;
+        }
+
         Location startLocation = player.getLocation().clone();
 
         BukkitRunnable task = new BukkitRunnable() {
@@ -74,7 +81,7 @@ public class SpawnTeleportManager {
                     cancel();
                     player.teleport(dest);
                     player.sendActionBar(Component.text("Teleported to spawn!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
+                    if (!player.isOp()) cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

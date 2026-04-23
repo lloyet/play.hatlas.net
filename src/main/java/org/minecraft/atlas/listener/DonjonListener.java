@@ -31,7 +31,7 @@ import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
-import org.minecraft.atlas.donjon.FerrymanManager;
+import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.gui.DonjonListHolder;
 import org.minecraft.atlas.util.TitleUtil;
@@ -85,20 +85,20 @@ public class DonjonListener implements Listener {
     }
 
     // -------------------------------------------------------------------------
-    // Ferryman NPC
+    // Smuggler NPC
     // -------------------------------------------------------------------------
 
     @EventHandler
-    public void onFerrymanInteract(PlayerInteractEntityEvent event) {
+    public void onSmugglerInteract(PlayerInteractEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
-        if (!FerrymanManager.isFerrymanNpc(event.getRightClicked())) return;
+        if (!SmugglerManager.isSmugglerNpc(event.getRightClicked())) return;
         event.setCancelled(true);
         new DonjonListHolder(event.getPlayer()).open(event.getPlayer());
     }
 
     @EventHandler(ignoreCancelled = true)
-    public void onFerrymanDamage(EntityDamageByEntityEvent event) {
-        if (FerrymanManager.isFerrymanNpc(event.getEntity())) {
+    public void onSmugglerDamage(EntityDamageByEntityEvent event) {
+        if (SmugglerManager.isSmugglerNpc(event.getEntity())) {
             event.setCancelled(true);
         }
     }

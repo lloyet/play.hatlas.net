@@ -34,7 +34,7 @@ public class HomeTeleportManager {
         long now = System.currentTimeMillis();
 
         Long expiry = cooldownExpiry.get(uuid);
-        if (expiry != null && now < expiry) {
+        if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             player.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before teleporting to faction home again.",
@@ -45,6 +45,12 @@ public class HomeTeleportManager {
         if (activeTeleports.containsKey(uuid)) {
             player.sendMessage(Component.text("A teleport is already in progress.", NamedTextColor.RED));
             return false;
+        }
+
+        if (player.isOp()) {
+            player.teleport(dest);
+            player.sendActionBar(Component.text("Teleported to " + locationName + "!", NamedTextColor.GREEN));
+            return true;
         }
 
         Location startLocation = player.getLocation().clone();
@@ -81,7 +87,7 @@ public class HomeTeleportManager {
                     player.teleport(dest);
                     player.sendActionBar(Component.text(
                             "Teleported to " + locationName + "!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
+                    if (!player.isOp()) cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

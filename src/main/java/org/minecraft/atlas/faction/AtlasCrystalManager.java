@@ -205,8 +205,8 @@ public class AtlasCrystalManager {
 
         factionHomes.computeIfAbsent(crystal.getFactionName(), k -> new LinkedHashMap<>())
                 .put(crystal.getEntity().getUniqueId(), home);
-        saveCrystalHomes(Atlas.instance.getConfig());
-        Atlas.instance.saveConfig();
+        saveCrystalHomes(Atlas.factionsConfig);
+        Atlas.saveFactionsConfig();
     }
 
     /**

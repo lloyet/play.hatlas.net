@@ -50,15 +50,16 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionListener implements Listener {
 
-    /**
-     * Tracks last hit time (ms) per attacker to enforce 1-hit-per-second anti-spam.
-     */
     private static final Map<UUID, Long> lastHitTime = new ConcurrentHashMap<>();
+
+    /** Players currently inside the spawn protection radius. */
+    private static final Set<UUID> inSpawnProtection = ConcurrentHashMap.newKeySet();
 
     // -------------------------------------------------------------------------
     // Crystal naming fallback on disconnect
@@ -70,6 +71,7 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
+        inSpawnProtection.remove(player.getUniqueId());
         AtlasCrystal pending = AtlasCrystalManager.getPendingNaming(player.getUniqueId());
         if (pending == null) return;
 
@@ -356,52 +358,49 @@ public class FactionListener implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to   = event.getTo();
+        Player player = event.getPlayer();
+        UUID uuid = player.getUniqueId();
+
+        boolean wasInSpawn = inSpawnProtection.contains(uuid);
+        boolean nowInSpawn = SpawnProtectionListener.isInSpawnProtection(to);
+
+        // Entering spawn protection — fires on radius crossing regardless of chunk boundary
+        if (!wasInSpawn && nowInSpawn) {
+            inSpawnProtection.add(uuid);
+            TitleUtil.alert(player, "Spawn Protection\nYou enter the protected zone", NamedTextColor.YELLOW);
+            return;
+        }
+
+        boolean leavingSpawn = wasInSpawn && !nowInSpawn;
+        if (leavingSpawn) inSpawnProtection.remove(uuid);
 
         int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
         int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
-        if (fromCX == toCX && fromCZ == toCZ) return; // same chunk, skip
+        boolean chunkChanged = fromCX != toCX || fromCZ != toCZ;
 
-        Player player = event.getPlayer();
+        if (!leavingSpawn && !chunkChanged) return;
+
         String worldName = player.getWorld().getName();
-
         String fromFaction = FactionClaimManager.getClaimingFaction(worldName, fromCX, fromCZ);
         String toFaction   = FactionClaimManager.getClaimingFaction(worldName, toCX,   toCZ);
         boolean fromDonjon = DonjonManager.isChunkInDonjon(worldName, fromCX, fromCZ);
         boolean toDonjon   = DonjonManager.isChunkInDonjon(worldName, toCX,   toCZ);
-
-        boolean fromInSpawn = SpawnProtectionListener.isInSpawnProtection(from);
-        boolean toInSpawn   = SpawnProtectionListener.isInSpawnProtection(to);
-
-        String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
-
-        // Spawn protection boundary
-        if (!fromInSpawn && toInSpawn && toFaction == null) {
-            TitleUtil.alert(player, "Spawn Protection\nYou enter the protected zone",
-                    NamedTextColor.YELLOW);
-            return;
-        }
+        String playerFaction = FactionManager.getPlayerFaction(uuid);
 
         // Entering a faction chunk
-        if (toFaction != null) {
-            boolean wasAlreadyInSame = toFaction.equals(fromFaction);
-
-            if (!wasAlreadyInSame) {
-                Faction faction = FactionManager.getFaction(toFaction);
-                NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
-
-                TitleUtil.alert(player, toFaction + "\nYou enter " + toFaction, color);
-
-                if (toFaction.equals(playerFaction)) {
-                    player.playSound(player.getLocation(),
-                            Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
-                }
+        if (toFaction != null && !toFaction.equals(fromFaction)) {
+            Faction faction = FactionManager.getFaction(toFaction);
+            NamedTextColor color = faction != null ? faction.getColor() : NamedTextColor.WHITE;
+            TitleUtil.alert(player, toFaction + "\nYou enter " + toFaction, color);
+            if (toFaction.equals(playerFaction)) {
+                player.playSound(player.getLocation(),
+                        Sound.BLOCK_NOTE_BLOCK_PLING, SoundCategory.BLOCKS, 0.6f, 1.0f);
             }
-
             return;
         }
 
-        // Entering wilderness (unclaimed, non-donjon) from any claimed area or spawn protection
-        if (!toDonjon && !toInSpawn && (fromFaction != null || fromDonjon || fromInSpawn)) {
+        // Entering wilderness from any claimed area or spawn protection
+        if (!toDonjon && !nowInSpawn && (fromFaction != null || fromDonjon || leavingSpawn)) {
             TitleUtil.notify(player, "Wilderness\nEnter the Wilderness", NamedTextColor.GREEN);
         }
     }

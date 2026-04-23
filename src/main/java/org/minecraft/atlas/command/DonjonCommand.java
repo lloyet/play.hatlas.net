@@ -15,7 +15,7 @@ import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.DonjonType;
-import org.minecraft.atlas.donjon.FerrymanManager;
+import org.minecraft.atlas.donjon.SmugglerManager;
 
 import java.util.Map;
 
@@ -50,6 +50,7 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("deactivate", "<id>", "Deactivate a donjon"))
                                     .append(Component.newline()).append(helpEntry("reset", "<id>", "Reset a donjon to idle"))
                                     .append(Component.newline()).append(helpEntry("tp", "<id>", "Teleport to a donjon"))
+                                    .append(Component.newline()).append(helpEntry("setspawn", "<id>", "Set player teleport spawn for a donjon"))
                                     .append(Component.newline()).append(helpEntry("delete", "<id>", "Delete a donjon"))
                     );
                     return Command.SINGLE_SUCCESS;
@@ -85,8 +86,8 @@ public class DonjonCommand {
                                         return Command.SINGLE_SUCCESS;
                                     }
 
-                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
-                                    Atlas.instance.saveConfig();
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
                                     player.sendMessage(Component.text(
                                             "Donjon created: [" + donjon.getId() + "] " + donjon.getName()
                                                     + " LvL." + donjon.getLevel()
@@ -187,8 +188,8 @@ public class DonjonCommand {
                                     }
 
                                     DonjonManager.activateDonjon(d);
-                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
-                                    Atlas.instance.saveConfig();
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon activated: " + d.getName(), NamedTextColor.GREEN));
 
@@ -216,8 +217,8 @@ public class DonjonCommand {
                                     }
 
                                     DonjonManager.setIdle(d, null);
-                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
-                                    Atlas.instance.saveConfig();
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon deactivated: " + d.getName(), NamedTextColor.GREEN));
 
@@ -239,8 +240,8 @@ public class DonjonCommand {
                                     }
 
                                     DonjonManager.setIdle(d, null);
-                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
-                                    Atlas.instance.saveConfig();
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon reset to idle: " + d.getName(), NamedTextColor.GREEN));
 
@@ -296,18 +297,43 @@ public class DonjonCommand {
 
                                     String name = d.getName();
                                     DonjonManager.deleteDonjon(id);
-                                    DonjonManager.saveDonjonConfig(Atlas.instance.getConfig());
-                                    Atlas.instance.saveConfig();
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon deleted: " + name, NamedTextColor.GREEN));
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
-                // /donjon npc spawn ferryman
+                // /donjon setspawn <id>
+                .then(Commands.literal("setspawn")
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(DONJON_IDS)
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(
+                                                Component.text("Only players can use this.", NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    Donjon d = DonjonManager.getDonjon(id);
+                                    if (d == null) {
+                                        player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    d.setTeleportSpawn(player.getLocation());
+                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
+                                    Atlas.saveDonjonsConfig();
+                                    player.sendMessage(Component.text(
+                                            "Teleport spawn set for donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
+                // /donjon npc spawn smuggler
                 .then(Commands.literal("npc")
                         .then(Commands.literal("spawn")
-                                .then(Commands.literal("ferryman")
+                                .then(Commands.literal("smuggler")
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();
                                             if (!(executor instanceof Player player)) {
@@ -315,9 +341,9 @@ public class DonjonCommand {
                                                         Component.text("Only players can use this.", NamedTextColor.RED));
                                                 return Command.SINGLE_SUCCESS;
                                             }
-                                            FerrymanManager.spawnFerryman(player.getLocation());
+                                            SmugglerManager.spawnSmuggler(player.getLocation());
                                             player.sendMessage(Component.text(
-                                                    "Ferryman spawned at your location.", NamedTextColor.GREEN));
+                                                    "Smuggler spawned at your location.", NamedTextColor.GREEN));
                                             return Command.SINGLE_SUCCESS;
                                         }))))
 

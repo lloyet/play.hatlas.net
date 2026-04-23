@@ -5,10 +5,14 @@ import io.papermc.paper.plugin.lifecycle.event.handler.LifecycleEventHandler;
 import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEvent;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.jspecify.annotations.NonNull;
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import org.minecraft.atlas.command.AirCommand;
 import org.minecraft.atlas.command.HomeCommand;
+import org.minecraft.atlas.command.SetSpawnCommand;
 import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
@@ -17,11 +21,12 @@ import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
-import org.minecraft.atlas.donjon.FerrymanManager;
+import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.faction.AirTeleportManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.faction.SpawnManager;
 import org.minecraft.atlas.faction.SpawnTeleportManager;
 import org.minecraft.atlas.faction.TpaManager;
 import org.minecraft.atlas.faction.CrystalGui;
@@ -51,32 +56,75 @@ public final class Atlas extends JavaPlugin {
 
     public static Atlas instance;
 
+    public static YamlConfiguration factionsConfig;
+    public static File factionsFile;
+
+    public static YamlConfiguration donjonsConfig;
+    public static File donjonsFile;
+
+    public static YamlConfiguration jobsConfig;
+    public static File jobsFile;
+
+    public static YamlConfiguration tagsConfig;
+    public static File tagsFile;
+
     @Override
     public void onEnable() {
         instance = this;
 
+        // config.yml — homes, teleport cooldowns, crystal, spawn protection, tags
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
-        AtlasCrystalManager.loadConfig(configFile);
+
+        // factions.yml — factions, claims, upgrades
+        factionsFile = new File(getDataFolder(), "factions.yml");
+        if (!factionsFile.exists()) saveResource("factions.yml", false);
+        factionsConfig = YamlConfiguration.loadConfiguration(factionsFile);
+
+        // donjons.yml — donjon system, instances, type configs
+        donjonsFile = new File(getDataFolder(), "donjons.yml");
+        if (!donjonsFile.exists()) saveResource("donjons.yml", false);
+        donjonsConfig = YamlConfiguration.loadConfiguration(donjonsFile);
+
+        // jobs.yml — quests, jokeyrini, job runtime data
+        jobsFile = new File(getDataFolder(), "jobs.yml");
+        if (!jobsFile.exists()) saveResource("jobs.yml", false);
+        jobsConfig = YamlConfiguration.loadConfiguration(jobsFile);
+
+        // tags.yml — in-world text display tags
+        tagsFile = new File(getDataFolder(), "tags.yml");
+        if (!tagsFile.exists()) saveResource("tags.yml", false);
+        tagsConfig = YamlConfiguration.loadConfiguration(tagsFile);
+
+        // Load from config.yml
+        AtlasCrystalManager.loadConfig(factionsConfig);
         SpawnProtectionListener.loadConfig(configFile);
+        SpawnManager.loadConfig(configFile);
         AirTeleportManager.loadConfig(configFile);
         SpawnTeleportManager.loadConfig(configFile);
         HomeManager.loadConfig(configFile);
-        HomeTeleportManager.loadConfig(configFile);
+        HomeTeleportManager.loadConfig(factionsConfig);
         TpaManager.loadConfig(configFile);
-        FactionLevelManager.loadUpgrades(configFile);
-        FactionManager.loadFactions(configFile);
-        FactionClaimManager.loadClaims(configFile);
-        JobManager.loadJobs(configFile);
-        JokeyriniManager.loadJokeyrini(configFile);
-        DonjonManager.loadConfig(configFile);
-        DonjonManager.loadDonjons(configFile);
+
+        // Load from factions.yml
+        FactionLevelManager.loadUpgrades(factionsConfig);
+        FactionManager.loadFactions(factionsConfig);
+        FactionClaimManager.loadClaims(factionsConfig);
+
+        // Load from jobs.yml
+        JobManager.loadJobs(jobsConfig);
+        JokeyriniManager.loadJokeyrini(jobsConfig);
+
+        // Load from donjons.yml
+        DonjonManager.loadConfig(donjonsConfig);
+        DonjonManager.loadDonjons(donjonsConfig);
+        SmugglerManager.loadConfig(donjonsConfig);
+
         ElectricalCreeperManager.init();
-        FerrymanManager.init();
-        FerrymanManager.loadConfig(configFile);
+        SmugglerManager.init();
         RaiderPickaxe.init();
         TagManager.init();
-        TagManager.loadTags(configFile);
+        TagManager.loadTags(tagsConfig);
         HomeManager.loadHomes(configFile);
 
         // Register all listeners
@@ -111,6 +159,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(TagCommand.build());
                         event.registrar().register(AirCommand.build());
                         event.registrar().register(SpawnCommand.build());
+                        event.registrar().register(SetSpawnCommand.build());
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
@@ -126,16 +175,62 @@ public final class Atlas extends JavaPlugin {
     public void onDisable() {
         FileConfiguration configFile = getConfig();
 
-        FactionManager.saveFactions(configFile);
-        FactionClaimManager.saveClaims(configFile);
-        JobManager.saveJobs(configFile);
-        JokeyriniManager.saveJokeyrini(configFile);
-        DonjonManager.saveDonjonConfig(configFile);
-        TagManager.saveTags(configFile);
+        // Save to config.yml
         HomeManager.saveHomes(configFile);
-        AtlasCrystalManager.saveCrystalHomes(configFile);
+        SpawnManager.saveSpawn(configFile);
         saveConfig();
 
+        // Save to tags.yml
+        TagManager.saveTags(tagsConfig);
+        saveTagsConfig();
+
+        // Save to factions.yml
+        FactionManager.saveFactions(factionsConfig);
+        FactionClaimManager.saveClaims(factionsConfig);
+        AtlasCrystalManager.saveCrystalHomes(factionsConfig);
+        saveFactionsConfig();
+
+        // Save to jobs.yml
+        JobManager.saveJobs(jobsConfig);
+        JokeyriniManager.saveJokeyrini(jobsConfig);
+        saveJobsConfig();
+
+        // Save to donjons.yml
+        DonjonManager.saveDonjonConfig(donjonsConfig);
+        saveDonjonsConfig();
+
         getLogger().info("Atlas disabled.");
+    }
+
+    public static void saveTagsConfig() {
+        try {
+            tagsConfig.save(tagsFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save tags.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveDonjonsConfig() {
+        try {
+            donjonsConfig.save(donjonsFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save donjons.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveFactionsConfig() {
+        try {
+            factionsConfig.save(factionsFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save factions.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveJobsConfig() {
+        try {
+            jobsConfig.save(jobsFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save jobs.yml: " + e.getMessage());
+        }
     }
 }
