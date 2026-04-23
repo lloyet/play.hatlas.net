@@ -6,6 +6,7 @@ import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEven
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.jspecify.annotations.NonNull;
+import java.util.List;
 import org.minecraft.atlas.command.AirCommand;
 import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SpawnCommand;
@@ -102,7 +103,7 @@ public final class Atlas extends JavaPlugin {
                 new LifecycleEventHandler<ReloadableRegistrarEvent<Commands>>() {
                     @Override
                     public void run(@NonNull ReloadableRegistrarEvent<Commands> event) {
-                        event.registrar().register(FactionCommand.build());
+                        event.registrar().register(FactionCommand.build(), "Faction management commands", List.of("f"));
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
                         event.registrar().register(CrystalCommand.build());
