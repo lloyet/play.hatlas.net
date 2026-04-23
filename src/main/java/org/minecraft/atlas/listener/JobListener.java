@@ -213,7 +213,7 @@ public class JobListener implements Listener {
         if (event.isCancelled()) return;
 
         ItemStack result = event.getRecipe().getResult();
-        if (result == null || result.getType() == Material.AIR) return;
+        if (result.getType() == Material.AIR) return;
 
         String target = result.getType().name().toLowerCase();
         int amount = getCraftAmount(player, event);
@@ -282,7 +282,7 @@ public class JobListener implements Listener {
 
         if (type == Material.CAVE_VINES_PLANT || type == Material.CAVE_VINES) {
             if (!(block.getBlockData() instanceof CaveVines caveVines)) return;
-            if (!caveVines.isBerries()) return;
+            if (!caveVines.hasBerries()) return;
             String target = Material.CAVE_VINES_PLANT.name().toLowerCase();
             PlayerJobData data = JobManager.getJobData(player.getUniqueId());
             if (data != null && data.getJob() == Job.FARMER) {
