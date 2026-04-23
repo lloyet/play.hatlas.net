@@ -17,6 +17,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
@@ -30,7 +31,9 @@ import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.FerrymanManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.gui.DonjonListHolder;
 import org.minecraft.atlas.util.TitleUtil;
 
 public class DonjonListener implements Listener {
@@ -79,6 +82,25 @@ public class DonjonListener implements Listener {
             long key = Chunk.getChunkKey(block.getX() >> 4, block.getZ() >> 4);
             return DonjonManager.getDonjonAtChunk(block.getWorld(), key) != null;
         });
+    }
+
+    // -------------------------------------------------------------------------
+    // Ferryman NPC
+    // -------------------------------------------------------------------------
+
+    @EventHandler
+    public void onFerrymanInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (!FerrymanManager.isFerrymanNpc(event.getRightClicked())) return;
+        event.setCancelled(true);
+        new DonjonListHolder(event.getPlayer()).open(event.getPlayer());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onFerrymanDamage(EntityDamageByEntityEvent event) {
+        if (FerrymanManager.isFerrymanNpc(event.getEntity())) {
+            event.setCancelled(true);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -243,6 +265,7 @@ public class DonjonListener implements Listener {
                                 + " [" + donjon.getRarity().getDisplayName() + "]",
                         donjon.getRarity().getColor());
                 player.playSound(player.getLocation(), Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS, SoundCategory.BLOCKS, 0.6f, 1.0f);
+                DonjonManager.recordPlayerVisit(player.getUniqueId(), donjon.getId());
             }
 
         }

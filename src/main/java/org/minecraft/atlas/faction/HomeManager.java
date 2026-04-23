@@ -148,6 +148,14 @@ public class HomeManager {
         return m != null ? Collections.unmodifiableSet(m.keySet()) : Collections.emptySet();
     }
 
+    public static boolean deleteHome(UUID playerUUID, String name) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        if (m == null) return false;
+        boolean removed = m.remove(name) != null;
+        if (removed && m.isEmpty()) homes.remove(playerUUID);
+        return removed;
+    }
+
     // -------------------------------------------------------------------------
     // Teleport
     // -------------------------------------------------------------------------

@@ -49,6 +49,8 @@ donjon:
   idle_timeout_hours: 12
   # Maximum number of donjons the scheduler can keep active simultaneously.
   max_active_donjons: 2
+  # Cooldown (in seconds) between ferryman teleports for each player.
+  ferryman_teleport_cooldown_seconds: 10
   # Persisted at runtime — do not edit manually.
   last_activation_time: 1776884008597
 

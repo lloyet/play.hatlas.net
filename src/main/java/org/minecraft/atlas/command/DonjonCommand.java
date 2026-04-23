@@ -15,6 +15,7 @@ import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.DonjonType;
+import org.minecraft.atlas.donjon.FerrymanManager;
 
 import java.util.Map;
 
@@ -302,6 +303,23 @@ public class DonjonCommand {
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
+
+                // /donjon npc spawn ferryman
+                .then(Commands.literal("npc")
+                        .then(Commands.literal("spawn")
+                                .then(Commands.literal("ferryman")
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(
+                                                        Component.text("Only players can use this.", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            FerrymanManager.spawnFerryman(player.getLocation());
+                                            player.sendMessage(Component.text(
+                                                    "Ferryman spawned at your location.", NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
 
                 .build();
     }

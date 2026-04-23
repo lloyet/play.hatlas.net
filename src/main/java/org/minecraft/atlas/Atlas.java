@@ -16,6 +16,7 @@ import org.minecraft.atlas.command.FactionCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.FerrymanManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.faction.AirTeleportManager;
 import org.minecraft.atlas.faction.HomeManager;
@@ -70,6 +71,8 @@ public final class Atlas extends JavaPlugin {
         DonjonManager.loadConfig(configFile);
         DonjonManager.loadDonjons(configFile);
         ElectricalCreeperManager.init();
+        FerrymanManager.init();
+        FerrymanManager.loadConfig(configFile);
         RaiderPickaxe.init();
         TagManager.init();
         TagManager.loadTags(configFile);
@@ -110,6 +113,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
+                        event.registrar().register(HomeCommand.buildDelHome());
                     }
                 }
         );

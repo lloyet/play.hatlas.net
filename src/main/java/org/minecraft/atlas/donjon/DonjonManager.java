@@ -51,6 +51,11 @@ public class DonjonManager {
     private static final Map<UUID, String> entityToDonjonId = new HashMap<>();
 
     /**
+     * Tracks which donjon IDs each player has visited at least one chunk of.
+     */
+    private static final Map<UUID, Set<String>> playerVisitedDonjons = new HashMap<>();
+
+    /**
      * Cached per-structure offsets derived from the NBT palette on first placement.
      * {@code spawnOffsets} — relative positions of every RESPAWN_ANCHOR (wave spawn points).
      * {@code nametagOffset} — relative position of the VAULT block (nametag anchor).
@@ -710,6 +715,11 @@ public class DonjonManager {
             // Always drop TNT — same scaling formula as creeper eggs
             dropWorld.dropItemNaturally(dropLoc, new ItemStack(Material.TNT, scaledAmount));
 
+            // Drop wither skeleton skulls for EPIC+ donjons — same scaling formula
+            if (rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
+                dropWorld.dropItemNaturally(dropLoc, new ItemStack(Material.WITHER_SKELETON_SKULL, scaledAmount));
+            }
+
             // Drop raider pickaxe if level >= 50 and EPIC or above
             if (level >= 50 && rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
                 dropWorld.dropItemNaturally(dropLoc, RaiderPickaxe.create());
@@ -1172,6 +1182,15 @@ public class DonjonManager {
     }
 
     /** Returns true if the given chunk is within any donjon's protected area. */
+    public static void recordPlayerVisit(UUID playerUUID, String donjonId) {
+        playerVisitedDonjons.computeIfAbsent(playerUUID, k -> new HashSet<>()).add(donjonId);
+    }
+
+    public static boolean hasPlayerVisitedDonjon(UUID playerUUID, String donjonId) {
+        Set<String> visited = playerVisitedDonjons.get(playerUUID);
+        return visited != null && visited.contains(donjonId);
+    }
+
     public static boolean isChunkInDonjon(String worldName, int chunkX, int chunkZ) {
         long key = Chunk.getChunkKey(chunkX, chunkZ);
 

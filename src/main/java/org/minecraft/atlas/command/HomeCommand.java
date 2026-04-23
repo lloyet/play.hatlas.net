@@ -86,4 +86,38 @@ public class HomeCommand {
 
                 .build();
     }
+
+    public static LiteralCommandNode<CommandSourceStack> buildDelHome() {
+        return Commands.literal("delhome")
+                .requires(src -> src.getSender().hasPermission("atlas.home.delete"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (executor instanceof Player player) {
+                                HomeManager.getHomeNames(player.getUniqueId()).forEach(builder::suggest);
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(
+                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String name = StringArgumentType.getString(ctx, "name");
+                            boolean deleted = HomeManager.deleteHome(player.getUniqueId(), name);
+                            if (deleted) {
+                                HomeManager.saveHomes(Atlas.instance.getConfig());
+                                Atlas.instance.saveConfig();
+                                player.sendMessage(Component.text(
+                                        "Home '" + name + "' deleted.", NamedTextColor.GREEN));
+                            } else {
+                                player.sendMessage(Component.text(
+                                        "Home '" + name + "' not found.", NamedTextColor.RED));
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                .build();
+    }
 }

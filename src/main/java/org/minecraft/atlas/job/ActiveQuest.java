@@ -37,4 +37,11 @@ public class ActiveQuest {
     public int incrementTaskProgress(String taskId) {
         return taskProgress.merge(taskId, 1, Integer::sum);
     }
+
+    /**
+     * Adds the given amount to task progress and returns the new value.
+     */
+    public int addTaskProgress(String taskId, int amount) {
+        return taskProgress.merge(taskId, amount, Integer::sum);
+    }
 }
