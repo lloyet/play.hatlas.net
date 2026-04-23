@@ -26,14 +26,21 @@ public class HomeCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
-                            boolean updated = HomeManager.hasHome(player.getUniqueId(), name);
-                            HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
+                            boolean alreadyExists = HomeManager.hasHome(player.getUniqueId(), name);
 
+                            if (!alreadyExists && HomeManager.hasAnyHome(player.getUniqueId())) {
+                                player.sendMessage(Component.text(
+                                        "You already have a home set. Delete it first or use the same name to update it.",
+                                        NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
                             HomeManager.saveHomes(Atlas.instance.getConfig());
                             Atlas.instance.saveConfig();
 
                             player.sendMessage(Component.text(
-                                    (updated ? "Home updated" : "Home set") + ": '" + name + "'.",
+                                    (alreadyExists ? "Home updated" : "Home set") + ": '" + name + "'.",
                                     NamedTextColor.GREEN));
                             return Command.SINGLE_SUCCESS;
                         }))
@@ -77,6 +84,40 @@ public class HomeCommand {
                             return Command.SINGLE_SUCCESS;
                         }))
 
+                .build();
+    }
+
+    public static LiteralCommandNode<CommandSourceStack> buildDelHome() {
+        return Commands.literal("delhome")
+                .requires(src -> src.getSender().hasPermission("atlas.home.delete"))
+                .then(Commands.argument("name", StringArgumentType.word())
+                        .suggests((ctx, builder) -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (executor instanceof Player player) {
+                                HomeManager.getHomeNames(player.getUniqueId()).forEach(builder::suggest);
+                            }
+                            return builder.buildFuture();
+                        })
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(
+                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String name = StringArgumentType.getString(ctx, "name");
+                            boolean deleted = HomeManager.deleteHome(player.getUniqueId(), name);
+                            if (deleted) {
+                                HomeManager.saveHomes(Atlas.instance.getConfig());
+                                Atlas.instance.saveConfig();
+                                player.sendMessage(Component.text(
+                                        "Home '" + name + "' deleted.", NamedTextColor.GREEN));
+                            } else {
+                                player.sendMessage(Component.text(
+                                        "Home '" + name + "' not found.", NamedTextColor.RED));
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 .build();
     }
 }

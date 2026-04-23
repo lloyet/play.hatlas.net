@@ -207,6 +207,11 @@ public class JobManager {
 
     public static void onTargetGathered(UUID playerUUID, String actionType,
                                         String targetName, Player player) {
+        onTargetGathered(playerUUID, actionType, targetName, 1, player);
+    }
+
+    public static void onTargetGathered(UUID playerUUID, String actionType,
+                                        String targetName, int amount, Player player) {
         PlayerJobData data = playerJobs.get(playerUUID);
         if (data == null || data.activeQuests.isEmpty()) return;
 
@@ -223,7 +228,7 @@ public class JobManager {
                 }
                 if (!matches) continue;
 
-                int current  = aq.incrementTaskProgress(task.getTaskId());
+                int current = aq.addTaskProgress(task.getTaskId(), amount);
                 int required = task.getAmount();
                 if (current <= required) {
                     player.sendActionBar(Component.text(

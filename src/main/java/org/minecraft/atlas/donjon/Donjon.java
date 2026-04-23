@@ -43,6 +43,9 @@ public class Donjon {
     private Location nametagLocation;
     private UUID textDisplayUUID;
 
+    // Player teleport destination set via /donjon setspawn
+    private Location teleportSpawn;
+
     public Donjon(String id, String name, DonjonType type, Location center, int level, DonjonRarity rarity) {
         this.id = id;
         this.name = name;
@@ -92,6 +95,9 @@ public class Donjon {
     public void setNametagLocation(Location loc) { this.nametagLocation = loc != null ? loc.clone() : null; }
     public UUID getTextDisplayUUID() { return textDisplayUUID; }
     public void setTextDisplayUUID(UUID uuid) { this.textDisplayUUID = uuid; }
+
+    public Location getTeleportSpawn() { return teleportSpawn != null ? teleportSpawn.clone() : null; }
+    public void setTeleportSpawn(Location loc) { this.teleportSpawn = loc != null ? loc.clone() : null; }
 
     public DonjonWave getCurrentWave() {
         if (waves.isEmpty() || currentWaveIndex >= waves.size()) return null;

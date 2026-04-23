@@ -9,6 +9,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.util.TitleUtil;
 
@@ -30,7 +31,11 @@ public class HomeManager {
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
     private static final int COUNTDOWN_SECONDS = 5;
-    private static final long COOLDOWN_MS = 30_000L;
+    private static long cooldownMs = 300_000L;
+
+    public static void loadConfig(FileConfiguration config) {
+        cooldownMs = config.getLong("home_teleport.cooldown_seconds", 300L) * 1000L;
+    }
 
     // -------------------------------------------------------------------------
     // Persistence
@@ -143,6 +148,14 @@ public class HomeManager {
         return m != null ? Collections.unmodifiableSet(m.keySet()) : Collections.emptySet();
     }
 
+    public static boolean deleteHome(UUID playerUUID, String name) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        if (m == null) return false;
+        boolean removed = m.remove(name) != null;
+        if (removed && m.isEmpty()) homes.remove(playerUUID);
+        return removed;
+    }
+
     // -------------------------------------------------------------------------
     // Teleport
     // -------------------------------------------------------------------------
@@ -170,7 +183,7 @@ public class HomeManager {
 
         long now = System.currentTimeMillis();
         Long expiry = cooldownExpiry.get(uuid);
-        if (expiry != null && now < expiry) {
+        if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             player.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before using /home again.", NamedTextColor.RED));
@@ -180,6 +193,12 @@ public class HomeManager {
         if (activeTeleports.containsKey(uuid)) {
             player.sendMessage(Component.text("A teleport is already in progress.", NamedTextColor.RED));
             return false;
+        }
+
+        if (player.isOp()) {
+            player.teleport(dest);
+            player.sendActionBar(Component.text("Teleported to '" + resolvedName + "'!", NamedTextColor.GREEN));
+            return true;
         }
 
         Location startLocation = player.getLocation().clone();
@@ -216,7 +235,7 @@ public class HomeManager {
                     player.teleport(dest);
                     player.sendActionBar(Component.text(
                             "Teleported to '" + displayName + "'!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + COOLDOWN_MS);
+                    if (!player.isOp()) cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

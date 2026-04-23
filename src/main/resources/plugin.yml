@@ -105,6 +105,15 @@ permissions:
   atlas.home.set:
     description: Set your personal home with /sethome
     default: true
+  atlas.home.delete:
+    description: Delete a named home with /delhome
+    default: true
   atlas.faction.msg:
     description: Send a message to all online faction members
+    default: true
+  atlas.faction.ally:
+    description: Manage faction alliances (leader/owner only)
+    default: true
+  atlas.faction.outpost:
+    description: Create a faction outpost (leader/owner only)
     default: true

@@ -3,6 +3,7 @@ package org.minecraft.atlas.faction;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Location;
+import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
@@ -12,20 +13,17 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-/**
- * Manages the /faction home teleport flow: 5-second countdown, damage-cancel, and 30-second cooldown.
- */
 public class HomeTeleportManager {
 
     private static final Map<UUID, BukkitRunnable> activeTeleports = new HashMap<>();
-
-    /**
-     * UUID -> System.currentTimeMillis() when the cooldown expires
-     */
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
     private static final int COUNTDOWN_SECONDS = 5;
-    private static final long COOLDOWN_MS = 30_000L;
+    private static long cooldownMs = 300_000L;
+
+    public static void loadConfig(FileConfiguration config) {
+        cooldownMs = config.getLong("faction_home.cooldown_seconds", 300L) * 1000L;
+    }
 
     /**
      * Starts a 5-second countdown then teleports the player to {@code dest}.
@@ -36,7 +34,7 @@ public class HomeTeleportManager {
         long now = System.currentTimeMillis();
 
         Long expiry = cooldownExpiry.get(uuid);
-        if (expiry != null && now < expiry) {
+        if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;
             player.sendMessage(Component.text(
                     "You must wait " + secsLeft + "s before teleporting to faction home again.",
@@ -47,6 +45,12 @@ public class HomeTeleportManager {
         if (activeTeleports.containsKey(uuid)) {
             player.sendMessage(Component.text("A teleport is already in progress.", NamedTextColor.RED));
             return false;
+        }
+
+        if (player.isOp()) {
+            player.teleport(dest);
+            player.sendActionBar(Component.text("Teleported to " + locationName + "!", NamedTextColor.GREEN));
+            return true;
         }
 
         Location startLocation = player.getLocation().clone();
@@ -83,7 +87,7 @@ public class HomeTeleportManager {
                     player.teleport(dest);
                     player.sendActionBar(Component.text(
                             "Teleported to " + locationName + "!", NamedTextColor.GREEN));
-                    cooldownExpiry.put(uuid, System.currentTimeMillis() + COOLDOWN_MS);
+                    if (!player.isOp()) cooldownExpiry.put(uuid, System.currentTimeMillis() + cooldownMs);
                 }
             }
         };

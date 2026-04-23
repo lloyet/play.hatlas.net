@@ -6,6 +6,8 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -15,6 +17,7 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 
@@ -23,10 +26,14 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonStatus;
+import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.gui.DonjonListHolder;
 import org.minecraft.atlas.util.TitleUtil;
 
 public class DonjonListener implements Listener {
@@ -75,6 +82,25 @@ public class DonjonListener implements Listener {
             long key = Chunk.getChunkKey(block.getX() >> 4, block.getZ() >> 4);
             return DonjonManager.getDonjonAtChunk(block.getWorld(), key) != null;
         });
+    }
+
+    // -------------------------------------------------------------------------
+    // Smuggler NPC
+    // -------------------------------------------------------------------------
+
+    @EventHandler
+    public void onSmugglerInteract(PlayerInteractEntityEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (!SmugglerManager.isSmugglerNpc(event.getRightClicked())) return;
+        event.setCancelled(true);
+        new DonjonListHolder(event.getPlayer()).open(event.getPlayer());
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onSmugglerDamage(EntityDamageByEntityEvent event) {
+        if (SmugglerManager.isSmugglerNpc(event.getEntity())) {
+            event.setCancelled(true);
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -239,6 +265,7 @@ public class DonjonListener implements Listener {
                                 + " [" + donjon.getRarity().getDisplayName() + "]",
                         donjon.getRarity().getColor());
                 player.playSound(player.getLocation(), Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS, SoundCategory.BLOCKS, 0.6f, 1.0f);
+                DonjonManager.recordPlayerVisit(player.getUniqueId(), donjon.getId());
             }
 
         }
@@ -257,6 +284,86 @@ public class DonjonListener implements Listener {
             if (!td.getPersistentDataContainer().has(DonjonManager.keyTotemDisplay)) continue;
 
             DonjonManager.restoreNametag(td);
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Electrical Creeper Egg — use to spawn a charged creeper
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onElectricalEggUse(PlayerInteractEvent event) {
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) return;
+
+        ItemStack item = event.getItem();
+        if (!ElectricalCreeperManager.isElectricalCreeperEgg(item)) return;
+
+        event.setCancelled(true);
+
+        Location spawnLoc = event.getClickedBlock() != null
+                ? event.getClickedBlock().getLocation().add(0.5, 1, 0.5)
+                : event.getPlayer().getLocation();
+
+        World world = spawnLoc.getWorld();
+        if (world == null) return;
+
+        world.spawn(spawnLoc, Creeper.class, creeper -> {
+            creeper.setPowered(true);
+            creeper.getPersistentDataContainer().set(
+                    ElectricalCreeperManager.getElectricalCreeperKey(),
+                    PersistentDataType.BYTE, (byte) 1);
+        });
+
+        // Consume one egg from the stack
+        if (item.getAmount() > 1) {
+            item.setAmount(item.getAmount() - 1);
+        } else {
+            event.getPlayer().getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Electrical Creeper — track hits on obsidian (4 hits = destroyed)
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onElectricalCreeperExplode(EntityExplodeEvent event) {
+        if (!ElectricalCreeperManager.isElectricalCreeper(event.getEntity())) return;
+
+        Location loc = event.getEntity().getLocation();
+        World world = loc.getWorld();
+        if (world == null) return;
+
+        int radius = 6;
+        for (int dx = -radius; dx <= radius; dx++) {
+            for (int dy = -radius; dy <= radius; dy++) {
+                for (int dz = -radius; dz <= radius; dz++) {
+                    if (dx * dx + dy * dy + dz * dz > radius * radius) continue;
+                    Block block = world.getBlockAt(
+                            loc.getBlockX() + dx,
+                            loc.getBlockY() + dy,
+                            loc.getBlockZ() + dz);
+                    if (block.getType() != Material.OBSIDIAN) continue;
+
+                    int hits = ElectricalCreeperManager.addObsidianHit(block.getLocation());
+                    if (hits >= ElectricalCreeperManager.OBSIDIAN_HITS_REQUIRED) {
+                        ElectricalCreeperManager.clearObsidianHit(block.getLocation());
+                        block.setType(Material.AIR);
+                    }
+                }
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Obsidian hit-map cleanup when a block is broken by other means
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onObsidianBreakCleanup(BlockBreakEvent event) {
+        if (event.getBlock().getType() == Material.OBSIDIAN) {
+            ElectricalCreeperManager.clearObsidianHit(event.getBlock().getLocation());
         }
     }
 

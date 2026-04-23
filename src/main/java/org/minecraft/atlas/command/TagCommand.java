@@ -69,8 +69,8 @@ public class TagCommand {
                                             org.bukkit.Location spawnLoc = player.getLocation().add(0, 1, 0);
                                             Tag tag = TagManager.createTag(name, spawnLoc, text);
 
-                                            TagManager.saveTags(Atlas.instance.getConfig());
-                                            Atlas.instance.saveConfig();
+                                            TagManager.saveTags(Atlas.tagsConfig);
+                                            Atlas.saveTagsConfig();
 
                                             player.sendMessage(Component.text(
                                                     "Tag '" + name + "' created.", NamedTextColor.GREEN));
@@ -113,8 +113,8 @@ public class TagCommand {
                                                 return Command.SINGLE_SUCCESS;
                                             }
 
-                                            TagManager.saveTags(Atlas.instance.getConfig());
-                                            Atlas.instance.saveConfig();
+                                            TagManager.saveTags(Atlas.tagsConfig);
+                                            Atlas.saveTagsConfig();
 
                                             Tag tag = TagManager.getTag(name);
                                             ctx.getSource().getSender().sendMessage(Component.text(

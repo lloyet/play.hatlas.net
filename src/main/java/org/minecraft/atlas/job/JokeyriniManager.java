@@ -126,6 +126,10 @@ public class JokeyriniManager {
     // ── Progress tracking ─────────────────────────────────────────────────────
 
     public static void onTargetGathered(UUID uuid, String actionType, String targetName, Player player) {
+        onTargetGathered(uuid, actionType, targetName, 1, player);
+    }
+
+    public static void onTargetGathered(UUID uuid, String actionType, String targetName, int amount, Player player) {
         ActiveQuest aq = getActiveQuest(uuid);
         if (aq == null) return;
 
@@ -135,7 +139,7 @@ public class JokeyriniManager {
                     .anyMatch(t -> t.equalsIgnoreCase(targetName));
             if (!matches) continue;
 
-            int current  = aq.incrementTaskProgress(task.getTaskId());
+            int current = aq.addTaskProgress(task.getTaskId(), amount);
             int required = task.getAmount();
             if (current <= required) {
                 player.sendActionBar(Component.text(

@@ -28,6 +28,8 @@ import org.bukkit.structure.StructureManager;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.util.TitleUtil;
 
 import java.io.File;
@@ -47,6 +49,11 @@ public class DonjonManager {
 
     /** Maps a spawned mob UUID to the donjon ID it belongs to. */
     private static final Map<UUID, String> entityToDonjonId = new HashMap<>();
+
+    /**
+     * Tracks which donjon IDs each player has visited at least one chunk of.
+     */
+    private static final Map<UUID, Set<String>> playerVisitedDonjons = new HashMap<>();
 
     /**
      * Cached per-structure offsets derived from the NBT palette on first placement.
@@ -194,6 +201,15 @@ public class DonjonManager {
             if (d.getTextDisplayUUID() != null) {
                 s.set("text_display_uuid", d.getTextDisplayUUID().toString());
             }
+
+            Location ts = d.getTeleportSpawn();
+            if (ts != null) {
+                s.set("teleport_spawn_x",     ts.getX());
+                s.set("teleport_spawn_y",     ts.getY());
+                s.set("teleport_spawn_z",     ts.getZ());
+                s.set("teleport_spawn_yaw",   (double) ts.getYaw());
+                s.set("teleport_spawn_pitch", (double) ts.getPitch());
+            }
         }
     }
 
@@ -254,6 +270,16 @@ public class DonjonManager {
                 catch (IllegalArgumentException ignored) {}
             }
 
+            if (s.contains("teleport_spawn_x")) {
+                Location ts = new Location(world,
+                        s.getDouble("teleport_spawn_x"),
+                        s.getDouble("teleport_spawn_y"),
+                        s.getDouble("teleport_spawn_z"),
+                        (float) s.getDouble("teleport_spawn_yaw"),
+                        (float) s.getDouble("teleport_spawn_pitch"));
+                donjon.setTeleportSpawn(ts);
+            }
+
             computeProtectedChunks(donjon);
             donjons.put(id, donjon);
         }
@@ -285,8 +311,8 @@ public class DonjonManager {
         if (!donjons.isEmpty() && (now - lastActivationTime) >= activationIntervalMs) {
             activateRandomDonjon();
             lastActivationTime = now;
-            Atlas.instance.getConfig().set("donjon.last_activation_time", lastActivationTime);
-            Atlas.instance.saveConfig();
+            Atlas.donjonsConfig.set("donjon.last_activation_time", lastActivationTime);
+            Atlas.saveDonjonsConfig();
         }
 
         // Timeout checks
@@ -677,18 +703,45 @@ public class DonjonManager {
             p.playSound(p.getLocation(), Sound.ENTITY_WITHER_DEATH, SoundCategory.MASTER, 1.0f, 1.0f);
         }
 
+        Location dropLoc = donjon.getNametagLocation() != null
+                ? donjon.getNametagLocation() : donjon.getCenter();
+        World dropWorld = dropLoc.getWorld();
+
         // Drop an enchanted Ominous Trial Key when EPIC+ donjon is completed
         if (donjon.getRarity().ordinal() >= DonjonRarity.EPIC.ordinal()) {
             double dropChance = ominousKeyDropChance(donjon.getRarity());
-            if (ThreadLocalRandom.current().nextDouble() < dropChance) {
-                Location dropLoc = donjon.getNametagLocation() != null
-                        ? donjon.getNametagLocation() : donjon.getCenter();
-                World dropWorld = dropLoc.getWorld();
-                if (dropWorld != null) {
-                    ItemStack ominousKey = new ItemStack(Material.OMINOUS_TRIAL_KEY);
-                    ominousKey.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
-                    dropWorld.dropItemNaturally(dropLoc, ominousKey);
-                }
+            if (dropWorld != null && ThreadLocalRandom.current().nextDouble() < dropChance) {
+                ItemStack ominousKey = new ItemStack(Material.OMINOUS_TRIAL_KEY);
+                ominousKey.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
+                dropWorld.dropItemNaturally(dropLoc, ominousKey);
+            }
+        }
+
+        if (dropWorld != null) {
+            int level = donjon.getLevel();
+            DonjonRarity rarity = donjon.getRarity();
+            int scaledAmount = 1 + (int) (level / 99.0 * (rarity.ordinal() + 1));
+
+            // Always drop creeper eggs — amount scales with level and rarity
+            dropWorld.dropItemNaturally(dropLoc,
+                    ElectricalCreeperManager.createCreeperEgg(scaledAmount));
+
+            // Very low chance to drop an electrical creeper egg
+            if (ThreadLocalRandom.current().nextDouble() < ElectricalCreeperManager.electricalDropChance(rarity)) {
+                dropWorld.dropItemNaturally(dropLoc, ElectricalCreeperManager.createElectricalCreeperEgg());
+            }
+
+            // Always drop TNT — same scaling formula as creeper eggs
+            dropWorld.dropItemNaturally(dropLoc, new ItemStack(Material.TNT, scaledAmount));
+
+            // Drop wither skeleton skulls for EPIC+ donjons — same scaling formula
+            if (rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
+                dropWorld.dropItemNaturally(dropLoc, new ItemStack(Material.WITHER_SKELETON_SKULL, scaledAmount));
+            }
+
+            // Drop raider pickaxe if level >= 50 and EPIC or above
+            if (level >= 50 && rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
+                dropWorld.dropItemNaturally(dropLoc, RaiderPickaxe.create());
             }
         }
 
@@ -993,8 +1046,8 @@ public class DonjonManager {
         }
 
         Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
-            saveDonjonConfig(Atlas.instance.getConfig());
-            Atlas.instance.saveConfig();
+            saveDonjonConfig(Atlas.donjonsConfig);
+            Atlas.saveDonjonsConfig();
         }, 20L);
 
         return donjon;
@@ -1148,6 +1201,15 @@ public class DonjonManager {
     }
 
     /** Returns true if the given chunk is within any donjon's protected area. */
+    public static void recordPlayerVisit(UUID playerUUID, String donjonId) {
+        playerVisitedDonjons.computeIfAbsent(playerUUID, k -> new HashSet<>()).add(donjonId);
+    }
+
+    public static boolean hasPlayerVisitedDonjon(UUID playerUUID, String donjonId) {
+        Set<String> visited = playerVisitedDonjons.get(playerUUID);
+        return visited != null && visited.contains(donjonId);
+    }
+
     public static boolean isChunkInDonjon(String worldName, int chunkX, int chunkZ) {
         long key = Chunk.getChunkKey(chunkX, chunkZ);
 

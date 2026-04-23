@@ -49,7 +49,7 @@ public class CrystalUpgradeHolder implements AtlasHolder {
 
             for (int i = 0; i < upgradeLevels.size() && i < slots.length; i++) {
                 int ul = upgradeLevels.get(i);
-                this.inventory.setItem(slots[i], buildUpgradeItem(ul, applied.contains(ul),
+                this.inventory.setItem(slots[i], buildUpgradeItem(ul, i + 1, applied.contains(ul),
                         pending.contains(ul), factionLevel >= ul));
             }
         }
@@ -105,7 +105,7 @@ public class CrystalUpgradeHolder implements AtlasHolder {
 
     // ── Item builders ─────────────────────────────────────────────────────────
 
-    private static ItemStack buildUpgradeItem(int upgradeLevel, boolean applied,
+    private static ItemStack buildUpgradeItem(int upgradeLevel, int ringIndex, boolean applied,
                                               boolean pending, boolean levelReached) {
         Material mat;
         NamedTextColor nameColor;
@@ -136,6 +136,7 @@ public class CrystalUpgradeHolder implements AtlasHolder {
 
         double bonusHp     = FactionLevelManager.getUpgradeHp(upgradeLevel);
         int    bonusChests = FactionLevelManager.getUpgradeChests(upgradeLevel);
+        int claimsGained = 8 * ringIndex;
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
@@ -144,8 +145,12 @@ public class CrystalUpgradeHolder implements AtlasHolder {
         lore.add(Component.text("  Bonuses:", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
         lore.add(GuiUtil.loreLine("  Crystal HP", "+" + (int) bonusHp + " ♥", NamedTextColor.RED));
+        lore.add(GuiUtil.loreLine("  Claims", "+" + claimsGained + " chunks", NamedTextColor.GREEN));
         if (bonusChests > 0) {
             lore.add(GuiUtil.loreLine("  Chests", "+" + bonusChests, NamedTextColor.YELLOW));
+        }
+        if (upgradeLevel == 21) {
+            lore.add(GuiUtil.loreLine("  Outpost", "+1 Atlas Outpost", NamedTextColor.AQUA));
         }
         lore.add(Component.empty());
         lore.add(Component.text("  " + statusText, nameColor)
