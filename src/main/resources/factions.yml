@@ -25,6 +25,10 @@ upgrades:
     bonus_hp: 60
     bonus_chest: 1
     bonus_chest_size: 27
+  - level: 15
+    bonus_hp: 70
+    bonus_chest: 1
+    bonus_chest_size: 27
   - level: 21
     bonus_hp: 80
     bonus_chest: 1
@@ -43,9 +47,6 @@ upgrades:
     bonus_hp: 250
     bonus_chest: 1
     bonus_chest_size: 54
-  - level: 97
-    bonus_hp: 320
-    bonus_chest: 0
   - level: 100
     bonus_hp: 400
     bonus_chest: 1
