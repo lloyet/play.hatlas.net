@@ -22,6 +22,8 @@ public class FactionLevelManager {
     private static final Map<Integer, Double> upgradeHpMap = new LinkedHashMap<>();
     // Upgrade level -> number of virtual chests unlocked at that upgrade level
     private static final Map<Integer, Integer> upgradeChestMap = new LinkedHashMap<>();
+    // Upgrade level -> inventory size (27 or 54) for chests unlocked at that level
+    private static final Map<Integer, Integer> upgradeChestSizeMap = new LinkedHashMap<>();
     // Sorted ascending list of upgrade levels
     private static final List<Integer> upgradeLevels = new ArrayList<>();
 
@@ -45,6 +47,7 @@ public class FactionLevelManager {
     public static void loadUpgrades(FileConfiguration config) {
         upgradeHpMap.clear();
         upgradeChestMap.clear();
+        upgradeChestSizeMap.clear();
         upgradeLevels.clear();
 
         List<?> list = config.getList("upgrades");
@@ -57,8 +60,13 @@ public class FactionLevelManager {
                 if (lvl instanceof Integer level && bonus instanceof Number hp) {
                     upgradeHpMap.put(level, hp.doubleValue());
                     Object chestBonus = map.get("bonus_chest");
-                    upgradeChestMap.put(level,
-                            chestBonus instanceof Number ? ((Number) chestBonus).intValue() : 0);
+                    int chestCount = chestBonus instanceof Number ? ((Number) chestBonus).intValue() : 0;
+                    upgradeChestMap.put(level, chestCount);
+                    if (chestCount > 0) {
+                        Object chestSize = map.get("bonus_chest_size");
+                        upgradeChestSizeMap.put(level,
+                                chestSize instanceof Number ? ((Number) chestSize).intValue() : 27);
+                    }
                     upgradeLevels.add(level);
                 }
             }
@@ -113,5 +121,24 @@ public class FactionLevelManager {
             if (entry.getKey() <= factionLevel) total += entry.getValue();
         }
         return total;
+    }
+
+    /**
+     * Returns the inventory size (27 for single chest, 54 for double chest) for the
+     * 0-based chest at {@code chestIndex}. Iterates upgrade levels in ascending order,
+     * counting cumulative chests until the target index is reached.
+     */
+    public static int getChestSize(int chestIndex) {
+        int count = 0;
+        for (int upgradeLevel : upgradeLevels) {
+            int chestsAtLevel = upgradeChestMap.getOrDefault(upgradeLevel, 0);
+            for (int i = 0; i < chestsAtLevel; i++) {
+                if (count == chestIndex) {
+                    return upgradeChestSizeMap.getOrDefault(upgradeLevel, 27);
+                }
+                count++;
+            }
+        }
+        return 27;
     }
 }

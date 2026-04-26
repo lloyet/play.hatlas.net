@@ -33,6 +33,8 @@ public class HomeTeleportManager {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
 
+        if (DeathTeleportCooldownManager.denyIfOnCooldown(player)) return false;
+
         Long expiry = cooldownExpiry.get(uuid);
         if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;

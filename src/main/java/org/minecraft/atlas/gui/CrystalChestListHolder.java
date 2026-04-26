@@ -80,6 +80,7 @@ public class CrystalChestListHolder implements AtlasHolder {
 
     private static ItemStack buildChestListItem(int index, Faction faction) {
         ItemStack[] contents = faction.getChestContents(index);
+        int chestSize = FactionLevelManager.getChestSize(index);
         int itemCount = 0;
         for (ItemStack stack : contents) {
             if (stack != null && stack.getType() != Material.AIR) itemCount++;
@@ -92,7 +93,7 @@ public class CrystalChestListHolder implements AtlasHolder {
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(GuiUtil.loreLine("Items", itemCount + " / 54", NamedTextColor.WHITE));
+        lore.add(GuiUtil.loreLine("Items", itemCount + " / " + chestSize, NamedTextColor.WHITE));
         lore.add(Component.empty());
         lore.add(Component.text("  Click to open", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));

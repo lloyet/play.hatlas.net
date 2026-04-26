@@ -42,6 +42,8 @@ public class TpaManager {
             return false;
         }
 
+        if (DeathTeleportCooldownManager.denyIfOnCooldown(requester)) return false;
+
         long now = System.currentTimeMillis();
         Long expiry = cooldownExpiry.get(rUUID);
         if (!requester.isOp() && expiry != null && now < expiry) {

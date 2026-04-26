@@ -24,9 +24,7 @@ public class ItemClearManager {
             case 300 -> broadcast("Ground items will be cleared in 5 minutes!", NamedTextColor.YELLOW);
             case 60 -> broadcast("Ground items will be cleared in 1 minute!", NamedTextColor.GOLD);
             case 30 -> broadcast("Ground items will be cleared in 30 seconds!", NamedTextColor.GOLD);
-            case 10 -> broadcast("Ground items will be cleared in 10 seconds!", NamedTextColor.RED);
-            case 5 -> broadcast("Ground items will be cleared in 5 seconds!", NamedTextColor.RED);
-            case 4 -> broadcast("Ground items will be cleared in 4 seconds!", NamedTextColor.RED);
+            case 10 -> broadcast("Ground items will be cleared in 10 seconds!", NamedTextColor.GOLD);
             case 3 -> broadcast("Ground items will be cleared in 3 seconds!", NamedTextColor.RED);
             case 2 -> broadcast("Ground items will be cleared in 2 seconds!", NamedTextColor.RED);
             case 1 -> broadcast("Ground items will be cleared in 1 second!", NamedTextColor.RED);

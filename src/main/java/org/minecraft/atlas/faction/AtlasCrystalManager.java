@@ -89,20 +89,23 @@ public class AtlasCrystalManager {
     // -------------------------------------------------------------------------
 
     /** HP regenerated per second when the crystal is eligible (loaded from config). */
-    public static double regenPerSecond      = 1.5;
-    /** Immunity duration in ms granted after an upgrade level drop (loaded from config). */
-    public static long   immunityDurationMs  = 3_600_000L;
+    public static double regenPerSecond         = 1.5;
+    /** Base immunity in ms for the first crystal defeat (loaded from config). */
+    public static long   immunityBaseMs         = 18_000_000L;
+    /** Escalation multiplier applied per repeat defeat within the active window (loaded from config). */
+    public static int    immunityMultiplierBase = 2;
     /** Minimum ms since the last hit before a crystal can regenerate HP (loaded from config). */
-    public static long   regenTimeoutMs      = 60_000L;
+    public static long   regenTimeoutMs         = 60_000L;
 
     // -------------------------------------------------------------------------
     // Config loading
     // -------------------------------------------------------------------------
 
     public static void loadConfig(FileConfiguration config) {
-        regenPerSecond     = config.getDouble("crystal.regen_per_second", 1.5);
-        immunityDurationMs = config.getLong("crystal.immunity_duration_seconds", 3600L) * 1000L;
-        regenTimeoutMs     = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+        regenPerSecond         = config.getDouble("crystal.regen_per_second", 1.5);
+        immunityBaseMs         = config.getLong("crystal.immunity_base_seconds", 18000L) * 1000L;
+        immunityMultiplierBase = config.getInt("crystal.immunity_multiplier", 2);
+        regenTimeoutMs         = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
         loadCrystalHomes(config);
     }
 

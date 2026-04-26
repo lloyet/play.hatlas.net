@@ -108,9 +108,9 @@ public class Faction {
         return !pendingUpgrades.isEmpty();
     }
 
-    /** Returns the contents of the virtual chest at {@code index} (54 slots), or an empty array if never written. */
+    /** Returns the contents of the virtual chest at {@code index}, or an empty array if never written. */
     public ItemStack[] getChestContents(int index) {
-        return chestContents.getOrDefault(index, new ItemStack[54]);
+        return chestContents.getOrDefault(index, new ItemStack[FactionLevelManager.getChestSize(index)]);
     }
 
     public void setChestContents(int index, ItemStack[] contents) {
@@ -121,6 +121,18 @@ public class Faction {
     public Map<Integer, ItemStack[]> getChestContentsMap() {
         return chestContents;
     }
+
+    // ── Downgrade escalation ──────────────────────────────────────────────────
+
+    /** Current immunity multiplier. Starts at 1 (first ever defeat), escalates on repeated defeats. */
+    private int downgradeMul = 1;
+    /** Epoch-ms timestamp of when the current escalation window expires. 0 = no window set. */
+    private long downgradeWindowEndMs = 0L;
+
+    public int getDowngradeMul() { return downgradeMul; }
+    public void setDowngradeMul(int mul) { this.downgradeMul = Math.max(1, mul); }
+    public long getDowngradeWindowEndMs() { return downgradeWindowEndMs; }
+    public void setDowngradeWindowEndMs(long ts) { this.downgradeWindowEndMs = ts; }
 
     // ── Allies ────────────────────────────────────────────────────────────────
 

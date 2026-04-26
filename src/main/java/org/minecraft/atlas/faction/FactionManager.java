@@ -483,6 +483,9 @@ public class FactionManager {
             if (!faction.getAllies().isEmpty()) {
                 s.set("allies", new ArrayList<>(faction.getAllies()));
             }
+
+            if (faction.getDowngradeMul() != 1) s.set("downgrade_mul", faction.getDowngradeMul());
+            if (faction.getDowngradeWindowEndMs() != 0L) s.set("downgrade_window_end", faction.getDowngradeWindowEndMs());
         }
     }
 
@@ -557,6 +560,9 @@ public class FactionManager {
             for (String ally : s.getStringList("allies")) {
                 faction.addAlly(ally);
             }
+
+            faction.setDowngradeMul(s.getInt("downgrade_mul", 1));
+            faction.setDowngradeWindowEndMs(s.getLong("downgrade_window_end", 0L));
 
             factions.put(factionName, faction);
         }

@@ -7,8 +7,10 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.HashMap;
@@ -33,9 +35,12 @@ public class CrystalChestViewHolder implements AtlasHolder {
         this.crystalEntityUUID = crystalEntityUUID;
         this.chestIndex        = chestIndex;
 
-        this.inventory = Bukkit.createInventory(this, 54,
+        int size = FactionLevelManager.getChestSize(chestIndex);
+        this.inventory = Bukkit.createInventory(this, size,
                 Component.text(faction.getName() + " - Chest #" + (chestIndex + 1), faction.getColor()));
-        this.inventory.setContents(faction.getChestContents(chestIndex));
+        ItemStack[] stored = faction.getChestContents(chestIndex);
+        // Truncate stored contents if the chest was previously larger (e.g. config change)
+        this.inventory.setContents(stored.length <= size ? stored : java.util.Arrays.copyOf(stored, size));
     }
 
     /**
