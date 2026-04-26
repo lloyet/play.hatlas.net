@@ -22,6 +22,8 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
@@ -43,7 +45,9 @@ import org.minecraft.atlas.faction.AirTeleportManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.minecraft.atlas.faction.SpawnTeleportManager;
+import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
 import org.minecraft.atlas.faction.TpaManager;
+import org.minecraft.atlas.util.TabListManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,6 +68,16 @@ public class FactionListener implements Listener {
     // -------------------------------------------------------------------------
     // Crystal naming fallback on disconnect
     // -------------------------------------------------------------------------
+
+    @EventHandler
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        TabListManager.updatePlayer(event.getPlayer());
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        DeathTeleportCooldownManager.onPlayerDeath(event.getEntity().getUniqueId());
+    }
 
     /**
      * If a player disconnects while the naming dialog is open, assign a generated fallback name.
@@ -267,9 +281,24 @@ public class FactionListener implements Listener {
             FactionManager.disbandFaction(crystalFaction);
 
         } else {
-            // Level > 0: drop to the previous upgrade level, restore crystal HP, grant 1h immunity
+            // Level > 0: drop to the previous upgrade level, restore crystal HP, grant dynamic immunity
             int prevUpgrade = FactionLevelManager.getPreviousUpgrade(factionLevel);
             int newLevel = Math.max(0, prevUpgrade); // -1 means drop to 0
+
+            // ── Escalating immunity ───────────────────────────────────────────
+            long nowMs = System.currentTimeMillis();
+            int curMul = faction.getDowngradeMul();
+            long windowEnd = faction.getDowngradeWindowEndMs();
+            if (windowEnd > 0 && nowMs < windowEnd) {
+                curMul *= AtlasCrystalManager.immunityMultiplierBase;
+            } else if (windowEnd > 0) {
+                curMul = AtlasCrystalManager.immunityMultiplierBase;
+            }
+            // else: first-ever defeat — keep curMul = 1
+            long immunityMs = AtlasCrystalManager.immunityBaseMs * curMul;
+            long newWindowEnd = nowMs + (long)(immunityMs * AtlasCrystalManager.immunityMultiplierBase * 1.5);
+            faction.setDowngradeMul(curMul);
+            faction.setDowngradeWindowEndMs(newWindowEnd);
 
             faction.setLevel(newLevel);
             faction.setExp(0);
@@ -320,9 +349,9 @@ public class FactionListener implements Listener {
                 AtlasCrystalManager.persistCrystalState(fc);
             }
 
-            // Restore the attacked crystal's HP to full and grant immunity
+            // Restore the attacked crystal's HP to full and grant computed immunity
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
-            atlasCrystal.setImmuneFor(AtlasCrystalManager.immunityDurationMs);
+            atlasCrystal.setImmuneFor(immunityMs);
             atlasCrystal.updateNametag();
             AtlasCrystalManager.persistCrystalState(atlasCrystal);
 
@@ -333,7 +362,7 @@ public class FactionListener implements Listener {
 
             // Broadcast
             String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
-            long immunitySeconds = AtlasCrystalManager.immunityDurationMs / 1000;
+            long immunitySeconds = immunityMs / 1000L;
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
                     "⚠ Crystal weakened! LvL." + levelStr + ". Immune " + immunitySeconds + "s!",
                     NamedTextColor.RED);
@@ -400,7 +429,7 @@ public class FactionListener implements Listener {
         }
 
         // Entering wilderness from any claimed area or spawn protection
-        if (!toDonjon && !nowInSpawn && (fromFaction != null || fromDonjon || leavingSpawn)) {
+        if (!toDonjon && !nowInSpawn && toFaction == null && (fromFaction != null || fromDonjon || leavingSpawn)) {
             TitleUtil.notify(player, "Wilderness\nEnter the Wilderness", NamedTextColor.GREEN);
         }
     }

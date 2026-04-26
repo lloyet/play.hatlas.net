@@ -14,6 +14,7 @@ upgrades:
   - level: 1
     bonus_hp: 20
     bonus_chest: 1
+    bonus_chest_size: 27
   - level: 3
     bonus_hp: 30
     bonus_chest: 0
@@ -23,33 +24,42 @@ upgrades:
   - level: 9
     bonus_hp: 60
     bonus_chest: 1
+    bonus_chest_size: 27
   - level: 21
     bonus_hp: 80
     bonus_chest: 1
+    bonus_chest_size: 54
   - level: 42
     bonus_hp: 120
     bonus_chest: 0
   - level: 58
     bonus_hp: 160
     bonus_chest: 1
+    bonus_chest_size: 54
   - level: 64
     bonus_hp: 200
     bonus_chest: 0
   - level: 81
     bonus_hp: 250
-    bonus_chest: 0
+    bonus_chest: 1
+    bonus_chest_size: 54
   - level: 97
     bonus_hp: 320
-    bonus_chest: 1
+    bonus_chest: 0
   - level: 100
     bonus_hp: 400
-    bonus_chest: 0
+    bonus_chest: 1
+    bonus_chest_size: 54
 
 # Atlas Crystal settings
 crystal:
   # HP regenerated per second when the crystal has not been attacked for regen_timeout_seconds.
   regen_per_second: 1.5
-  # Duration in seconds that a crystal is immune to damage after an upgrade level drop.
-  immunity_duration_seconds: 1800
+  # Base immunity in seconds granted after the first crystal defeat.
+  # Subsequent defeats within the escalation window multiply this by immunity_multiplier.
+  immunity_base_seconds: 18000
+  # Escalation multiplier applied each time the crystal is defeated within the active window.
+  # Also the value the multiplier resets to when the window expires.
+  immunity_multiplier: 2
   # Seconds of inactivity (no damage received) before a crystal starts regenerating HP.
   regen_timeout_seconds: 30

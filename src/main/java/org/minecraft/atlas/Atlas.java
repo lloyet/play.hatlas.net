@@ -24,6 +24,7 @@ import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.minecraft.atlas.faction.SpawnManager;
@@ -46,6 +47,7 @@ import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
+import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 
 import org.bukkit.plugin.java.JavaPlugin;
@@ -105,6 +107,8 @@ public final class Atlas extends JavaPlugin {
         HomeManager.loadConfig(configFile);
         HomeTeleportManager.loadConfig(factionsConfig);
         TpaManager.loadConfig(configFile);
+        AfkManager.loadConfig(configFile);
+        DeathTeleportCooldownManager.loadConfig(configFile);
 
         // Load from factions.yml
         FactionLevelManager.loadUpgrades(factionsConfig);
@@ -138,6 +142,8 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new CrystalGui(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
+        AfkManager afkManager = new AfkManager();
+        getServer().getPluginManager().registerEvents(afkManager, this);
 
         // Schedulers
         GolemListener.schedule(this);
@@ -145,6 +151,7 @@ public final class Atlas extends JavaPlugin {
         DonjonManager.schedule(this);
         JobManager.scheduleExpiry(this);
         ItemClearManager.schedule(this);
+        AfkManager.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,

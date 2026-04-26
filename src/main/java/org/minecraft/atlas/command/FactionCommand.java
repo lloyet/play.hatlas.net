@@ -37,6 +37,7 @@ import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.listener.SpawnProtectionListener;
+import org.minecraft.atlas.util.TabListManager;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -324,13 +325,14 @@ public class FactionCommand {
 
                                     player.sendMessage(success("Faction '" + name + "' created successfully!"));
                                     player.sendMessage(info("Don't forget to pick a job using the /job command!"));
+                                    TabListManager.updatePlayer(player);
 
-                                    int centerX = chunk.getX() * 16 + 8;
-                                    int centerZ = chunk.getZ() * 16 + 8;
-                                    int highestY = player.getWorld().getHighestBlockYAt(centerX, centerZ);
+                                    int playerX = player.getLocation().getBlockX();
+                                    int playerZ = player.getLocation().getBlockZ();
+                                    int highestY = player.getWorld().getHighestBlockYAt(playerX, playerZ);
 
                                     Location spawnLoc = new Location(player.getWorld(),
-                                            centerX + 0.5, highestY + 2.0, centerZ + 0.5);
+                                            playerX + 0.5, highestY + 2.0, playerZ + 0.5);
 
                                     EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                                     crystalEntity.setShowingBottom(true);
@@ -410,6 +412,7 @@ public class FactionCommand {
                                         info(player.getName() + " joined the faction."),
                                         player.getUniqueId());
                                 player.sendMessage(info("Don't forget to pick a job using the /job command!"));
+                                TabListManager.updatePlayer(player);
                             } else {
                                 player.sendMessage(error("You have no pending invitation."));
                             }
@@ -542,6 +545,7 @@ public class FactionCommand {
                                                         .append(Component.text(colorName, color))
                                                         .append(info(".")),
                                                 player.getUniqueId());
+                                        TabListManager.updateFactionMembers(factionNameForColor);
                                     } else {
                                         player.sendMessage(error("Could not change color. You must be a Leader or Owner."));
                                     }
@@ -651,7 +655,21 @@ public class FactionCommand {
                 // ----- kick -----
                 .then(Commands.literal("kick")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.kick"))
-                        .then(Commands.argument("player", ArgumentTypes.player())
+                        .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    Entity exec = ctx.getSource().getExecutor();
+                                    if (exec instanceof Player p) {
+                                        String fn = FactionManager.getPlayerFaction(p.getUniqueId());
+                                        if (fn != null) {
+                                            for (UUID mid : FactionManager.getFactionPlayers(fn)) {
+                                                if (mid.equals(p.getUniqueId())) continue;
+                                                OfflinePlayer op = Bukkit.getOfflinePlayer(mid);
+                                                if (op.getName() != null) builder.suggest(op.getName());
+                                            }
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
                                     if (!(executor instanceof Player player)) {
@@ -659,18 +677,41 @@ public class FactionCommand {
                                         return Command.SINGLE_SUCCESS;
                                     }
 
-                                    PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
-                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
+                                    String targetName = StringArgumentType.getString(ctx, "player");
+                                    String factionNameForKick = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (factionNameForKick == null) {
+                                        player.sendMessage(error("You are not in a faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
 
-                                    if (FactionManager.kickPlayer(player.getUniqueId(), target.getUniqueId())) {
-                                        String factionNameForKick = FactionManager.getPlayerFaction(player.getUniqueId());
-                                        player.sendMessage(info(target.getName() + " has been kicked from the faction."));
-                                        target.sendMessage(error("You have been kicked from the faction."));
+                                    // Resolve target UUID by name from faction member list (supports offline players)
+                                    UUID targetUUID = null;
+                                    for (UUID memberUUID : FactionManager.getFactionPlayers(factionNameForKick)) {
+                                        if (memberUUID.equals(player.getUniqueId())) continue;
+                                        OfflinePlayer op = Bukkit.getOfflinePlayer(memberUUID);
+                                        if (targetName.equalsIgnoreCase(op.getName())) {
+                                            targetUUID = memberUUID;
+                                            break;
+                                        }
+                                    }
+
+                                    if (targetUUID == null) {
+                                        player.sendMessage(error("Player '" + targetName + "' is not a member of your faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
+                                    if (FactionManager.kickPlayer(player.getUniqueId(), targetUUID)) {
+                                        player.sendMessage(info(targetName + " has been kicked from the faction."));
+                                        Player targetOnline = Bukkit.getPlayer(targetUUID);
+                                        if (targetOnline != null) {
+                                            targetOnline.sendMessage(error("You have been kicked from the faction."));
+                                            TabListManager.updatePlayer(targetOnline);
+                                        }
                                         FactionManager.broadcastToFaction(factionNameForKick,
-                                                info(target.getName() + " has been kicked from the faction."),
+                                                info(targetName + " has been kicked from the faction."),
                                                 player.getUniqueId());
                                     } else {
-                                        player.sendMessage(error("Could not kick " + target.getName() + ". You can only kick members with a lower role than yours."));
+                                        player.sendMessage(error("Could not kick " + targetName + ". You can only kick members with a lower role than yours."));
                                     }
 
                                     return Command.SINGLE_SUCCESS;
@@ -744,6 +785,7 @@ public class FactionCommand {
                                 FactionManager.broadcastToFaction(factionNameForLeave,
                                         info(player.getName() + " left the faction."),
                                         player.getUniqueId());
+                                TabListManager.updatePlayer(player);
                             } else {
                                 player.sendMessage(error("You are the Owner — use /faction disband to disband the faction instead."));
                             }

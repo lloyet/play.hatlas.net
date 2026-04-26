@@ -9,7 +9,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.configuration.file.FileConfiguration;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.util.TitleUtil;
 
@@ -180,6 +179,8 @@ public class HomeManager {
                     "Home '" + resolvedName + "' not found.", NamedTextColor.RED));
             return false;
         }
+
+        if (DeathTeleportCooldownManager.denyIfOnCooldown(player)) return false;
 
         long now = System.currentTimeMillis();
         Long expiry = cooldownExpiry.get(uuid);
