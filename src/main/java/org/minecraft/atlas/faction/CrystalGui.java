@@ -7,8 +7,8 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.minecraft.atlas.gui.CrystalDisbandHolder;
-import org.minecraft.atlas.gui.CrystalMainHolder;
+import org.minecraft.atlas.gui.CrystalDisbandGui;
+import org.minecraft.atlas.gui.CrystalMainGui;
 
 public class CrystalGui implements Listener {
 
@@ -28,11 +28,11 @@ public class CrystalGui implements Listener {
         event.setCancelled(true);
 
         Faction faction = FactionManager.getFaction(playerFaction);
-        new CrystalMainHolder(player, faction, crystal).open(player);
+        new CrystalMainGui(player, faction, crystal).open(player);
     }
 
     /** Opens the disband confirmation GUI (called from FactionCommand). */
     public static void openDisbandConfirmMenu(Player player, Faction faction) {
-        CrystalDisbandHolder.open(player, faction);
+        CrystalDisbandGui.open(player, faction);
     }
 }

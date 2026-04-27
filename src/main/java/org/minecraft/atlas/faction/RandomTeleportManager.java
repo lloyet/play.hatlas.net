@@ -16,7 +16,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
 
-public class AirTeleportManager {
+public class RandomTeleportManager {
 
     private static final Map<UUID, BukkitRunnable> activeTeleports = new HashMap<>();
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();

@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -11,6 +10,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.ActiveQuest;
@@ -24,7 +24,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class JobQuestListHolder implements AtlasHolder {
+public class JobQuestListGui implements AtlasGui {
 
     private static final int[] QUEST_ITEM_SLOTS   = {11, 15};
     private static final int   SLOT_JOKEYRINI     = 13;
@@ -33,10 +33,10 @@ public class JobQuestListHolder implements AtlasHolder {
     private final UUID playerUUID;
     private final Inventory inventory;
 
-    public JobQuestListHolder(Player player) {
+    public JobQuestListGui(Player player) {
         this.playerUUID = player.getUniqueId();
 
-        this.inventory = Bukkit.createInventory(this, 27,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 27,
                 Component.text("My Quests", NamedTextColor.YELLOW));
 
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
@@ -75,7 +75,7 @@ public class JobQuestListHolder implements AtlasHolder {
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
         if (event.getRawSlot() == SLOT_BACK) {
-            new JobMainHolder(player).open(player);
+            new JobMainGui(player).open(player);
         }
     }
 

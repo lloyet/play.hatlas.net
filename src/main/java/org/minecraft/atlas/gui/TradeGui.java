@@ -9,20 +9,20 @@ import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.trade.Trade;
 
-public class TradeHolder implements AtlasHolder {
+public class TradeGui implements AtlasGui {
 
     private final Trade trade;
     private final boolean isInitiator;
     private Inventory inv;
 
-    public TradeHolder(Trade trade, boolean isInitiator) {
-        this.trade       = trade;
+    public TradeGui(Trade trade, boolean isInitiator) {
+        this.trade = trade;
         this.isInitiator = isInitiator;
     }
 
     public void setInventory(Inventory inv) { this.inv = inv; }
 
-    public Trade getTrade()      { return trade; }
+    public Trade getTrade() { return trade; }
     public boolean isInitiator() { return isInitiator; }
 
     @Override

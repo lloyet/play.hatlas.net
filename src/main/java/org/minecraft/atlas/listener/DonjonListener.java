@@ -33,7 +33,7 @@ import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.gui.DonjonListHolder;
+import org.minecraft.atlas.gui.DonjonListGui;
 import org.minecraft.atlas.util.TitleUtil;
 
 public class DonjonListener implements Listener {
@@ -93,7 +93,7 @@ public class DonjonListener implements Listener {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (!SmugglerManager.isSmugglerNpc(event.getRightClicked())) return;
         event.setCancelled(true);
-        new DonjonListHolder(event.getPlayer()).open(event.getPlayer());
+        new DonjonListGui(event.getPlayer()).open(event.getPlayer());
     }
 
     @EventHandler(ignoreCancelled = true)

@@ -23,7 +23,7 @@ import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
-import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.RandomTeleportManager;
 import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
@@ -102,7 +102,7 @@ public final class Atlas extends JavaPlugin {
         AtlasCrystalManager.loadConfig(factionsConfig);
         SpawnProtectionListener.loadConfig(configFile);
         SpawnManager.loadConfig(configFile);
-        AirTeleportManager.loadConfig(configFile);
+        RandomTeleportManager.loadConfig(configFile);
         SpawnTeleportManager.loadConfig(configFile);
         HomeManager.loadConfig(configFile);
         HomeTeleportManager.loadConfig(factionsConfig);

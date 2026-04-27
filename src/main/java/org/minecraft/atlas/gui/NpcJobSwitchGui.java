@@ -25,14 +25,14 @@ import java.util.UUID;
  * {@code switching=true}  → player already has a different job; warn about reset.
  * {@code switching=false} → player has no job yet; just confirms initial selection.
  */
-public class NpcJobSwitchHolder implements AtlasHolder {
+public class NpcJobSwitchGui implements AtlasGui {
 
     private final UUID    playerUUID;
     private final Job     npcJob;
     private final boolean switching;
     private final Inventory inventory;
 
-    public NpcJobSwitchHolder(Player player, Job npcJob, boolean switching) {
+    public NpcJobSwitchGui(Player player, Job npcJob, boolean switching) {
         this.playerUUID = player.getUniqueId();
         this.npcJob     = npcJob;
         this.switching  = switching;
@@ -84,7 +84,7 @@ public class NpcJobSwitchHolder implements AtlasHolder {
                 player.sendMessage(Component.text("You joined ", NamedTextColor.GREEN)
                         .append(Component.text(npcJob.getDisplayName(), npcJob.getColor()))
                         .append(Component.text("!", NamedTextColor.GREEN)));
-                new JobMainHolder(player).open(player);
+                new JobMainGui(player).open(player);
             }
 
         } else if (GuiUtil.CONFIRM_RED.contains(slot)) {

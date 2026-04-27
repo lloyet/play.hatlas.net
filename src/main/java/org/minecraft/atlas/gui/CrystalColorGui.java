@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -12,6 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.GuiUtil;
@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalColorHolder implements AtlasHolder {
+public class CrystalColorGui implements AtlasGui {
 
     private static final NamedTextColor[] ALL_COLORS = {
         NamedTextColor.WHITE,        NamedTextColor.GRAY,       NamedTextColor.DARK_GRAY,  NamedTextColor.BLACK,
@@ -33,11 +33,11 @@ public class CrystalColorHolder implements AtlasHolder {
     private final UUID crystalEntityUUID;
     private final Inventory inventory;
 
-    public CrystalColorHolder(Player player, Faction faction, UUID crystalEntityUUID) {
+    public CrystalColorGui(Player player, Faction faction, UUID crystalEntityUUID) {
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
-        this.inventory = Bukkit.createInventory(this, 27,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 27,
                 Component.text(faction.getName() + " - Color", NamedTextColor.GOLD));
 
         for (int i = 0; i < ALL_COLORS.length; i++) {

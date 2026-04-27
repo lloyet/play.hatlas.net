@@ -21,13 +21,13 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalChestListHolder implements AtlasHolder {
+public class CrystalChestListGui implements AtlasGui {
 
     private final String factionName;
     private final UUID crystalEntityUUID;
     private final Inventory inventory;
 
-    public CrystalChestListHolder(Player player, Faction faction, UUID crystalEntityUUID) {
+    public CrystalChestListGui(Player player, Faction faction, UUID crystalEntityUUID) {
         this.factionName = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
@@ -73,7 +73,7 @@ public class CrystalChestListHolder implements AtlasHolder {
         if (chestIndex < 0) return;
 
         player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
-        CrystalChestViewHolder.open(player, faction, chestIndex, crystalEntityUUID);
+        CrystalChestViewGui.open(player, faction, chestIndex, crystalEntityUUID);
     }
 
     // ── Item builder ──────────────────────────────────────────────────────────

@@ -1,7 +1,6 @@
 package org.minecraft.atlas.gui;
 
 import net.kyori.adventure.text.Component;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -9,6 +8,7 @@ import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -19,10 +19,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-public class CrystalChestViewHolder implements AtlasHolder {
+public class CrystalChestViewGui implements AtlasGui {
 
     /** Key "factionName:chestIndex" → shared holder instance. */
-    private static final Map<String, CrystalChestViewHolder> openChests = new HashMap<>();
+    private static final Map<String, CrystalChestViewGui> openChests = new HashMap<>();
 
     private final String factionName;
     private final UUID crystalEntityUUID;
@@ -30,13 +30,13 @@ public class CrystalChestViewHolder implements AtlasHolder {
     private final Set<UUID> viewers = new HashSet<>();
     private final Inventory inventory;
 
-    private CrystalChestViewHolder(Faction faction, int chestIndex, UUID crystalEntityUUID) {
+    private CrystalChestViewGui(Faction faction, int chestIndex, UUID crystalEntityUUID) {
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
         this.chestIndex        = chestIndex;
 
         int size = FactionLevelManager.getChestSize(chestIndex);
-        this.inventory = Bukkit.createInventory(this, size,
+        this.inventory = Atlas.instance.getServer().createInventory(this, size,
                 Component.text(faction.getName() + " - Chest #" + (chestIndex + 1), faction.getColor()));
         ItemStack[] stored = faction.getChestContents(chestIndex);
         // Truncate stored contents if the chest was previously larger (e.g. config change)
@@ -49,8 +49,8 @@ public class CrystalChestViewHolder implements AtlasHolder {
      */
     public static void open(Player player, Faction faction, int chestIndex, UUID crystalEntityUUID) {
         String key = faction.getName() + ":" + chestIndex;
-        CrystalChestViewHolder holder = openChests.computeIfAbsent(key,
-                k -> new CrystalChestViewHolder(faction, chestIndex, crystalEntityUUID));
+        CrystalChestViewGui holder = openChests.computeIfAbsent(key,
+                k -> new CrystalChestViewGui(faction, chestIndex, crystalEntityUUID));
         holder.viewers.add(player.getUniqueId());
         player.openInventory(holder.inventory);
     }

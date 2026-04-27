@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -12,6 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
@@ -24,7 +24,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalListHolder implements AtlasHolder {
+public class CrystalListGui implements AtlasGui {
 
     private static final int SLOT_BACK = 49;
 
@@ -33,11 +33,11 @@ public class CrystalListHolder implements AtlasHolder {
     private final List<UUID> crystalUUIDs = new ArrayList<>();
     private final Inventory inventory;
 
-    public CrystalListHolder(Player player, Faction faction, UUID mainCrystalUUID) {
+    public CrystalListGui(Player player, Faction faction, UUID mainCrystalUUID) {
         this.factionName     = faction.getName();
         this.mainCrystalUUID = mainCrystalUUID;
 
-        this.inventory = Bukkit.createInventory(this, 54,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 54,
                 Component.text(faction.getName() + " - Crystals", faction.getColor()));
 
         Collection<AtlasCrystal> crystals = AtlasCrystalManager.getFactionCrystals(factionName);
@@ -77,7 +77,7 @@ public class CrystalListHolder implements AtlasHolder {
             Faction faction  = FactionManager.getFaction(fn);
             AtlasCrystal crystal = AtlasCrystalManager.getCrystal(mainCrystalUUID);
             if (crystal == null) { player.closeInventory(); return; }
-            new CrystalMainHolder(player, faction, crystal).open(player);
+            new CrystalMainGui(player, faction, crystal).open(player);
             return;
         }
 

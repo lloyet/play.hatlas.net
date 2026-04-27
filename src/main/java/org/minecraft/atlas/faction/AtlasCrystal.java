@@ -157,9 +157,9 @@ public class AtlasCrystal {
         Component line2 = Component.text("LvL.", NamedTextColor.GRAY)
                 .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW));
 
-        // Line 3: "HP/MaxHP ♥" + optional [IMMUNE]
+        // Line 3: "HP/MaxHP ♥" + optional [IMMUNE Xm Ys]
         Component immuneTag = isImmune()
-                ? Component.text(" [IMMUNE]", NamedTextColor.AQUA)
+                ? Component.text(" [IMMUNE " + formatImmunityRemaining() + "]", NamedTextColor.AQUA)
                 : Component.empty();
         Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
                 .append(immuneTag);
@@ -167,6 +167,11 @@ public class AtlasCrystal {
         return line1.append(Component.newline())
                 .append(line2).append(Component.newline())
                 .append(line3);
+    }
+
+    private String formatImmunityRemaining() {
+        long secs = Math.max(0, immuneUntilMillis - System.currentTimeMillis()) / 1000L;
+        return secs >= 60 ? (secs / 60) + "m " + (secs % 60) + "s" : secs + "s";
     }
 
     /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */

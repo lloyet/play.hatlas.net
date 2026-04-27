@@ -11,7 +11,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.gui.TradeHolder;
+import org.minecraft.atlas.gui.TradeGui;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -77,8 +77,8 @@ public class Trade {
         this.savedTargetLevel    = target.getLevel();
         this.savedTargetExp      = target.getExp();
 
-        TradeHolder initiatorHolder = new TradeHolder(this, true);
-        TradeHolder targetHolder    = new TradeHolder(this, false);
+        TradeGui initiatorHolder = new TradeGui(this, true);
+        TradeGui targetHolder    = new TradeGui(this, false);
 
         this.initiatorInv = Bukkit.createInventory(initiatorHolder, 54,
                 Component.text("Trade with " + target.getName()));

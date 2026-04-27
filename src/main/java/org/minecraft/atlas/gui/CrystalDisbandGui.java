@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -12,21 +11,22 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.List;
 
-public class CrystalDisbandHolder implements AtlasHolder {
+public class CrystalDisbandGui implements AtlasGui {
 
     private final String factionName;
     private final Inventory inventory;
 
-    public CrystalDisbandHolder(Faction faction) {
+    public CrystalDisbandGui(Faction faction) {
         this.factionName = faction.getName();
 
-        this.inventory = Bukkit.createInventory(this, 27,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 27,
                 Component.text(faction.getName() + " - Confirm Disband?", NamedTextColor.RED));
 
         ItemStack green = GuiUtil.labeledPane(Material.GREEN_STAINED_GLASS_PANE,
@@ -54,7 +54,7 @@ public class CrystalDisbandHolder implements AtlasHolder {
 
     /** Factory method for backward compatibility with FactionCommand. */
     public static void open(Player player, Faction faction) {
-        CrystalDisbandHolder holder = new CrystalDisbandHolder(faction);
+        CrystalDisbandGui holder = new CrystalDisbandGui(faction);
         player.openInventory(holder.inventory);
     }
 

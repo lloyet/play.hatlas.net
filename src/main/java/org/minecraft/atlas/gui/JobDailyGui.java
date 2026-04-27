@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -11,6 +10,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.GeneratedTask;
@@ -22,7 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class JobDailyHolder implements AtlasHolder {
+public class JobDailyGui implements AtlasGui {
 
     private static final int[] DAILY_ITEM_SLOTS = {10, 13, 16};
     private static final int   SLOT_BACK        = 26;
@@ -30,9 +30,9 @@ public class JobDailyHolder implements AtlasHolder {
     private final UUID playerUUID;
     private final Inventory inventory;
 
-    public JobDailyHolder(Player player) {
+    public JobDailyGui(Player player) {
         this.playerUUID = player.getUniqueId();
-        this.inventory  = Bukkit.createInventory(this, 27, Component.text("Daily Quests", NamedTextColor.GOLD));
+        this.inventory  = Atlas.instance.getServer().createInventory(this, 27, Component.text("Daily Quests", NamedTextColor.GOLD));
 
         List<QuestTemplate> offered = JobManager.getDailyOfferedQuests(player.getUniqueId());
         boolean locked = JobManager.isDailyLocked(player.getUniqueId());
@@ -71,7 +71,7 @@ public class JobDailyHolder implements AtlasHolder {
         int slot = event.getRawSlot();
 
         if (slot == SLOT_BACK) {
-            new JobMainHolder(player).open(player);
+            new JobMainGui(player).open(player);
             return;
         }
 
@@ -92,7 +92,7 @@ public class JobDailyHolder implements AtlasHolder {
                                 NamedTextColor.YELLOW))
                 );
             }
-            new JobDailyHolder(player).open(player);
+            new JobDailyGui(player).open(player);
             return;
         }
     }

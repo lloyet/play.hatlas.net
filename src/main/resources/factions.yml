@@ -58,7 +58,7 @@ crystal:
   regen_per_second: 1.5
   # Base immunity in seconds granted after the first crystal defeat.
   # Subsequent defeats within the escalation window multiply this by immunity_multiplier.
-  immunity_base_seconds: 18000
+  immunity_base_seconds: 1800
   # Escalation multiplier applied each time the crystal is defeated within the active window.
   # Also the value the multiplier resets to when the window expires.
   immunity_multiplier: 2

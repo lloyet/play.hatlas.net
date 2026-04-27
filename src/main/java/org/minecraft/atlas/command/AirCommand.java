@@ -8,7 +8,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.RandomTeleportManager;
 
 public class AirCommand {
 
@@ -22,7 +22,7 @@ public class AirCommand {
                                 Component.text("Only players can use this command.", NamedTextColor.RED));
                         return Command.SINGLE_SUCCESS;
                     }
-                    AirTeleportManager.startTeleport(player);
+                    RandomTeleportManager.startTeleport(player);
                     return Command.SINGLE_SUCCESS;
                 })
                 .build();

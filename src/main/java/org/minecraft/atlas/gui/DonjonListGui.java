@@ -22,12 +22,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class DonjonListHolder implements AtlasHolder {
+public class DonjonListGui implements AtlasGui {
 
     private final Inventory inventory;
     private final List<String> donjonIds = new ArrayList<>();
 
-    public DonjonListHolder(Player player) {
+    public DonjonListGui(Player player) {
         List<Donjon> donjons = new ArrayList<>(DonjonManager.getDonjons().values());
         int size = donjons.isEmpty() ? 9 : Math.min(54, (int) Math.ceil(donjons.size() / 9.0) * 9);
 

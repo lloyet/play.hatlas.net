@@ -2,7 +2,6 @@ package org.minecraft.atlas.listener;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Location;
@@ -34,14 +33,13 @@ import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.util.TitleUtil;
-import org.minecraft.atlas.listener.SpawnProtectionListener;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.faction.AirTeleportManager;
+import org.minecraft.atlas.faction.RandomTeleportManager;
 import org.minecraft.atlas.faction.HomeManager;
 import org.minecraft.atlas.faction.HomeTeleportManager;
 import org.minecraft.atlas.faction.SpawnTeleportManager;
@@ -112,7 +110,7 @@ public class FactionListener implements Listener {
         if (HomeTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
-        if (AirTeleportManager.cancelTeleport(player.getUniqueId())) {
+        if (RandomTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
         if (SpawnTeleportManager.cancelTeleport(player.getUniqueId())) {
@@ -154,6 +152,7 @@ public class FactionListener implements Listener {
     public void onBlockPlace(BlockPlaceEvent event) {
         Player player = event.getPlayer();
         if (isAllowedInChunk(player, event.getBlock().getChunk())) return;
+        if (event.getBlock().getType() == Material.TNT) return;
         event.setCancelled(true);
         player.sendActionBar(Component.text("⚔ Enemy territory — can't place!", NamedTextColor.RED));
     }
@@ -167,6 +166,11 @@ public class FactionListener implements Listener {
         if (block == null) return;
         Player player = event.getPlayer();
         if (isAllowedInChunk(player, block.getChunk())) return;
+        // Allow offensive siege items: creeper spawn egg, and flint & steel / fire charge on TNT
+        ItemStack item = event.getItem();
+        if (item != null && item.getType() == Material.CREEPER_SPAWN_EGG) return;
+        if (block.getType() == Material.TNT && item != null
+                && (item.getType() == Material.FLINT_AND_STEEL || item.getType() == Material.FIRE_CHARGE)) return;
         event.setCancelled(true);
         if (action == Action.RIGHT_CLICK_BLOCK) {
             player.sendActionBar(Component.text("⚔ Enemy territory — can't interact!", NamedTextColor.RED));
@@ -209,10 +213,11 @@ public class FactionListener implements Listener {
         String crystalFaction = atlasCrystal.getFactionName();
         if (crystalFaction.equals(attackerFaction)) return;
 
-        // Immune crystal: show message and bail
+        // Immune crystal: show title + subtitle with remaining time, then bail
         if (atlasCrystal.isImmune()) {
-            attacker.sendActionBar(Component.text("This crystal is immune to damage!", NamedTextColor.AQUA)
-                    .decorate(TextDecoration.BOLD));
+            long secs = Math.max(0, atlasCrystal.getImmuneUntilMillis() - System.currentTimeMillis()) / 1000L;
+            String timeStr = secs >= 60 ? (secs / 60) + "m " + (secs % 60) + "s" : secs + "s";
+            TitleUtil.notify(attacker, "Crystal Immune!\nEnds in " + timeStr, NamedTextColor.AQUA);
             return;
         }
 

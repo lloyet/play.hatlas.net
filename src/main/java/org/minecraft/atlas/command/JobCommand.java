@@ -16,9 +16,8 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.persistence.PersistentDataType;
-import org.minecraft.atlas.gui.JobQuestListHolder;
+import org.minecraft.atlas.gui.JobQuestListGui;
 import org.minecraft.atlas.job.Job;
-import org.minecraft.atlas.job.JobGui;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
@@ -169,7 +168,7 @@ public class JobCommand {
                                 player.sendMessage(error("You don't have a job yet."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            new JobQuestListHolder(player).open(player);
+                            new JobQuestListGui(player).open(player);
                             return Command.SINGLE_SUCCESS;
                         }))
 

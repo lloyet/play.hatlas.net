@@ -11,16 +11,19 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
@@ -34,7 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalMainHolder implements AtlasHolder {
+public class CrystalMainGui implements InventoryHolder {
 
     private static final int SLOT_CRYSTAL_LIST = 11;
     private static final int SLOT_FACTION_INFO = 13;
@@ -48,12 +51,12 @@ public class CrystalMainHolder implements AtlasHolder {
     private final UUID crystalEntityUUID;
     private final Inventory inventory;
 
-    public CrystalMainHolder(Player player, Faction faction, AtlasCrystal crystal) {
+    public CrystalMainGui(Player player, Faction faction, AtlasCrystal crystal) {
         this.playerUUID        = player.getUniqueId();
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystal.getEntity().getUniqueId();
 
-        this.inventory = Bukkit.createInventory(this, 54,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 54,
                 Component.text("Faction - " + faction.getName(), faction.getColor()));
         this.inventory.setItem(SLOT_CRYSTAL_LIST, buildCrystalListButton(faction));
         this.inventory.setItem(SLOT_FACTION_INFO, buildFactionInfoItem(faction, crystal));
@@ -71,8 +74,8 @@ public class CrystalMainHolder implements AtlasHolder {
     @Override
     public @NotNull Inventory getInventory() { return inventory; }
 
-    @Override
-    public void handleClick(InventoryClickEvent event) {
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onInventoryClick(InventoryClickEvent event) {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
@@ -98,7 +101,7 @@ public class CrystalMainHolder implements AtlasHolder {
 
         if (slot == SLOT_CRYSTAL_LIST) {
             player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
-            new CrystalListHolder(player, faction, crystalEntityUUID).open(player);
+            new CrystalListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
@@ -111,13 +114,13 @@ public class CrystalMainHolder implements AtlasHolder {
                 return;
             }
             player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
-            new CrystalChestListHolder(player, faction, crystalEntityUUID).open(player);
+            new CrystalChestListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_COLOR_INFO) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            new CrystalColorHolder(player, faction, crystalEntityUUID).open(player);
+            new CrystalColorGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
@@ -129,12 +132,12 @@ public class CrystalMainHolder implements AtlasHolder {
                 return;
             }
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            new CrystalUpgradeHolder(player, faction, crystalEntityUUID).open(player);
+            new CrystalUpgradeGui(player, faction, crystalEntityUUID).open(player);
         }
 
         if (slot == SLOT_QUESTS_BTN) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            new JobMainHolder(player).open(player);
+            new JobMainGui(player).open(player);
         }
     }
 

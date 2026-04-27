@@ -25,9 +25,9 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
-import org.minecraft.atlas.gui.JobMainHolder;
-import org.minecraft.atlas.gui.JokeyriniQuestHolder;
-import org.minecraft.atlas.gui.NpcJobSwitchHolder;
+import org.minecraft.atlas.gui.JobMainGui;
+import org.minecraft.atlas.gui.JokeyriniQuestGui;
+import org.minecraft.atlas.gui.NpcJobSwitchGui;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
@@ -81,7 +81,7 @@ public class JobListener implements Listener {
                     .get(JokeyriniManager.getKeyNpc(), PersistentDataType.STRING);
             if ("JOKEYRINI".equals(tag)) {
                 event.setCancelled(true);
-                new JokeyriniQuestHolder(player).open(player);
+                new JokeyriniQuestGui(player).open(player);
             }
             return;
         }
@@ -110,16 +110,16 @@ public class JobListener implements Listener {
                         .append(Component.text(".", NamedTextColor.GRAY)));
                 return;
             }
-            new NpcJobSwitchHolder(player, npcJob, false).open(player);
+            new NpcJobSwitchGui(player, npcJob, false).open(player);
             return;
         }
 
         if (data.getJob() == npcJob) {
-            new JobMainHolder(player).open(player);
+            new JobMainGui(player).open(player);
             return;
         }
 
-        new NpcJobSwitchHolder(player, npcJob, true).open(player);
+        new NpcJobSwitchGui(player, npcJob, true).open(player);
     }
 
     // ── NPC damage protection ─────────────────────────────────────────────────

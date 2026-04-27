@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -12,6 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.job.ActiveQuest;
 import org.minecraft.atlas.job.GeneratedTask;
 import org.minecraft.atlas.job.JobManager;
@@ -22,16 +22,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class JokeyriniQuestHolder implements AtlasHolder {
+public class JokeyriniQuestGui implements AtlasGui {
 
     private static final int SLOT_QUEST = 13;
 
     private final UUID playerUUID;
     private final Inventory inventory;
 
-    public JokeyriniQuestHolder(Player player) {
+    public JokeyriniQuestGui(Player player) {
         this.playerUUID = player.getUniqueId();
-        this.inventory  = Bukkit.createInventory(this, 27,
+        this.inventory  = Atlas.instance.getServer().createInventory(this, 27,
                 Component.text("✦ Jokeyrini's Challenge", NamedTextColor.DARK_PURPLE));
 
         int jobLevel = 1;
@@ -80,7 +80,7 @@ public class JokeyriniQuestHolder implements AtlasHolder {
         if (JokeyriniManager.acceptDailyOffer(player.getUniqueId(), jobLevel)) {
             player.playSound(player.getLocation(), Sound.ENTITY_VILLAGER_TRADE, 1.0f, 1.2f);
             player.sendMessage(Component.text("You accepted Jokeyrini's challenge!", NamedTextColor.LIGHT_PURPLE));
-            new JokeyriniQuestHolder(player).open(player);
+            new JokeyriniQuestGui(player).open(player);
         }
     }
 

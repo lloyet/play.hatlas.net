@@ -3,7 +3,6 @@ package org.minecraft.atlas.gui;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
@@ -12,6 +11,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.AtlasCrystal;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
@@ -25,19 +25,19 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
-public class CrystalUpgradeHolder implements AtlasHolder {
+public class CrystalUpgradeGui implements AtlasGui {
 
     private final String factionName;
     private final UUID crystalEntityUUID;
     private final Inventory inventory;
 
-    public CrystalUpgradeHolder(Player player, Faction faction, UUID crystalEntityUUID) {
+    public CrystalUpgradeGui(Player player, Faction faction, UUID crystalEntityUUID) {
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
         AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
 
-        this.inventory = Bukkit.createInventory(this, 54,
+        this.inventory = Atlas.instance.getServer().createInventory(this, 54,
                 Component.text(faction.getName() + " - Upgrades", NamedTextColor.GOLD));
 
         if (crystal != null) {
@@ -100,7 +100,7 @@ public class CrystalUpgradeHolder implements AtlasHolder {
         }
 
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-        new CrystalUpgradeConfirmHolder(player, faction, crystalEntityUUID, upgradeLevel).open(player);
+        new CrystalUpgradeConfirmGui(player, faction, crystalEntityUUID, upgradeLevel).open(player);
     }
 
     // ── Item builders ─────────────────────────────────────────────────────────
