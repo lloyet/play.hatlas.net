@@ -10,7 +10,7 @@ import org.jspecify.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
-import org.minecraft.atlas.command.AirCommand;
+import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SetSpawnCommand;
 import org.minecraft.atlas.command.SpawnCommand;
@@ -164,7 +164,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
                         event.registrar().register(TagCommand.build());
-                        event.registrar().register(AirCommand.build());
+                        event.registrar().register(RandomTeleportCommand.build());
                         event.registrar().register(SpawnCommand.build());
                         event.registrar().register(SetSpawnCommand.build());
                         event.registrar().register(TpaCommand.build());

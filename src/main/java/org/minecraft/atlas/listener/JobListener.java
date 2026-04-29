@@ -8,6 +8,7 @@ import org.bukkit.block.data.Ageable;
 import org.bukkit.block.data.type.CaveVines;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.Projectile;
 import org.bukkit.entity.Villager;
 import org.bukkit.entity.WanderingTrader;
 import org.bukkit.event.EventHandler;
@@ -25,6 +26,8 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
+
+import java.util.UUID;
 import org.minecraft.atlas.gui.JobMainGui;
 import org.minecraft.atlas.gui.JokeyriniQuestGui;
 import org.minecraft.atlas.gui.NpcJobSwitchGui;
@@ -34,10 +37,15 @@ import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
 import org.minecraft.atlas.util.GuiUtil;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public class JobListener implements Listener {
+
+    /** Last player who damaged each entity — used as a fallback when getKiller() is null (e.g. reflected projectiles). */
+    private final Map<UUID, UUID> lastPlayerDamager = new HashMap<>();
 
     private static final Set<Material> MINER_BLOCKS = Set.of(
         Material.STONE, Material.COBBLESTONE, Material.DEEPSLATE, Material.COBBLED_DEEPSLATE,
@@ -47,7 +55,8 @@ public class JobListener implements Listener {
         Material.DEEPSLATE_COAL_ORE, Material.DEEPSLATE_IRON_ORE, Material.DEEPSLATE_COPPER_ORE,
         Material.DEEPSLATE_GOLD_ORE, Material.DEEPSLATE_REDSTONE_ORE, Material.DEEPSLATE_LAPIS_ORE,
         Material.DEEPSLATE_DIAMOND_ORE, Material.DEEPSLATE_EMERALD_ORE,
-        Material.GRANITE, Material.DIORITE, Material.ANDESITE, Material.TUFF, Material.CALCITE
+        Material.GRANITE, Material.DIORITE, Material.ANDESITE, Material.TUFF, Material.CALCITE,
+        Material.GLOWSTONE
     );
 
     private static final Set<Material> LUMBERJACK_LOGS = Set.of(
@@ -65,7 +74,7 @@ public class JobListener implements Listener {
 
     // Plants harvested by breaking — fire "break_block" action type
     private static final Set<Material> FARMER_BREAK_CROPS = Set.of(
-            Material.SUGAR_CANE
+            Material.SUGAR_CANE, Material.KELP, Material.KELP_PLANT
     );
 
     // ── NPC right-click ───────────────────────────────────────────────────────
@@ -122,6 +131,22 @@ public class JobListener implements Listener {
         new NpcJobSwitchGui(player, npcJob, true).open(player);
     }
 
+    // ── Last-player-damager tracking (handles reflected projectiles) ──────────
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityDamaged(EntityDamageByEntityEvent event) {
+        if (!(event.getEntity() instanceof LivingEntity)) return;
+        Player player = null;
+        if (event.getDamager() instanceof Player p) {
+            player = p;
+        } else if (event.getDamager() instanceof Projectile proj && proj.getShooter() instanceof Player p) {
+            player = p;
+        }
+        if (player != null) {
+            lastPlayerDamager.put(event.getEntity().getUniqueId(), player.getUniqueId());
+        }
+    }
+
     // ── NPC damage protection ─────────────────────────────────────────────────
 
     @EventHandler(ignoreCancelled = true)
@@ -166,8 +191,18 @@ public class JobListener implements Listener {
     @EventHandler
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
+        UUID entityUUID = entity.getUniqueId();
+
         Player killer = entity.getKiller();
-        if (killer == null) return;
+        if (killer == null) {
+            // Fallback: handle kills from reflected projectiles where getKiller() returns null
+            UUID lastDamagerUUID = lastPlayerDamager.remove(entityUUID);
+            if (lastDamagerUUID == null) return;
+            killer = org.bukkit.Bukkit.getPlayer(lastDamagerUUID);
+            if (killer == null) return;
+        } else {
+            lastPlayerDamager.remove(entityUUID);
+        }
 
         String entityType = entity.getType().name().toLowerCase();
         PlayerJobData data = JobManager.getJobData(killer.getUniqueId());

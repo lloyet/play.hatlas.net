@@ -10,7 +10,7 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.minecraft.atlas.faction.RandomTeleportManager;
 
-public class AirCommand {
+public class RandomTeleportCommand {
 
     public static LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("rtp")

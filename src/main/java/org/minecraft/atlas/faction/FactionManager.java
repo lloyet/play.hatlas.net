@@ -391,7 +391,6 @@ public class FactionManager {
                 if (FactionLevelManager.isUpgrade(newLevel)) {
                     reached.add(newLevel);
                     faction.addPendingUpgrade(newLevel);
-                    FactionClaimManager.expandClaims(factionName);
                 }
             } else {
                 break;
@@ -431,6 +430,7 @@ public class FactionManager {
 
         double upgradeHp = FactionLevelManager.getUpgradeHp(upgradeLevel);
         crystal.addUpgrade(upgradeLevel, upgradeHp);
+        FactionClaimManager.expandClaims(factionName);
         AtlasCrystalManager.persistCrystalState(crystal);
         crystal.updateNametag();
 

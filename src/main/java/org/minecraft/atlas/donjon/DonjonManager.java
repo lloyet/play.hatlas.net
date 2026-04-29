@@ -163,6 +163,17 @@ public class DonjonManager {
         config.set("donjon.last_activation_time", lastActivationTime);
         config.set("donjon.instances", null);
 
+        // Persist which players have visited which donjons (needed for Smuggler NPC teleport)
+        config.set("visited_donjons", null);
+        if (!playerVisitedDonjons.isEmpty()) {
+            ConfigurationSection visitedSection = config.createSection("visited_donjons");
+            for (Map.Entry<UUID, Set<String>> entry : playerVisitedDonjons.entrySet()) {
+                if (!entry.getValue().isEmpty()) {
+                    visitedSection.set(entry.getKey().toString(), new ArrayList<>(entry.getValue()));
+                }
+            }
+        }
+
         if (donjons.isEmpty()) return;
 
         ConfigurationSection instances = config.createSection("donjon.instances");
@@ -215,6 +226,20 @@ public class DonjonManager {
 
     public static void loadDonjons(FileConfiguration config) {
         donjons.clear();
+        playerVisitedDonjons.clear();
+
+        ConfigurationSection visitedSection = config.getConfigurationSection("visited_donjons");
+        if (visitedSection != null) {
+            for (String uuidStr : visitedSection.getKeys(false)) {
+                try {
+                    UUID uuid = UUID.fromString(uuidStr);
+                    List<String> ids = visitedSection.getStringList(uuidStr);
+                    if (!ids.isEmpty()) {
+                        playerVisitedDonjons.put(uuid, new HashSet<>(ids));
+                    }
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
 
         ConfigurationSection instances = config.getConfigurationSection("donjon.instances");
         if (instances == null) return;
@@ -342,7 +367,7 @@ public class DonjonManager {
         World world = donjon.getCenter().getWorld();
         Set<UUID> inside = new HashSet<>();
 
-        for (Player p : Bukkit.getOnlinePlayers()) {
+        for (Player p : Atlas.instance.getServer().getOnlinePlayers()) {
             if (p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon)) {
                 inside.add(p.getUniqueId());
             }
@@ -632,7 +657,7 @@ public class DonjonManager {
             } else {
                 alertDonjonPlayers(donjon,
                         "✔ Wave " + wave.getWaveNumber() + " cleared! Next wave in 5 s...", NamedTextColor.GREEN);
-                Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
+                Atlas.instance.getServer().getScheduler().runTaskLater(Atlas.instance, () -> {
                     if (donjon.isInProgress()) startWave(donjon, next);
                 }, 100L);
             }

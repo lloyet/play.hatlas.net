@@ -166,8 +166,9 @@ public class FactionListener implements Listener {
         if (block == null) return;
         Player player = event.getPlayer();
         if (isAllowedInChunk(player, block.getChunk())) return;
-        // Allow offensive siege items: creeper spawn egg, and flint & steel / fire charge on TNT
+        // Allow offensive siege items: TNT placement, creeper spawn egg, flint & steel / fire charge on TNT
         ItemStack item = event.getItem();
+        if (item != null && item.getType() == Material.TNT) return;
         if (item != null && item.getType() == Material.CREEPER_SPAWN_EGG) return;
         if (block.getType() == Material.TNT && item != null
                 && (item.getType() == Material.FLINT_AND_STEEL || item.getType() == Material.FIRE_CHARGE)) return;

@@ -37,7 +37,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalMainGui implements InventoryHolder {
+public class CrystalMainGui implements AtlasGui {
 
     private static final int SLOT_CRYSTAL_LIST = 11;
     private static final int SLOT_FACTION_INFO = 13;
@@ -74,8 +74,8 @@ public class CrystalMainGui implements InventoryHolder {
     @Override
     public @NotNull Inventory getInventory() { return inventory; }
 
-    @EventHandler(priority = EventPriority.NORMAL)
-    public void onInventoryClick(InventoryClickEvent event) {
+    @Override
+    public void handleClick(InventoryClickEvent event) {
         event.setCancelled(true);
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
