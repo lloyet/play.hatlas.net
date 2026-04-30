@@ -1,0 +1,52 @@
+name: Claude PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    paths:
+      - 'src/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+  issue_comment:
+    types: [created]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    # For issue_comment trigger, only run on PR comments containing @claude
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request != null && contains(github.event.comment.body, '@claude'))
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Review PR with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          prompt: |
+            Review the changed Java files in this PR for a PaperMC 1.21.11 Minecraft plugin.
+
+            Focus on:
+            - Logic errors, null safety, boundary conditions
+            - PaperMC-specific pitfalls: sync/async thread violations, entity lifecycle, scheduler misuse, event cancellation order
+            - Alignment with existing patterns in src/main/java/org/minecraft/atlas/
+            - Correctness of any command, listener, or manager changes
+
+            Use the java-bug-verifier agent for any fix-related changes.
+            Post your findings as a concise PR comment with PASS/WARN/FAIL per file changed.
+          claude_args: |
+            {
+              "model": "claude-haiku-4-5-20251001",
+              "allowedTools": ["Read", "Grep", "Glob", "Bash(./gradlew compileJava -q)"]
+            }
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
