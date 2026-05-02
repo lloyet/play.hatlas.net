@@ -9,7 +9,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.FactionClaimManager;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.HomeManager;
 
 public class HomeCommand {
@@ -32,6 +35,16 @@ public class HomeCommand {
                                 player.sendMessage(Component.text(
                                         "You already have a home set. Delete it first or use the same name to update it.",
                                         NamedTextColor.RED));
+                                return Command.SINGLE_SUCCESS;
+                            }
+
+                            // Block /sethome inside another faction's territory
+                            Location loc = player.getLocation();
+                            String claimOwner = FactionClaimManager.getClaimingFaction(
+                                    loc.getWorld().getName(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+                            if (claimOwner != null && !claimOwner.equals(FactionManager.getPlayerFaction(player.getUniqueId()))) {
+                                player.sendMessage(Component.text(
+                                        "You cannot set a home in another faction's territory!", NamedTextColor.RED));
                                 return Command.SINGLE_SUCCESS;
                             }
 

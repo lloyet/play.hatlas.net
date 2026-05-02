@@ -92,6 +92,8 @@ public class DonjonManager {
     public static NamespacedKey keyOminousRarity;
     /** Marker placed on every admin-created donjon key to distinguish it from vanilla items. */
     public static NamespacedKey keyDonjonMarker;
+    /** Stores the original config mob-type string on each wave-tracked entity (for respawn on non-player death). */
+    public static NamespacedKey keyMobType;
 
     // -------------------------------------------------------------------------
     // Config loading
@@ -105,6 +107,7 @@ public class DonjonManager {
         keyOminousLevel  = new NamespacedKey(Atlas.instance, "donjon_ominous_level");
         keyOminousRarity = new NamespacedKey(Atlas.instance, "donjon_ominous_rarity");
         keyDonjonMarker  = new NamespacedKey(Atlas.instance, "donjon_key_marker");
+        keyMobType       = new NamespacedKey(Atlas.instance, "donjon_mob_type");
 
         activationIntervalMs = config.getLong("activation_interval_hours", 6) * 3_600_000L;
         idleTimeoutMs        = config.getLong("idle_timeout_hours", 24)        * 3_600_000L;
@@ -896,11 +899,6 @@ public class DonjonManager {
             if (rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
                 dropWorld.dropItemNaturally(dropLoc, new ItemStack(Material.WITHER_SKELETON_SKULL, scaledAmount));
             }
-
-            // Drop raider pickaxe if level >= 50 and EPIC or above
-            if (level >= 50 && rarity.ordinal() >= DonjonRarity.EPIC.ordinal()) {
-                dropWorld.dropItemNaturally(dropLoc, RaiderPickaxe.create());
-            }
         }
 
         setIdle(donjon, null);
@@ -991,11 +989,110 @@ public class DonjonManager {
 
         String donjonId = donjon.getId();
         tagEntity(child, donjonId, waveIndex, false);
+        child.getPersistentDataContainer().set(keyMobType, PersistentDataType.STRING, child.getType().name());
         child.customName(Component.text(prettyMobName(child.getType().name()), NamedTextColor.YELLOW));
         child.setCustomNameVisible(true);
 
         wave.addSpawnedEntity(child.getUniqueId());
         entityToDonjonId.put(child.getUniqueId(), donjonId);
+    }
+
+    /**
+     * Called when a wave mob dies from a non-player cause (fall, drowning, self-explosion, etc.).
+     * Removes the dead entity from tracking and schedules a replacement spawn so the wave
+     * does not advance — only player kills count towards wave completion.
+     */
+    public static void replaceWaveMob(LivingEntity deadEntity) {
+        UUID uuid = deadEntity.getUniqueId();
+        String donjonId = entityToDonjonId.remove(uuid);
+        if (donjonId == null) return;
+
+        Donjon donjon = donjons.get(donjonId);
+        if (donjon == null || !donjon.isInProgress()) return;
+
+        DonjonWave wave = donjon.getCurrentWave();
+        if (wave == null) return;
+
+        wave.removeSpawnedEntity(uuid);
+
+        // Clean up any vehicle (e.g. chicken in a chicken jockey)
+        Entity vehicle = deadEntity.getVehicle();
+        if (vehicle != null) {
+            donjon.getAuxiliaryEntities().remove(vehicle.getUniqueId());
+            entityToDonjonId.remove(vehicle.getUniqueId());
+            vehicle.remove();
+        }
+
+        String mobType = deadEntity.getPersistentDataContainer().get(keyMobType, PersistentDataType.STRING);
+        if (mobType == null) mobType = deadEntity.getType().name();
+
+        DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
+        if (cfg == null) return;
+
+        double lf = donjon.getLevel() / 99.0;
+        double hpMult  = cfg.baseHpMultiplier() + lf * (cfg.maxHpMultiplier() - cfg.baseHpMultiplier());
+        double atkMult = cfg.baseAttackMultiplier() + lf * (cfg.maxAttackMultiplier() - cfg.baseAttackMultiplier());
+        if (wave.isBossWave()) {
+            hpMult  *= cfg.bossHpMultiplier();
+            atkMult *= cfg.bossAttackMultiplier();
+        }
+
+        final String finalMobType  = mobType;
+        final double finalHpMult   = hpMult;
+        final double finalAtkMult  = atkMult;
+        final boolean isBoss       = wave.isBossWave();
+        final double speedMult     = isBoss ? cfg.bossSpeedMultiplier() : 1.0;
+        final int waveIndex        = donjon.getCurrentWaveIndex();
+
+        Atlas.instance.getServer().getScheduler().runTaskLater(Atlas.instance, () -> {
+            if (!donjon.isInProgress()) return;
+            if (donjon.getCurrentWave() != wave) return;
+            Location spawnLoc = randomSpawnLocation(donjon);
+            List<UUID> newUuids = spawnMobEntity(finalMobType, spawnLoc, finalHpMult, finalAtkMult,
+                    isBoss, speedMult, donjonId, waveIndex);
+            for (UUID newUuid : newUuids) {
+                wave.addSpawnedEntity(newUuid);
+                entityToDonjonId.put(newUuid, donjonId);
+            }
+        }, 2L);
+    }
+
+    /**
+     * Called when a tracked wave mob transforms into another entity (e.g. zombie → drowned).
+     * Swaps the old entity's tracking entries for the new entity and copies all donjon PDC tags.
+     */
+    public static void transferWaveTracking(LivingEntity oldEntity, LivingEntity newEntity) {
+        UUID oldUuid = oldEntity.getUniqueId();
+        String donjonId = entityToDonjonId.remove(oldUuid);
+        if (donjonId == null) return;
+
+        Donjon donjon = donjons.get(donjonId);
+        DonjonWave wave = donjon != null ? donjon.getCurrentWave() : null;
+        if (wave != null) {
+            wave.removeSpawnedEntity(oldUuid);
+            wave.addSpawnedEntity(newEntity.getUniqueId());
+        }
+
+        entityToDonjonId.put(newEntity.getUniqueId(), donjonId);
+
+        // Copy donjon PDC tags to the new entity
+        int waveIndex = oldEntity.getPersistentDataContainer()
+                .getOrDefault(keyDonjonWave, PersistentDataType.INTEGER, 0);
+        boolean isBoss = oldEntity.getPersistentDataContainer().has(keyIsBoss, PersistentDataType.BYTE);
+        tagEntity(newEntity, donjonId, waveIndex, isBoss);
+
+        String mobType = oldEntity.getPersistentDataContainer().get(keyMobType, PersistentDataType.STRING);
+        if (mobType != null) {
+            newEntity.getPersistentDataContainer().set(keyMobType, PersistentDataType.STRING, mobType);
+        }
+
+        // Update the custom name to reflect the new entity type
+        if (isBoss) {
+            newEntity.customName(buildBossNametag(newEntity, newEntity.getType().name()));
+        } else {
+            newEntity.customName(Component.text(prettyMobName(newEntity.getType().name()), NamedTextColor.YELLOW));
+        }
+        newEntity.setCustomNameVisible(true);
     }
 
     // -------------------------------------------------------------------------
@@ -1110,6 +1207,7 @@ public class DonjonManager {
 
         applyMultipliers(entity, hpMult, atkMult, speedMult);
         tagEntity(entity, donjonId, waveIndex, isBoss);
+        entity.getPersistentDataContainer().set(keyMobType, PersistentDataType.STRING, mobTypeName.toUpperCase());
         if (isBoss) {
             entity.customName(buildBossNametag(entity, mobTypeName));
         } else {
@@ -1167,6 +1265,7 @@ public class DonjonManager {
 
         applyMultipliers(baby, hpMult, atkMult, speedMult);
         tagEntity(baby, donjonId, waveIndex, isBoss);
+        baby.getPersistentDataContainer().set(keyMobType, PersistentDataType.STRING, "CHICKEN_JOCKEY");
         baby.customName(Component.text(prettyMobName("CHICKEN_JOCKEY"),
                 isBoss ? NamedTextColor.DARK_RED : NamedTextColor.YELLOW));
         baby.setCustomNameVisible(true);
@@ -1379,6 +1478,12 @@ public class DonjonManager {
         }
 
         return null;
+    }
+
+    /** Returns the number of seconds until the next scheduled donjon activation (0 if overdue). */
+    public static long getSecondsUntilNextActivation() {
+        long remaining = (lastActivationTime + activationIntervalMs) - System.currentTimeMillis();
+        return Math.max(0, remaining) / 1000L;
     }
 
     // -------------------------------------------------------------------------

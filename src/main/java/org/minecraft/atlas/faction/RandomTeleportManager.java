@@ -35,6 +35,13 @@ public class RandomTeleportManager {
         UUID uuid = player.getUniqueId();
         long now = System.currentTimeMillis();
 
+        World.Environment env = player.getWorld().getEnvironment();
+        if (env == World.Environment.NETHER || env == World.Environment.THE_END) {
+            player.sendMessage(Component.text(
+                    "/rtp is only available in the Overworld.", NamedTextColor.RED));
+            return false;
+        }
+
         Long expiry = cooldownExpiry.get(uuid);
         if (!player.isOp() && expiry != null && now < expiry) {
             long secsLeft = (expiry - now + 999) / 1000;

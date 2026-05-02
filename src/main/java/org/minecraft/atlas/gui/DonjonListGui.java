@@ -19,28 +19,41 @@ import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class DonjonListGui implements AtlasGui {
 
+    /** Center of row 1 — shows the next activation timer. */
+    private static final int TIMER_SLOT = 4;
+    /** Donjon items start on row 3. */
+    private static final int DONJON_START_SLOT = 18;
+
     private final Inventory inventory;
-    private final List<String> donjonIds = new ArrayList<>();
+    /** Maps inventory slot → donjon ID for click handling. */
+    private final Map<Integer, String> slotToDonjonId = new HashMap<>();
 
     public DonjonListGui(Player player) {
-        List<Donjon> donjons = new ArrayList<>(DonjonManager.getDonjons().values());
-        int size = donjons.isEmpty() ? 9 : Math.min(54, (int) Math.ceil(donjons.size() / 9.0) * 9);
-
-        this.inventory = Bukkit.createInventory(this, size,
+        this.inventory = Bukkit.createInventory(this, 54,
                 Component.text("⚓ Smuggler's Chart", NamedTextColor.AQUA));
 
         UUID playerUUID = player.getUniqueId();
-        for (int i = 0; i < donjons.size() && i < size; i++) {
-            Donjon donjon = donjons.get(i);
-            donjonIds.add(donjon.getId());
+        List<Donjon> donjons = new ArrayList<>(DonjonManager.getDonjons().values());
+
+        // Donjon items fill rows 3–6 (slots 18–53)
+        int currentSlot = DONJON_START_SLOT;
+        for (Donjon donjon : donjons) {
+            if (currentSlot >= 54) break;
             boolean visited = DonjonManager.hasPlayerVisitedDonjon(playerUUID, donjon.getId());
-            this.inventory.setItem(i, buildDonjonItem(donjon, visited));
+            this.inventory.setItem(currentSlot, buildDonjonItem(donjon, visited));
+            slotToDonjonId.put(currentSlot, donjon.getId());
+            currentSlot++;
         }
+
+        // Timer item on row 1 (center)
+        this.inventory.setItem(TIMER_SLOT, buildTimerItem());
 
         GuiUtil.fillGray(this.inventory);
     }
@@ -60,9 +73,9 @@ public class DonjonListGui implements AtlasGui {
         if (!(event.getWhoClicked() instanceof Player player)) return;
 
         int slot = event.getRawSlot();
-        if (slot < 0 || slot >= donjonIds.size()) return;
+        String donjonId = slotToDonjonId.get(slot);
+        if (donjonId == null) return;
 
-        String donjonId = donjonIds.get(slot);
         Donjon donjon = DonjonManager.getDonjon(donjonId);
         if (donjon == null) return;
 
@@ -92,6 +105,8 @@ public class DonjonListGui implements AtlasGui {
                 .append(Component.text(donjon.getName(), donjon.getRarity().getColor()))
                 .append(Component.text("!", NamedTextColor.AQUA)));
     }
+
+    // ── Item builders ─────────────────────────────────────────────────────────
 
     private static ItemStack buildDonjonItem(Donjon donjon, boolean visited) {
         boolean active = donjon.getStatus() == DonjonStatus.ACTIVE;
@@ -124,5 +139,38 @@ public class DonjonListGui implements AtlasGui {
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
+    }
+
+    private static ItemStack buildTimerItem() {
+        long secs = DonjonManager.getSecondsUntilNextActivation();
+        String timeStr = formatSeconds(secs);
+
+        ItemStack item = new ItemStack(Material.TRIAL_KEY);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("⏱ Next Activation", NamedTextColor.AQUA)
+                .decoration(TextDecoration.ITALIC, false)
+                .decoration(TextDecoration.BOLD, true));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        if (secs == 0) {
+            lore.add(Component.text("  ⚡ A donjon will activate soon!", NamedTextColor.GREEN)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(GuiUtil.loreLine("  Time remaining", timeStr, NamedTextColor.YELLOW));
+        }
+        lore.add(Component.empty());
+        lore.add(Component.text("  Donjons auto-activate periodically.", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static String formatSeconds(long secs) {
+        if (secs >= 3600) return (secs / 3600) + "h " + ((secs % 3600) / 60) + "m";
+        if (secs >= 60)   return (secs / 60) + "m " + (secs % 60) + "s";
+        return secs + "s";
     }
 }

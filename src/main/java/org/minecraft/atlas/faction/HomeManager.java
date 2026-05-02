@@ -29,11 +29,12 @@ public class HomeManager {
     private static final Map<UUID, BukkitRunnable> activeTeleports = new HashMap<>();
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
-    private static final int COUNTDOWN_SECONDS = 5;
+    private static int countdownSeconds = 10;
     private static long cooldownMs = 300_000L;
 
     public static void loadConfig(FileConfiguration config) {
         cooldownMs = config.getLong("home_teleport.cooldown_seconds", 300L) * 1000L;
+        countdownSeconds = config.getInt("home_teleport.delay_seconds", 10);
     }
 
     // -------------------------------------------------------------------------
@@ -206,7 +207,7 @@ public class HomeManager {
         String displayName = resolvedName;
 
         BukkitRunnable task = new BukkitRunnable() {
-            int remaining = COUNTDOWN_SECONDS;
+            int remaining = countdownSeconds;
 
             @Override
             public void run() {

@@ -11,6 +11,7 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class RaiderPickaxe {
@@ -21,27 +22,39 @@ public class RaiderPickaxe {
         keyRaiderPickaxe = new NamespacedKey(Atlas.instance, "raider_pickaxe");
     }
 
-    /**
-     * Creates the raider's pickaxe with ~5% of wooden pickaxe durability remaining.
-     */
+    /** Creates the raider's pickaxe with a default of 10 block uses (for admin /give). */
     public static ItemStack create() {
+        return create(10);
+    }
+
+    /**
+     * Creates the raider's pickaxe that can break exactly {@code blockUses} blocks.
+     * The durability is set so precisely that many blocks can be mined before the tool breaks.
+     */
+    public static ItemStack create(int blockUses) {
+        int uses = Math.max(1, blockUses);
         ItemStack item = new ItemStack(Material.DIAMOND_PICKAXE);
         ItemMeta meta = item.getItemMeta();
 
         meta.displayName(Component.text("⚔ Raider's Pickaxe", NamedTextColor.DARK_RED)
                 .decoration(TextDecoration.ITALIC, false));
-        meta.lore(List.of(
-                Component.text("Allows breaking blocks in enemy claims.", NamedTextColor.GRAY)
-                        .decoration(TextDecoration.ITALIC, false),
-                Component.text("Very fragile — use wisely!", NamedTextColor.DARK_GRAY)
-                        .decoration(TextDecoration.ITALIC, false)
-        ));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.text("Raider I", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.empty());
+        lore.add(Component.text("  Allows breaking blocks in enemy claims.", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("  ⚠ " + uses + " block" + (uses == 1 ? "" : "s") + " remaining.", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
+
+        meta.setEnchantmentGlintOverride(true);
         meta.getPersistentDataContainer().set(keyRaiderPickaxe, PersistentDataType.BYTE, (byte) 1);
 
-        // 5% of wooden pickaxe durability (59 × 0.05 ≈ 3 uses remaining)
-        int remainingUses = Math.max(1, (int) Math.ceil(Material.WOODEN_PICKAXE.getMaxDurability() * 0.05));
+        int maxDurability = Material.DIAMOND_PICKAXE.getMaxDurability();
         if (meta instanceof Damageable damageable) {
-            damageable.setDamage(Material.DIAMOND_PICKAXE.getMaxDurability() - remainingUses);
+            damageable.setDamage(Math.max(0, maxDurability - uses));
         }
 
         item.setItemMeta(meta);

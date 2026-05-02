@@ -18,6 +18,8 @@ import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.DonjonRarity;
 import org.minecraft.atlas.donjon.DonjonStatus;
+import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.donjon.SmugglerManager;
 
 import java.util.Map;
@@ -89,7 +91,7 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("wavespawn add", "<id>", "Add current location as wave spawn point"))
                                     .append(Component.newline()).append(helpEntry("wavespawn list", "<id>", "List all wave spawn points with IDs"))
                                     .append(Component.newline()).append(helpEntry("wavespawn delete", "<id> <spawnid>", "Delete a wave spawn point by ID"))
-                                    .append(Component.newline()).append(helpEntry("give", "<player> key|ominouskey [difficulty] [rarity]", "Give a donjon key to a player"))
+                                    .append(Component.newline()).append(helpEntry("give", "<player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe [...]", "Give a donjon item to a player"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
@@ -647,13 +649,60 @@ public class DonjonCommand {
                                                     return Command.SINGLE_SUCCESS;
                                                 })))))
 
-                // /donjon give <player> key
-                // /donjon give <player> ominouskey [difficulty [rarity]]
+                // /donjon give <player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe
                 .then(Commands.literal("give")
-                        .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey [difficulty] [rarity]"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe [difficulty] [rarity]"))
                         .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests(ONLINE_PLAYERS)
-                                .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey [difficulty] [rarity]"))
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe [difficulty] [rarity]"))
+                                .then(Commands.literal("creeper_egg")
+                                        .executes(ctx -> {
+                                            String playerName = StringArgumentType.getString(ctx, "player");
+                                            Player target = Bukkit.getPlayerExact(playerName);
+                                            if (target == null) {
+                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            target.getInventory().addItem(ElectricalCreeperManager.createCreeperEgg(1));
+                                            ctx.getSource().getSender().sendMessage(Component.text(
+                                                    "Gave creeper_egg to " + target.getName() + ".", NamedTextColor.GREEN));
+                                            target.sendMessage(Component.text(
+                                                    "You received a Creeper Spawn Egg.", NamedTextColor.GOLD));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))
+                                .then(Commands.literal("powered_creeper_egg")
+                                        .executes(ctx -> {
+                                            String playerName = StringArgumentType.getString(ctx, "player");
+                                            Player target = Bukkit.getPlayerExact(playerName);
+                                            if (target == null) {
+                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            target.getInventory().addItem(ElectricalCreeperManager.createElectricalCreeperEgg());
+                                            ctx.getSource().getSender().sendMessage(Component.text(
+                                                    "Gave powered_creeper_egg to " + target.getName() + ".", NamedTextColor.GREEN));
+                                            target.sendMessage(Component.text(
+                                                    "You received a ⚡ Powered Creeper Egg.", NamedTextColor.GOLD));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))
+                                .then(Commands.literal("raider_diamond_pickaxe")
+                                        .executes(ctx -> {
+                                            String playerName = StringArgumentType.getString(ctx, "player");
+                                            Player target = Bukkit.getPlayerExact(playerName);
+                                            if (target == null) {
+                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            target.getInventory().addItem(RaiderPickaxe.create());
+                                            ctx.getSource().getSender().sendMessage(Component.text(
+                                                    "Gave raider_diamond_pickaxe to " + target.getName() + ".", NamedTextColor.GREEN));
+                                            target.sendMessage(Component.text(
+                                                    "You received a ⚔ Raider's Pickaxe.", NamedTextColor.GOLD));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))
                                 .then(Commands.literal("key")
                                         .executes(ctx -> {
                                             return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),

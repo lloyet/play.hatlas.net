@@ -17,7 +17,9 @@ import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.entity.EntityTransformEvent;
 import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -287,11 +289,53 @@ public class DonjonListener implements Listener {
         LivingEntity living = event.getEntity();
         if (!DonjonManager.isDonjonEntity(living)) return;
 
-        // Clear vanilla drops for donjon mobs
+        // Always suppress vanilla drops and exp for donjon mobs
         event.getDrops().clear();
         event.setDroppedExp(0);
 
+        // Environmental kills (fall, drowning, self-explosion, etc.) don't count — respawn the mob.
+        // Player kills and mob-on-mob kills (different entity) count towards wave completion.
+        if (!shouldCountKill(living)) {
+            DonjonManager.replaceWaveMob(living);
+            return;
+        }
+
         DonjonManager.onEntityDeath(living);
+    }
+
+    /**
+     * Returns true if this death should count as a wave kill.
+     * Player kills always count. Kills by a *different* entity (mob-on-mob) also count.
+     * Self-inflicted damage and purely environmental causes (fall, drowning, fire, etc.) do not.
+     */
+    private static boolean shouldCountKill(LivingEntity entity) {
+        if (entity.getKiller() != null) return true; // direct player kill
+        EntityDamageEvent last = entity.getLastDamageCause();
+        if (!(last instanceof EntityDamageByEntityEvent ede)) return false;
+        Entity damager = ede.getDamager();
+        // For projectiles, the shooter is the actual attacker
+        if (damager instanceof Projectile proj) {
+            Object shooter = proj.getShooter();
+            if (shooter instanceof Entity shooterEntity) {
+                return !shooterEntity.getUniqueId().equals(entity.getUniqueId());
+            }
+            return false;
+        }
+        return !damager.getUniqueId().equals(entity.getUniqueId());
+    }
+
+    // -------------------------------------------------------------------------
+    // Zombie → Drowned conversion — keep the new entity tracked in the wave
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onZombieConvert(EntityTransformEvent event) {
+        if (event.getTransformReason() != EntityTransformEvent.TransformReason.DROWNED) return;
+        if (!(event.getEntity() instanceof LivingEntity zombie)) return;
+        if (!DonjonManager.isDonjonEntity(zombie)) return;
+        if (!(event.getTransformedEntity() instanceof LivingEntity drowned)) return;
+
+        DonjonManager.transferWaveTracking(zombie, drowned);
     }
 
     // -------------------------------------------------------------------------
