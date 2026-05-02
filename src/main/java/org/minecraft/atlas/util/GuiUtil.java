@@ -219,4 +219,12 @@ public final class GuiUtil {
         item.setItemMeta(meta);
         return item;
     }
+
+    /**
+     * Returns the faction name truncated to fit in GUI titles.
+     * Names longer than 18 characters are cut to 15 and suffixed with "..."
+     */
+    public static String truncateFactionName(String name) {
+        return name.length() > 18 ? name.substring(0, 15) + "..." : name;
+    }
 }

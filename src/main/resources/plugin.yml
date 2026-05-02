@@ -6,6 +6,9 @@ api-version: '1.21.11'
 load: POSTWORLD
 
 permissions:
+  atlas.quest:
+    description: Access to /quest
+    default: true
   atlas.job:
     description: Access to /job
     default: true
@@ -66,6 +69,9 @@ permissions:
   atlas.faction.home:
     description: Teleport to the faction home
     default: true
+  atlas.faction.sethome:
+    description: Set the home location for a faction crystal (leader/owner only)
+    default: true
   atlas.faction.upgrade:
     description: Apply upgrade bonuses to Atlas Crystals (owner/leader)
     default: true
@@ -116,4 +122,10 @@ permissions:
     default: true
   atlas.faction.outpost:
     description: Create a faction outpost (leader/owner only)
+    default: true
+  atlas.faction.claim:
+    description: Claim the chunk you are standing in
+    default: true
+  atlas.faction.unclaim:
+    description: Unclaim a chunk (owner/leader only)
     default: true

@@ -1,11 +1,6 @@
-# Faction data — persisted automatically on server shutdown. Do not edit manually.
-factions: {}
-claims: {}
-crystal_homes: {}
-
 # Faction home command settings for /faction home
 faction_home:
-  cooldown_seconds: 300
+  cooldown_seconds: 30
 
 # Faction upgrade configuration.
 # When a faction reaches an upgrade level, an Owner or Leader can run
@@ -15,42 +10,53 @@ upgrades:
     bonus_hp: 20
     bonus_chest: 1
     bonus_chest_size: 27
+    bonus_claims: 2
   - level: 3
     bonus_hp: 30
     bonus_chest: 0
+    bonus_claims: 2
   - level: 5
     bonus_hp: 40
     bonus_chest: 0
+    bonus_claims: 4
   - level: 9
     bonus_hp: 60
     bonus_chest: 1
     bonus_chest_size: 27
+    bonus_claims: 4
   - level: 15
     bonus_hp: 70
     bonus_chest: 1
     bonus_chest_size: 27
+    bonus_claims: 4
   - level: 21
     bonus_hp: 80
     bonus_chest: 1
-    bonus_chest_size: 54
+    bonus_chest_size: 27
+    bonus_claims: 6
   - level: 42
     bonus_hp: 120
     bonus_chest: 0
+    bonus_claims: 6
   - level: 58
     bonus_hp: 160
     bonus_chest: 1
     bonus_chest_size: 54
+    bonus_claims: 10
   - level: 64
     bonus_hp: 200
     bonus_chest: 0
+    bonus_claims: 10
   - level: 81
     bonus_hp: 250
     bonus_chest: 1
     bonus_chest_size: 54
-  - level: 100
+    bonus_claims: 12
+  - level: 99
     bonus_hp: 400
     bonus_chest: 1
     bonus_chest_size: 54
+    bonus_claims: 16
 
 # Atlas Crystal settings
 crystal:
@@ -58,7 +64,7 @@ crystal:
   regen_per_second: 1.5
   # Base immunity in seconds granted after the first crystal defeat.
   # Subsequent defeats within the escalation window multiply this by immunity_multiplier.
-  immunity_base_seconds: 1800
+  immunity_base_seconds: 180
   # Escalation multiplier applied each time the crystal is defeated within the active window.
   # Also the value the multiplier resets to when the window expires.
   immunity_multiplier: 2

@@ -36,7 +36,7 @@ public class CrystalUpgradeConfirmGui implements AtlasGui {
         this.upgradeLevel      = upgradeLevel;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(faction.getName() + " - Confirm Upgrade?", NamedTextColor.GOLD));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Confirm Upgrade?", NamedTextColor.GOLD));
 
         ItemStack green = GuiUtil.labeledPane(Material.GREEN_STAINED_GLASS_PANE,
                 Component.text("✔ Confirm", NamedTextColor.GREEN));

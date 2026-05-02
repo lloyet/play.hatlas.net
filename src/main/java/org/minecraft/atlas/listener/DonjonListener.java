@@ -15,8 +15,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockExplodeEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
+import org.bukkit.event.player.PlayerBucketEmptyEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
@@ -26,9 +28,11 @@ import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.block.Action;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.donjon.DonjonRarity;
 import org.minecraft.atlas.donjon.DonjonStatus;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
@@ -66,6 +70,74 @@ public class DonjonListener implements Listener {
 
         event.setCancelled(true);
         TitleUtil.subtitle(event.getPlayer(), "You cannot place blocks in a donjon!", NamedTextColor.RED);
+    }
+
+    /** Prevents non-admin players from emptying buckets (water, lava, etc.) inside donjon chunks. */
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onBucketEmpty(PlayerBucketEmptyEvent event) {
+        if (event.getPlayer().hasPermission("atlas.donjon.admin")) return;
+        Block block = event.getBlock();
+        long key = Chunk.getChunkKey(block.getX() >> 4, block.getZ() >> 4);
+        if (DonjonManager.getDonjonAtChunk(block.getWorld(), key) == null) return;
+        event.setCancelled(true);
+        event.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text("You cannot use buckets inside a donjon!", NamedTextColor.RED));
+    }
+
+    // Interactive block materials that players must not use inside donjon chunks.
+    // Tags cover buttons, doors, trapdoors, fence gates, pressure plates and shulker boxes.
+    // The extra set covers containers, mechanisms and utility blocks not in any tag.
+    private static final java.util.Set<Material> INTERACTIVE_MATERIALS = java.util.Set.of(
+        Material.CHEST, Material.TRAPPED_CHEST, Material.BARREL, Material.ENDER_CHEST,
+        Material.HOPPER, Material.DROPPER, Material.DISPENSER,
+        Material.CRAFTING_TABLE, Material.ANVIL, Material.CHIPPED_ANVIL, Material.DAMAGED_ANVIL,
+        Material.ENCHANTING_TABLE, Material.BREWING_STAND, Material.BEACON,
+        Material.GRINDSTONE, Material.LOOM, Material.CARTOGRAPHY_TABLE,
+        Material.FLETCHING_TABLE, Material.SMITHING_TABLE, Material.STONECUTTER,
+        Material.LEVER, Material.NOTE_BLOCK, Material.JUKEBOX, Material.BELL,
+        Material.DAYLIGHT_DETECTOR, Material.COMPOSTER, Material.LECTERN,
+        Material.CHISELED_BOOKSHELF, Material.BEEHIVE, Material.BEE_NEST,
+        Material.CAULDRON, Material.WATER_CAULDRON, Material.LAVA_CAULDRON,
+        Material.POWDER_SNOW_CAULDRON, Material.CAKE, Material.REPEATER,
+        Material.COMPARATOR, Material.TARGET, Material.RESPAWN_ANCHOR,
+        Material.VAULT, Material.TRIAL_SPAWNER, Material.CAMPFIRE, Material.SOUL_CAMPFIRE
+    );
+
+    private static boolean isInteractiveBlock(Block block) {
+        Material m = block.getType();
+        return INTERACTIVE_MATERIALS.contains(m)
+                || org.bukkit.Tag.BUTTONS.isTagged(m)
+                || org.bukkit.Tag.DOORS.isTagged(m)
+                || org.bukkit.Tag.TRAPDOORS.isTagged(m)
+                || org.bukkit.Tag.FENCE_GATES.isTagged(m)
+                || org.bukkit.Tag.PRESSURE_PLATES.isTagged(m)
+                || org.bukkit.Tag.SHULKER_BOXES.isTagged(m);
+    }
+
+    /**
+     * Prevents non-admin players from right-clicking interactive blocks inside donjon chunks.
+     * Item use in air (eating, drawing bows, throwing potions) is intentionally allowed.
+     * Runs at NORMAL priority so the HIGH vault handler still fires for vault blocks.
+     */
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onInteractInsideDonjon(PlayerInteractEvent event) {
+        if (event.getPlayer().hasPermission("atlas.donjon.admin")) return;
+        if (event.getHand() != EquipmentSlot.HAND) return;
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        if (event.getClickedBlock() == null) return;
+
+        Block clicked = event.getClickedBlock();
+
+        // Allow vault block — the HIGH vault handler manages it
+        if (DonjonManager.getDonjonAtVault(clicked.getLocation()) != null) return;
+
+        // Only restrict interactive blocks (containers, mechanisms, doors, etc.)
+        if (!isInteractiveBlock(clicked)) return;
+
+        long key = Chunk.getChunkKey(clicked.getX() >> 4, clicked.getZ() >> 4);
+        if (DonjonManager.getDonjonAtChunk(clicked.getWorld(), key) == null) return;
+
+        event.setCancelled(true);
+        event.getPlayer().sendActionBar(net.kyori.adventure.text.Component.text("You cannot interact with this inside a donjon.", NamedTextColor.RED));
     }
 
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
@@ -112,14 +184,11 @@ public class DonjonListener implements Listener {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (event.getClickedBlock() == null) return;
-        if (event.getClickedBlock().getType() != Material.VAULT) return;
 
         org.bukkit.block.Block clicked = event.getClickedBlock();
-        long chunkKey = Chunk.getChunkKey(clicked.getX() >> 4, clicked.getZ() >> 4);
-        Donjon donjon = DonjonManager.getDonjonAtChunk(clicked.getWorld(), chunkKey);
+        Donjon donjon = DonjonManager.getDonjonAtVault(clicked.getLocation());
         if (donjon == null) return;
 
-        // Always cancel to prevent vanilla vault behavior
         event.setCancelled(true);
 
         Player player = event.getPlayer();
@@ -135,34 +204,78 @@ public class DonjonListener implements Listener {
             return;
         }
 
+        // Doctor requirements — donjon must be fully configured before it can be started
+        if (donjon.getSpawnPointsById().isEmpty()) {
+            TitleUtil.notify(player, "Donjon not ready: no wave spawn points defined!", NamedTextColor.RED);
+            return;
+        }
+        if (donjon.getTeleportSpawn() == null) {
+            TitleUtil.notify(player, "Donjon not ready: no teleport spawn defined!", NamedTextColor.RED);
+            return;
+        }
+
         ItemStack heldItem = player.getInventory().getItemInMainHand();
         Material itemType = heldItem.getType();
-        boolean isEnchanted = !heldItem.getEnchantments().isEmpty();
+        ItemMeta heldMeta = heldItem.getItemMeta();
+        boolean isDonjonKey = heldMeta != null
+                && heldMeta.getPersistentDataContainer().has(DonjonManager.keyDonjonMarker, PersistentDataType.BYTE);
 
         if (donjon.getStatus() != DonjonStatus.ACTIVE) {
-            // IDLE donjon — only an enchanted Ominous Trial Key can force-activate it
-            if (!itemType.equals(Material.OMINOUS_TRIAL_KEY) || !isEnchanted) {
+            // IDLE donjon — only an Ominous Donjon Key (marker + correct material) can force-activate it
+            if (!itemType.equals(Material.OMINOUS_TRIAL_KEY) || !isDonjonKey) {
                 TitleUtil.notify(player,
-                        "This donjon is not active. Use an enchanted Ominous Trial Key to force-activate it.",
+                        "This donjon is not active. Use an Ominous Donjon Key to force-activate it.",
                         NamedTextColor.RED);
                 return;
             }
             player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
-            DonjonManager.forceActivateDonjon(donjon);
+
+            // Read pre-rolled level/rarity from the key's PDC (set when the key was created)
+            int storedLevel = -1;
+            DonjonRarity storedRarity = null;
+            var pdc = heldMeta.getPersistentDataContainer();
+            if (pdc.has(DonjonManager.keyOminousLevel, PersistentDataType.INTEGER))
+                storedLevel = pdc.get(DonjonManager.keyOminousLevel, PersistentDataType.INTEGER);
+            if (pdc.has(DonjonManager.keyOminousRarity, PersistentDataType.STRING)) {
+                try { storedRarity = DonjonRarity.valueOf(pdc.get(DonjonManager.keyOminousRarity, PersistentDataType.STRING)); }
+                catch (IllegalArgumentException ignored) {}
+            }
+            if (storedLevel >= 0 && storedRarity != null) {
+                DonjonManager.activateDonjonWithParams(donjon, storedLevel, storedRarity);
+            } else {
+                DonjonManager.forceActivateDonjon(donjon);
+            }
             DonjonManager.startDonjon(donjon, player, factionName);
         } else {
-            // ACTIVE donjon — enchanted Trial Key or enchanted Ominous Trial Key
+            // ACTIVE donjon — any Donjon Key (trial or ominous) with the PDC marker
             boolean isTrial  = itemType.equals(Material.TRIAL_KEY);
             boolean isOminous = itemType.equals(Material.OMINOUS_TRIAL_KEY);
-            if ((!isTrial && !isOminous) || !isEnchanted) {
+            if ((!isTrial && !isOminous) || !isDonjonKey) {
                 TitleUtil.notify(player,
-                        "You need an enchanted Trial Key or enchanted Ominous Trial Key to start this donjon.",
+                        "You need a Donjon Trial Key or Ominous Donjon Key to start this donjon.",
                         NamedTextColor.RED);
                 return;
             }
             player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
             DonjonManager.startDonjon(donjon, player, factionName);
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Slime / MagmaCube split — register children in current wave
+    // -------------------------------------------------------------------------
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onSlimeSplitSpawn(CreatureSpawnEvent event) {
+        if (event.getSpawnReason() != CreatureSpawnEvent.SpawnReason.SLIME_SPLIT) return;
+        if (!(event.getEntity() instanceof LivingEntity child)) return;
+
+        Location loc = child.getLocation();
+        long chunkKey = Chunk.getChunkKey(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+        Donjon donjon = DonjonManager.getDonjonAtChunk(loc.getWorld(), chunkKey);
+        if (donjon == null || !donjon.isInProgress()) return;
+
+        DonjonManager.registerSplitChild(child, donjon, donjon.getCurrentWaveIndex());
     }
 
     // -------------------------------------------------------------------------
@@ -260,10 +373,17 @@ public class DonjonListener implements Listener {
             boolean isIn = donjon.getProtectedChunkKeys().contains(toKey);
 
             if (!wasIn && isIn) {
-                TitleUtil.alert(player,
-                        donjon.getName() + " LvL." + donjon.getLevel()
-                                + " [" + donjon.getRarity().getDisplayName() + "]",
-                        donjon.getRarity().getColor());
+                if (donjon.getStatus() == DonjonStatus.IDLE && !donjon.isInProgress()) {
+                    // IDLE: show donjon name + "Idle"
+                    TitleUtil.alert(player,
+                            donjon.getName() + "\nIdle",
+                            NamedTextColor.WHITE);
+                } else {
+                    TitleUtil.alert(player,
+                            donjon.getName() + " LvL." + donjon.getLevel()
+                                    + " [" + donjon.getRarity().getDisplayName() + "]",
+                            donjon.getRarity().getColor());
+                }
                 player.playSound(player.getLocation(), Sound.BLOCK_TRIAL_SPAWNER_AMBIENT_OMINOUS, SoundCategory.BLOCKS, 0.6f, 1.0f);
                 DonjonManager.recordPlayerVisit(player.getUniqueId(), donjon.getId());
             }

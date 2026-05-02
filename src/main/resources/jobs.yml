@@ -819,8 +819,3 @@ jokeyrini:
         - DIAMOND_ORE
         - DEEPSLATE_DIAMOND_ORE
       item_rewards: []
-
-# Runtime data — persisted automatically on server shutdown. Do not edit manually.
-job_cooldowns: {}
-jobs: {}
-jokeyrini_player_data: {}

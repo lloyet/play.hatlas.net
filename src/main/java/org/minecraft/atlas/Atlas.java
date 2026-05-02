@@ -45,6 +45,8 @@ import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
+import org.minecraft.atlas.quest.QuestCommand;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
 import org.minecraft.atlas.util.AfkManager;
@@ -67,8 +69,17 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsConfig;
     public static File jobsFile;
 
-    public static YamlConfiguration tagsConfig;
-    public static File tagsFile;
+    public static YamlConfiguration tagsDataConfig;
+    public static File tagsDataFile;
+
+    public static YamlConfiguration factionsDataConfig;
+    public static File factionsDataFile;
+
+    public static YamlConfiguration donjonsDataConfig;
+    public static File donjonsDataFile;
+
+    public static YamlConfiguration jobsDataConfig;
+    public static File jobsDataFile;
 
     @Override
     public void onEnable() {
@@ -93,10 +104,19 @@ public final class Atlas extends JavaPlugin {
         if (!jobsFile.exists()) saveResource("jobs.yml", false);
         jobsConfig = YamlConfiguration.loadConfiguration(jobsFile);
 
-        // tags.yml — in-world text display tags
-        tagsFile = new File(getDataFolder(), "tags.yml");
-        if (!tagsFile.exists()) saveResource("tags.yml", false);
-        tagsConfig = YamlConfiguration.loadConfiguration(tagsFile);
+        // tags-data.yml — in-world text display tags (runtime-only, not in resources)
+        tagsDataFile = new File(getDataFolder(), "tags-data.yml");
+        tagsDataConfig = YamlConfiguration.loadConfiguration(tagsDataFile);
+
+        // Data files (runtime-only, not shipped in resources)
+        factionsDataFile = new File(getDataFolder(), "factions-data.yml");
+        factionsDataConfig = YamlConfiguration.loadConfiguration(factionsDataFile);
+
+        donjonsDataFile = new File(getDataFolder(), "donjons-data.yml");
+        donjonsDataConfig = YamlConfiguration.loadConfiguration(donjonsDataFile);
+
+        jobsDataFile = new File(getDataFolder(), "jobs-data.yml");
+        jobsDataConfig = YamlConfiguration.loadConfiguration(jobsDataFile);
 
         // Load from config.yml
         AtlasCrystalManager.loadConfig(factionsConfig);
@@ -110,25 +130,28 @@ public final class Atlas extends JavaPlugin {
         AfkManager.loadConfig(configFile);
         DeathTeleportCooldownManager.loadConfig(configFile);
 
-        // Load from factions.yml
+        // Load from factions.yml (config) and factions-data.yml (data)
         FactionLevelManager.loadUpgrades(factionsConfig);
-        FactionManager.loadFactions(factionsConfig);
-        FactionClaimManager.loadClaims(factionsConfig);
+        FactionManager.loadFactions(factionsDataConfig);
+        FactionClaimManager.loadClaims(factionsDataConfig);
+        AtlasCrystalManager.loadCrystalHomes(factionsDataConfig);
 
-        // Load from jobs.yml
-        JobManager.loadJobs(jobsConfig);
-        JokeyriniManager.loadJokeyrini(jobsConfig);
+        // Load from jobs.yml (config) and jobs-data.yml (data)
+        QuestManager.loadQuestConfig(jobsConfig);
+        JobManager.loadJobData(jobsDataConfig);
+        JokeyriniManager.loadJokeyriniConfig(jobsConfig);
+        JokeyriniManager.loadJokeyriniData(jobsDataConfig);
 
-        // Load from donjons.yml
+        // Load from donjons.yml (config) and donjons-data.yml (data)
         DonjonManager.loadConfig(donjonsConfig);
-        DonjonManager.loadDonjons(donjonsConfig);
+        DonjonManager.loadDonjons(donjonsDataConfig);
         SmugglerManager.loadConfig(donjonsConfig);
 
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
         TagManager.init();
-        TagManager.loadTags(tagsConfig);
+        TagManager.loadTags(tagsDataConfig);
         HomeManager.loadHomes(configFile);
 
         // Register all listeners
@@ -149,7 +172,7 @@ public final class Atlas extends JavaPlugin {
         GolemListener.schedule(this);
         AtlasCrystalManager.schedule(this);
         DonjonManager.schedule(this);
-        JobManager.scheduleExpiry(this);
+        QuestManager.scheduleExpiry(this);
         ItemClearManager.schedule(this);
         AfkManager.schedule(this);
 
@@ -161,6 +184,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(FactionCommand.build(), "Faction management commands", List.of("f"));
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
+                        event.registrar().register(QuestCommand.build());
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
                         event.registrar().register(TagCommand.build());
@@ -187,57 +211,57 @@ public final class Atlas extends JavaPlugin {
         SpawnManager.saveSpawn(configFile);
         saveConfig();
 
-        // Save to tags.yml
-        TagManager.saveTags(tagsConfig);
-        saveTagsConfig();
+        // Save to tags-data.yml
+        TagManager.saveTags(tagsDataConfig);
+        saveTagsDataConfig();
 
-        // Save to factions.yml
-        FactionManager.saveFactions(factionsConfig);
-        FactionClaimManager.saveClaims(factionsConfig);
-        AtlasCrystalManager.saveCrystalHomes(factionsConfig);
-        saveFactionsConfig();
+        // Save to factions-data.yml
+        FactionManager.saveFactions(factionsDataConfig);
+        FactionClaimManager.saveClaims(factionsDataConfig);
+        AtlasCrystalManager.saveCrystalHomes(factionsDataConfig);
+        saveFactionsDataConfig();
 
-        // Save to jobs.yml
-        JobManager.saveJobs(jobsConfig);
-        JokeyriniManager.saveJokeyrini(jobsConfig);
-        saveJobsConfig();
+        // Save to jobs-data.yml
+        JobManager.saveJobData(jobsDataConfig);
+        JokeyriniManager.saveJokeyriniData(jobsDataConfig);
+        saveJobsDataConfig();
 
-        // Save to donjons.yml
-        DonjonManager.saveDonjonConfig(donjonsConfig);
-        saveDonjonsConfig();
+        // Save to donjons-data.yml
+        DonjonManager.saveDonjonData(donjonsDataConfig);
+        saveDonjonsDataConfig();
 
         getLogger().info("Atlas disabled.");
     }
 
-    public static void saveTagsConfig() {
+    public static void saveTagsDataConfig() {
         try {
-            tagsConfig.save(tagsFile);
+            tagsDataConfig.save(tagsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save tags.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save tags-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveDonjonsConfig() {
+    public static void saveDonjonsDataConfig() {
         try {
-            donjonsConfig.save(donjonsFile);
+            donjonsDataConfig.save(donjonsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save donjons.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save donjons-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveFactionsConfig() {
+    public static void saveFactionsDataConfig() {
         try {
-            factionsConfig.save(factionsFile);
+            factionsDataConfig.save(factionsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save factions.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save factions-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveJobsConfig() {
+    public static void saveJobsDataConfig() {
         try {
-            jobsConfig.save(jobsFile);
+            jobsDataConfig.save(jobsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save jobs.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save jobs-data.yml: " + e.getMessage());
         }
     }
 }

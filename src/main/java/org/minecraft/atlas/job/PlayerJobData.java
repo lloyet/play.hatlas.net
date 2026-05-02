@@ -14,19 +14,19 @@ public class PlayerJobData {
 
     // ── Quest state ───────────────────────────────────────────────────────────
     /** Quests currently being worked on (max 2). */
-    final List<ActiveQuest> activeQuests = new ArrayList<>();
+    public final List<ActiveQuest> activeQuests = new ArrayList<>();
 
     /** Epoch-day when today's daily offer was generated (0 = never). */
-    long dailyResetEpochDay = 0;
+    public long dailyResetEpochDay = 0;
 
     /**
      * Maps generated questId → list of GeneratedTasks for today's offered quests.
      * Insertion order is preserved so the GUI slot order stays consistent.
      */
-    final Map<String, List<GeneratedTask>> dailyOfferedQuests = new LinkedHashMap<>();
+    public final Map<String, List<GeneratedTask>> dailyOfferedQuests = new LinkedHashMap<>();
 
     /** IDs of quests the player selected today (max 2). */
-    final List<String> dailySelectedIds = new ArrayList<>();
+    public final List<String> dailySelectedIds = new ArrayList<>();
 
     // ── Constructors ──────────────────────────────────────────────────────────
 

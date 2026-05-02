@@ -2,206 +2,121 @@ package org.minecraft.atlas.faction;
 
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
-import org.minecraft.atlas.donjon.DonjonManager;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-/**
- * Manages territory claims for factions.
- * Layout:
- *  Ring 0  → the single center chunk (claimed when the faction is created)
- *  Ring r  → all chunks at Chebyshev distance exactly r from the center
- *             (ring 1 = 8 chunks, ring 2 = 16 chunks, ring r = 8*r chunks)
- * Each upgrade level reached adds one more ring.
- * Each upgrade level lost removes the outermost ring.
- * Disbanding removes every ring including the center.
- */
 public class FactionClaimManager {
 
     /** "worldName:chunkX:chunkZ" → owning faction name */
     private static final Map<String, String> claimedChunks = new HashMap<>();
 
-    /** factionName → {worldName, chunkX (String), chunkZ (String)} */
-    private static final Map<String, String[]> factionCenters = new HashMap<>();
+    /** factionName → set of "world:chunkX:chunkZ" keys */
+    private static final Map<String, Set<String>> factionChunks = new HashMap<>();
 
-    /** factionName → current outer ring radius (0 = only center chunk) */
-    private static final Map<String, Integer> factionRingCount = new HashMap<>();
+    // ── Lifecycle ──────────────────────────────────────────────────────────────
 
-    /** factionName → set of "world:chunkX:chunkZ" keys for outpost (non-ring) claims */
-    private static final Map<String, Set<String>> outpostChunks = new HashMap<>();
-
-    // -------------------------------------------------------------------------
-    // Claim lifecycle
-    // -------------------------------------------------------------------------
-
-    /** Claims the initial chunk when a faction is first created. */
+    /** Claims the initial center chunk when a faction is created (no freeclaim consumed). */
     public static void initializeClaim(String factionName, String worldName, int chunkX, int chunkZ) {
-        factionCenters.put(factionName, new String[]{worldName, String.valueOf(chunkX), String.valueOf(chunkZ)});
-        factionRingCount.put(factionName, 0);
-        claimedChunks.put(key(worldName, chunkX, chunkZ), factionName);
+        String k = key(worldName, chunkX, chunkZ);
+        claimedChunks.put(k, factionName);
+        factionChunks.computeIfAbsent(factionName, f -> new LinkedHashSet<>()).add(k);
+    }
+
+    /** Claims a chunk manually (caller must check freeclaims first). */
+    public static void claimChunk(String factionName, String worldName, int chunkX, int chunkZ) {
+        String k = key(worldName, chunkX, chunkZ);
+        claimedChunks.put(k, factionName);
+        factionChunks.computeIfAbsent(factionName, f -> new LinkedHashSet<>()).add(k);
     }
 
     /**
-     * Expands claims by one ring outward.
-     * Call once each time an upgrade level is reached.
+     * Unclaims the chunk at the given position.
+     * Returns the faction name that owned it, or null if it was unclaimed.
      */
-    public static void expandClaims(String factionName) {
-        String[] center = factionCenters.get(factionName);
-        if (center == null) return;
-
-        int newRing = factionRingCount.getOrDefault(factionName, 0) + 1;
-        factionRingCount.put(factionName, newRing);
-        addRing(center[0], Integer.parseInt(center[1]), Integer.parseInt(center[2]), newRing, factionName);
-    }
-
-    /**
-     * Shrinks claims down to {@code targetRings} by removing the outermost rings.
-     * targetRings = number of checkpoints whose level is ≤ the faction's new level.
-     */
-    public static void shrinkClaimsTo(String factionName, int targetRings) {
-        String[] center = factionCenters.get(factionName);
-        if (center == null) return;
-
-        String worldName = center[0];
-        int cx = Integer.parseInt(center[1]);
-        int cz = Integer.parseInt(center[2]);
-
-        int current = factionRingCount.getOrDefault(factionName, 0);
-        while (current > targetRings) {
-            removeRing(worldName, cx, cz, current);
-            current--;
+    public static String unclaimChunk(String worldName, int chunkX, int chunkZ) {
+        String k = key(worldName, chunkX, chunkZ);
+        String owner = claimedChunks.remove(k);
+        if (owner != null) {
+            Set<String> set = factionChunks.get(owner);
+            if (set != null) set.remove(k);
         }
-        factionRingCount.put(factionName, targetRings);
+        return owner;
     }
 
-    /** Removes all chunk claims when a faction is disbanded. */
+    /** Removes all claims when a faction is disbanded. */
     public static void removeAllClaims(String factionName) {
-        factionCenters.remove(factionName);
-        factionRingCount.remove(factionName);
-        outpostChunks.remove(factionName);
-        claimedChunks.values().removeIf(fn -> fn.equals(factionName));
+        Set<String> chunks = factionChunks.remove(factionName);
+        if (chunks != null) chunks.forEach(claimedChunks::remove);
     }
 
-    /** Updates faction name in all claim maps after a rename. */
+    /** Re-keys all maps when a faction is renamed. */
     public static void renameFactionClaims(String oldName, String newName) {
-        String[] center = factionCenters.remove(oldName);
-        if (center != null) factionCenters.put(newName, center);
-        Integer rings = factionRingCount.remove(oldName);
-        if (rings != null) factionRingCount.put(newName, rings);
-        Set<String> outposts = outpostChunks.remove(oldName);
-        if (outposts != null) outpostChunks.put(newName, outposts);
-        claimedChunks.replaceAll((k, v) -> v.equals(oldName) ? newName : v);
+        Set<String> chunks = factionChunks.remove(oldName);
+        if (chunks != null) {
+            factionChunks.put(newName, chunks);
+            chunks.forEach(k -> claimedChunks.put(k, newName));
+        }
     }
 
-    // -------------------------------------------------------------------------
-    // Queries
-    // -------------------------------------------------------------------------
+    // ── Queries ────────────────────────────────────────────────────────────────
 
-    /** Claims a single chunk for an outpost (independent of the ring system). */
-    public static void claimOutpostChunk(String factionName, String worldName, int chunkX, int chunkZ) {
-        String chunkKey = key(worldName, chunkX, chunkZ);
-        claimedChunks.put(chunkKey, factionName);
-        outpostChunks.computeIfAbsent(factionName, k -> new HashSet<>()).add(chunkKey);
-    }
-
-    /** Returns the faction name that owns the given chunk, or null if unclaimed. */
+    /** Returns the faction owning this chunk, or null. */
     public static String getClaimingFaction(String worldName, int chunkX, int chunkZ) {
         return claimedChunks.get(key(worldName, chunkX, chunkZ));
     }
 
-    // -------------------------------------------------------------------------
-    // Persistence
-    // -------------------------------------------------------------------------
+    /** Returns the number of chunks this faction currently owns. */
+    public static int getClaimCount(String factionName) {
+        Set<String> s = factionChunks.get(factionName);
+        return s == null ? 0 : s.size();
+    }
+
+    /**
+     * Returns true if at least one of the four axis-adjacent chunks
+     * (N/S/E/W) is already claimed by {@code factionName}.
+     */
+    public static boolean hasAdjacentClaim(String factionName, String worldName, int chunkX, int chunkZ) {
+        Set<String> chunks = factionChunks.get(factionName);
+        if (chunks == null || chunks.isEmpty()) return false;
+        return chunks.contains(key(worldName, chunkX + 1, chunkZ))
+            || chunks.contains(key(worldName, chunkX - 1, chunkZ))
+            || chunks.contains(key(worldName, chunkX, chunkZ + 1))
+            || chunks.contains(key(worldName, chunkX, chunkZ - 1));
+    }
+
+    // ── Persistence ────────────────────────────────────────────────────────────
 
     public static void saveClaims(FileConfiguration config) {
         config.set("claims", null);
-        ConfigurationSection claimsSection = config.createSection("claims");
-
-        for (Map.Entry<String, String[]> entry : factionCenters.entrySet()) {
-            String factionName = entry.getKey();
-            String[] center = entry.getValue();
-            ConfigurationSection s = claimsSection.createSection(factionName);
-            s.set("world", center[0]);
-            s.set("chunk_x", Integer.parseInt(center[1]));
-            s.set("chunk_z", Integer.parseInt(center[2]));
-            s.set("rings", factionRingCount.getOrDefault(factionName, 0));
-            Set<String> outposts = outpostChunks.get(factionName);
-            if (outposts != null && !outposts.isEmpty()) {
-                s.set("outpost_chunks", new ArrayList<>(outposts));
+        ConfigurationSection sec = config.createSection("claims");
+        for (Map.Entry<String, Set<String>> e : factionChunks.entrySet()) {
+            if (!e.getValue().isEmpty()) {
+                sec.set(e.getKey() + ".chunks", new ArrayList<>(e.getValue()));
             }
         }
     }
 
     public static void loadClaims(FileConfiguration config) {
         claimedChunks.clear();
-        factionCenters.clear();
-        factionRingCount.clear();
-        outpostChunks.clear();
+        factionChunks.clear();
 
-        ConfigurationSection claimsSection = config.getConfigurationSection("claims");
-        if (claimsSection == null) return;
+        ConfigurationSection sec = config.getConfigurationSection("claims");
+        if (sec == null) return;
 
-        for (String factionName : claimsSection.getKeys(false)) {
-            ConfigurationSection s = claimsSection.getConfigurationSection(factionName);
-            if (s == null) continue;
-
-            String worldName = s.getString("world");
-            if (worldName == null) continue;
-            int chunkX = s.getInt("chunk_x");
-            int chunkZ = s.getInt("chunk_z");
-            int rings = s.getInt("rings", 0);
-
-            factionCenters.put(factionName, new String[]{worldName, String.valueOf(chunkX), String.valueOf(chunkZ)});
-            factionRingCount.put(factionName, rings);
-
-            // Reconstruct all claimed chunks from center + rings
-            claimedChunks.put(key(worldName, chunkX, chunkZ), factionName);
-            for (int r = 1; r <= rings; r++) {
-                addRing(worldName, chunkX, chunkZ, r, factionName);
-            }
-
-            // Restore outpost chunk claims
-            List<String> outposts = s.getStringList("outpost_chunks");
-            if (!outposts.isEmpty()) {
-                Set<String> outpostSet = new HashSet<>(outposts);
-                outpostChunks.put(factionName, outpostSet);
-                outpostSet.forEach(chunkKey -> claimedChunks.put(chunkKey, factionName));
-            }
+        for (String factionName : sec.getKeys(false)) {
+            ConfigurationSection fs = sec.getConfigurationSection(factionName);
+            if (fs == null) continue;
+            List<String> chunks = fs.getStringList("chunks");
+            if (chunks.isEmpty()) continue;
+            Set<String> set = new LinkedHashSet<>(chunks);
+            factionChunks.put(factionName, set);
+            set.forEach(k -> claimedChunks.put(k, factionName));
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Private helpers
-    // -------------------------------------------------------------------------
+    // ── Helper ─────────────────────────────────────────────────────────────────
 
     private static String key(String world, int cx, int cz) {
         return world + ":" + cx + ":" + cz;
-    }
-
-    private static void addRing(String world, int cx, int cz, int r, String factionName) {
-        for (int x = cx - r; x <= cx + r; x++) {
-            for (int z = cz - r; z <= cz + r; z++) {
-                if (Math.max(Math.abs(x - cx), Math.abs(z - cz)) == r) {
-                    // Skip chunks that are part of a donjon's protected area
-                    if (DonjonManager.isChunkInDonjon(world, x, z)) continue;
-                    claimedChunks.put(key(world, x, z), factionName);
-                }
-            }
-        }
-    }
-
-    private static void removeRing(String world, int cx, int cz, int r) {
-        for (int x = cx - r; x <= cx + r; x++) {
-            for (int z = cz - r; z <= cz + r; z++) {
-                if (Math.max(Math.abs(x - cx), Math.abs(z - cz)) == r) {
-                    claimedChunks.remove(key(world, x, z));
-                }
-            }
-        }
     }
 }

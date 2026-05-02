@@ -9,9 +9,11 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.HashMap;
 import java.util.HashSet;
@@ -35,9 +37,10 @@ public class CrystalChestViewGui implements AtlasGui {
         this.crystalEntityUUID = crystalEntityUUID;
         this.chestIndex        = chestIndex;
 
-        int size = FactionLevelManager.getChestSize(chestIndex);
+        int size = FactionLevelManager.getChestSizeFromApplied(chestIndex,
+                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
         this.inventory = Atlas.instance.getServer().createInventory(this, size,
-                Component.text(faction.getName() + " - Chest #" + (chestIndex + 1), faction.getColor()));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Chest #" + (chestIndex + 1), faction.getColor()));
         ItemStack[] stored = faction.getChestContents(chestIndex);
         // Truncate stored contents if the chest was previously larger (e.g. config change)
         this.inventory.setContents(stored.length <= size ? stored : java.util.Arrays.copyOf(stored, size));

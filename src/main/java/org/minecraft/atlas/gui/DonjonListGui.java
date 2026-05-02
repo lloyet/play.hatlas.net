@@ -104,7 +104,7 @@ public class DonjonListGui implements AtlasGui {
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(GuiUtil.loreLine("Type", donjon.getType().getDisplayName(), NamedTextColor.WHITE));
+        lore.add(GuiUtil.loreLine("Type", DonjonManager.getTypeDisplayName(donjon.getType()), NamedTextColor.WHITE));
         lore.add(GuiUtil.loreLine("Level", String.valueOf(donjon.getLevel()), NamedTextColor.YELLOW));
         lore.add(GuiUtil.loreLine("Rarity", donjon.getRarity().getDisplayName(), donjon.getRarity().getColor()));
         lore.add(GuiUtil.loreLine("Status",

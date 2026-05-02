@@ -371,38 +371,105 @@ public class FactionManager {
     // -------------------------------------------------------------------------
 
     /**
-     * Adds exp to a faction and processes any resulting level-ups.
-     * Reached upgrade levels are queued in the faction as pending upgrades.
-     * Returns the list of upgrade levels newly reached (maybe empty).
+     * Adds exp to a faction. The faction auto-levels when exp hits the threshold, but
+     * overflow exp is stored in {@code pendingLevelExp} instead of carrying forward.
+     * The new level starts at exp = 0 so it doesn't advance again until the player
+     * releases the pending exp via {@link #applyLevelUp}.
+     * Returns an empty list (kept for API compatibility).
      */
     public static List<Integer> addExpToFaction(String factionName, int amount) {
         Faction faction = factions.get(factionName);
         if (faction == null || faction.getLevel() >= FactionLevelManager.MAX_LEVEL) return List.of();
 
+        // Always add to current-level exp — never reroute into pendingLevelExp directly.
+        // pendingLevelExp is only written when crossing an upgrade checkpoint below.
         faction.addExp(amount);
-        List<Integer> reached = new ArrayList<>();
 
+        // Auto-advance through non-upgrade levels; stop and lock at the next upgrade checkpoint.
         while (faction.getLevel() < FactionLevelManager.MAX_LEVEL) {
             int required = FactionLevelManager.getExpRequiredForLevel(faction.getLevel() + 1);
             if (faction.getExp() >= required) {
-                faction.setExp(faction.getExp() - required);
+                int overflow = faction.getExp() - required;
                 faction.setLevel(faction.getLevel() + 1);
                 int newLevel = faction.getLevel();
                 if (FactionLevelManager.isUpgrade(newLevel)) {
-                    reached.add(newLevel);
+                    // Upgrade checkpoint — lock exp to 0, bank the overflow, stop advancing
+                    faction.setExp(0);
+                    if (overflow > 0) faction.addPendingLevelExp(overflow);
                     faction.addPendingUpgrade(newLevel);
+                    break;
+                } else {
+                    // Non-upgrade level — carry overflow and keep advancing
+                    faction.setExp(overflow);
                 }
             } else {
                 break;
             }
         }
 
-        // Refresh all crystal nametags to show the updated level
         for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(factionName)) {
             crystal.updateNametag();
         }
 
-        return reached;
+        return List.of();
+    }
+
+    /**
+     * Releases all pending overflow exp into the faction's current level, potentially
+     * triggering further auto-advances. Only Owner or Leader may do this.
+     */
+    public enum ApplyLevelUpResult { SUCCESS, NOT_IN_FACTION, NO_PERMISSION, NOT_READY, MAX_LEVEL }
+
+    public static ApplyLevelUpResult applyLevelUp(UUID playerUUID) {
+        String factionName = playerFaction.get(playerUUID);
+        if (factionName == null) return ApplyLevelUpResult.NOT_IN_FACTION;
+
+        Faction faction = factions.get(factionName);
+        boolean isOwner = faction.getOwner().equals(playerUUID);
+        boolean isLeader = !isOwner && faction.getRole(playerUUID) == FactionRole.LEADER;
+        if (!isOwner && !isLeader) return ApplyLevelUpResult.NO_PERMISSION;
+
+        if (faction.getLevel() >= FactionLevelManager.MAX_LEVEL) return ApplyLevelUpResult.MAX_LEVEL;
+        if (faction.getPendingLevelExp() <= 0) return ApplyLevelUpResult.NOT_READY;
+
+        releasePendingLevelExp(faction, factionName);
+        return ApplyLevelUpResult.SUCCESS;
+    }
+
+    /**
+     * Dumps {@code pendingLevelExp} into the faction's current exp and advances through
+     * non-upgrade levels, stopping and locking again at the next upgrade checkpoint.
+     * Call whenever the player "confirms" an upgrade action.
+     */
+    private static void releasePendingLevelExp(Faction faction, String factionName) {
+        if (faction.getPendingLevelExp() <= 0) return;
+
+        int pending = faction.getPendingLevelExp();
+        faction.setPendingLevelExp(0);
+        faction.addExp(pending);
+
+        while (faction.getLevel() < FactionLevelManager.MAX_LEVEL) {
+            int required = FactionLevelManager.getExpRequiredForLevel(faction.getLevel() + 1);
+            if (faction.getExp() >= required) {
+                int overflow = faction.getExp() - required;
+                faction.setLevel(faction.getLevel() + 1);
+                int newLevel = faction.getLevel();
+                if (FactionLevelManager.isUpgrade(newLevel)) {
+                    faction.setExp(0);
+                    if (overflow > 0) faction.addPendingLevelExp(overflow);
+                    faction.addPendingUpgrade(newLevel);
+                    break;
+                } else {
+                    faction.setExp(overflow);
+                }
+            } else {
+                break;
+            }
+        }
+
+        for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(factionName)) {
+            crystal.updateNametag();
+        }
     }
 
     /**
@@ -430,9 +497,12 @@ public class FactionManager {
 
         double upgradeHp = FactionLevelManager.getUpgradeHp(upgradeLevel);
         crystal.addUpgrade(upgradeLevel, upgradeHp);
-        FactionClaimManager.expandClaims(factionName);
+        faction.addFreeclaims(FactionLevelManager.getUpgradeClaims(upgradeLevel));
         AtlasCrystalManager.persistCrystalState(crystal);
         crystal.updateNametag();
+
+        // Applying the upgrade is the player's confirmation — release any banked overflow exp now
+        releasePendingLevelExp(faction, factionName);
 
         return ApplyUpgradeResult.SUCCESS;
     }
@@ -455,6 +525,8 @@ public class FactionManager {
             s.set("description", faction.getDescription());
             s.set("level", faction.getLevel());
             s.set("exp", faction.getExp());
+            if (faction.getFreeclaims() > 0) s.set("freeclaims", faction.getFreeclaims());
+            if (faction.getPendingLevelExp() > 0) s.set("pending_level_exp", faction.getPendingLevelExp());
 
             if (!faction.getPendingUpgrades().isEmpty()) {
                 s.set("pending_upgrades", faction.getPendingUpgrades());
@@ -522,6 +594,8 @@ public class FactionManager {
 
             faction.setLevel(s.getInt("level", 0));
             faction.setExp(s.getInt("exp", 0));
+            faction.setFreeclaims(s.getInt("freeclaims", 0));
+        faction.setPendingLevelExp(s.getInt("pending_level_exp", 0));
 
             for (int cp : s.getIntegerList("pending_upgrades")) {
                 faction.addPendingUpgrade(cp);

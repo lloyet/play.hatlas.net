@@ -9,8 +9,7 @@ import java.util.Map;
 /**
  * @param bossDrops Per-rarity boss drop tables. A rarity with no entry uses an empty loot table.
  */
-public record DonjonTypeConfig(String displayName, String structureFilename,
-                               List<String> nameAdjectives, List<String> nameNouns,
+public record DonjonTypeConfig(String displayName,
                                List<String> mobTypes, List<String> bossTypes, int minWaves, int maxWaves,
                                int minMobsPerWave, int maxMobsPerWave, double baseHpMultiplier, double maxHpMultiplier,
                                double baseAttackMultiplier, double maxAttackMultiplier, double bossHpMultiplier,
@@ -20,9 +19,6 @@ public record DonjonTypeConfig(String displayName, String structureFilename,
 
     public static DonjonTypeConfig load(ConfigurationSection s) {
         String displayName = s.getString("display_name", "Unknown");
-        String structureFilename = s.getString("structure_filename", "");
-        List<String> adjectives = s.getStringList("name_adjectives");
-        List<String> nouns = s.getStringList("name_nouns");
         List<String> mobTypes = s.getStringList("mob_types");
         List<String> bossTypes = s.getStringList("boss_types");
         int minWaves = s.getInt("min_waves", 3);
@@ -41,7 +37,6 @@ public record DonjonTypeConfig(String displayName, String structureFilename,
         long minExp = s.getLong("min_exp_reward", 500L);
         long maxExp = s.getLong("max_exp_reward", 10000L);
 
-        // Boss drop tables — one section per rarity name (lowercase)
         Map<DonjonRarity, BossDropConfig> bossDrops = new EnumMap<>(DonjonRarity.class);
         ConfigurationSection dropsSec = s.getConfigurationSection("boss_drops");
         if (dropsSec != null) {
@@ -53,7 +48,7 @@ public record DonjonTypeConfig(String displayName, String structureFilename,
             }
         }
 
-        return new DonjonTypeConfig(displayName, structureFilename, adjectives, nouns,
+        return new DonjonTypeConfig(displayName,
                 mobTypes, bossTypes, minWaves, maxWaves, minMobs, maxMobs,
                 baseHp, maxHp, baseAtk, maxAtk, bossHp, bossAtk, bossSpd,
                 bossMin, bossMax, minExp, maxExp, bossDrops);

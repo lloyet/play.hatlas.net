@@ -14,7 +14,16 @@
       "Bash(ls *.xml)",
       "Bash(cmd:*)",
       "Bash(./gradlew compileJava -q)",
-      "Bash(grep -E \"\\\\.java$\")"
+      "Bash(grep -E \"\\\\.java$\")",
+      "Bash(xargs -I {} basename {})",
+      "Bash(git worktree *)",
+      "Bash(git branch *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lloyet\\\\Documents\\\\Projects\\\\lloyet\\\\play.mc.atlas\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Remove-Item *)",
+      "Bash(./gradlew assemble *)",
+      "Bash(./gradlew clean *)"
     ]
   }
 }

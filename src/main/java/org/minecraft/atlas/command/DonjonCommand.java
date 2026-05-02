@@ -1,6 +1,7 @@
 package org.minecraft.atlas.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.mojang.brigadier.tree.LiteralCommandNode;
@@ -8,13 +9,15 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.Donjon;
 import org.minecraft.atlas.donjon.DonjonManager;
+import org.minecraft.atlas.donjon.DonjonRarity;
 import org.minecraft.atlas.donjon.DonjonStatus;
-import org.minecraft.atlas.donjon.DonjonType;
 import org.minecraft.atlas.donjon.SmugglerManager;
 
 import java.util.Map;
@@ -28,10 +31,34 @@ public class DonjonCommand {
                 return builder.buildFuture();
             };
 
-    /** Suggests all valid donjon type config keys (e.g. "trial"). */
+    /** Suggests all donjon type keys currently loaded from donjons.yml. */
     private static final SuggestionProvider<CommandSourceStack> DONJON_TYPES =
             (ctx, builder) -> {
-                for (DonjonType t : DonjonType.values()) builder.suggest(t.getConfigKey());
+                DonjonManager.getAvailableTypes().forEach(builder::suggest);
+                return builder.buildFuture();
+            };
+
+    /** Suggests all valid rarity names in lowercase. */
+    private static final SuggestionProvider<CommandSourceStack> RARITY_NAMES =
+            (ctx, builder) -> {
+                for (DonjonRarity r : DonjonRarity.values()) builder.suggest(r.name().toLowerCase());
+                return builder.buildFuture();
+            };
+
+    /** Suggests only the rarities valid for an ominous key (EPIC and above). */
+    private static final SuggestionProvider<CommandSourceStack> OMINOUS_RARITY_NAMES =
+            (ctx, builder) -> {
+                builder.suggest("epic");
+                builder.suggest("legendary");
+                builder.suggest("mystic");
+                builder.suggest("goddess");
+                return builder.buildFuture();
+            };
+
+    /** Suggests currently online player names. */
+    private static final SuggestionProvider<CommandSourceStack> ONLINE_PLAYERS =
+            (ctx, builder) -> {
+                Bukkit.getOnlinePlayers().forEach(p -> builder.suggest(p.getName()));
                 return builder.buildFuture();
             };
 
@@ -43,59 +70,70 @@ public class DonjonCommand {
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendMessage(
                             Component.text("--- Donjon Commands ---", NamedTextColor.GOLD)
-                                    .append(Component.newline()).append(helpEntry("create", "<type>", "Create a donjon at your location"))
+                                    .append(Component.newline()).append(helpEntry("create", "<type> <name>", "Create a donjon instance at your location"))
                                     .append(Component.newline()).append(helpEntry("list", "", "List all registered donjons"))
                                     .append(Component.newline()).append(helpEntry("info", "<id>", "Show detailed donjon info"))
                                     .append(Component.newline()).append(helpEntry("activate", "<id>", "Activate a donjon"))
                                     .append(Component.newline()).append(helpEntry("deactivate", "<id>", "Deactivate a donjon"))
                                     .append(Component.newline()).append(helpEntry("reset", "<id>", "Reset a donjon to idle"))
                                     .append(Component.newline()).append(helpEntry("tp", "<id>", "Teleport to a donjon"))
-                                    .append(Component.newline()).append(helpEntry("setspawn", "<id>", "Set player teleport spawn for a donjon"))
                                     .append(Component.newline()).append(helpEntry("delete", "<id>", "Delete a donjon"))
+                                    .append(Component.newline()).append(helpEntry("claim", "<id>", "Add current chunk to donjon protected area"))
+                                    .append(Component.newline()).append(Component.text("  -- /donjon set --", NamedTextColor.DARK_AQUA))
+                                    .append(Component.newline()).append(helpEntry("set difficulty", "<id> <0-99>", "Set donjon difficulty level"))
+                                    .append(Component.newline()).append(helpEntry("set rarity", "<id> <rarity>", "Set donjon rarity"))
+                                    .append(Component.newline()).append(helpEntry("set spawn", "<id>", "Set player teleport spawn for a donjon"))
+                                    .append(Component.newline()).append(helpEntry("set vault", "<id>", "Set the vault block (look at the block, max 10 blocks)"))
+                                    .append(Component.newline()).append(helpEntry("doctor", "<id>", "List missing/unset donjon parameters"))
+                                    .append(Component.newline()).append(Component.text("  -- /donjon wavespawn --", NamedTextColor.DARK_AQUA))
+                                    .append(Component.newline()).append(helpEntry("wavespawn add", "<id>", "Add current location as wave spawn point"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn list", "<id>", "List all wave spawn points with IDs"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn delete", "<id> <spawnid>", "Delete a wave spawn point by ID"))
+                                    .append(Component.newline()).append(helpEntry("give", "<player> key|ominouskey [difficulty] [rarity]", "Give a donjon key to a player"))
                     );
                     return Command.SINGLE_SUCCESS;
                 })
 
-                // /donjon create <type>
+                // /donjon create <type> <name>
                 .then(Commands.literal("create")
+                        .executes(ctx -> usage(ctx.getSource().getSender(),
+                                "create <type> <name>  — Available types: " + String.join(", ", DonjonManager.getAvailableTypes())))
                         .then(Commands.argument("type", StringArgumentType.word())
                                 .suggests(DONJON_TYPES)
-                                .executes(ctx -> {
-                                    Entity executor = ctx.getSource().getExecutor();
-
-                                    if (!(executor instanceof Player player)) {
-                                        ctx.getSource().getSender().sendMessage(
-                                                Component.text("Only players can use this.", NamedTextColor.RED));
-                                        return Command.SINGLE_SUCCESS;
-                                    }
-
-                                    String typeArg = StringArgumentType.getString(ctx, "type");
-                                    DonjonType type = DonjonType.fromConfigKey(typeArg);
-                                    if (type == null) {
-                                        player.sendMessage(Component.text(
-                                                "Unknown donjon type: " + typeArg + ". Valid types: trial",
-                                                NamedTextColor.RED));
-                                        return Command.SINGLE_SUCCESS;
-                                    }
-
-                                    Donjon donjon = DonjonManager.generateDonjon(
-                                            type, player.getLocation());
-                                    if (donjon == null) {
-                                        player.sendMessage(Component.text(
-                                                "Failed to create donjon (no config or structure for type?).", NamedTextColor.RED));
-                                        return Command.SINGLE_SUCCESS;
-                                    }
-
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
-                                    player.sendMessage(Component.text(
-                                            "Donjon created: [" + donjon.getId() + "] " + donjon.getName()
-                                                    + " LvL." + donjon.getLevel()
-                                                    + " [" + donjon.getRarity().getDisplayName() + "]",
-                                            NamedTextColor.GREEN));
-
-                                    return Command.SINGLE_SUCCESS;
-                                })))
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "create <type> <name>"))
+                                .then(Commands.argument("name", StringArgumentType.greedyString())
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(
+                                                        Component.text("Only players can use this.", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String typeArg = StringArgumentType.getString(ctx, "type");
+                                            if (!DonjonManager.getAvailableTypes().contains(typeArg)) {
+                                                player.sendMessage(Component.text(
+                                                        "Unknown donjon type '" + typeArg + "'. Available: "
+                                                                + String.join(", ", DonjonManager.getAvailableTypes()),
+                                                        NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String nameArg = StringArgumentType.getString(ctx, "name");
+                                            Donjon donjon = DonjonManager.generateDonjon(typeArg, nameArg, player.getLocation());
+                                            if (donjon == null) {
+                                                player.sendMessage(Component.text(
+                                                        "Failed to create donjon: no config for this type, or the current chunk is already inside another donjon.",
+                                                        NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                            Atlas.saveDonjonsDataConfig();
+                                            player.sendMessage(Component.text(
+                                                    "Donjon created: [" + donjon.getId() + "] " + donjon.getName()
+                                                            + " LvL." + donjon.getLevel()
+                                                            + " [" + donjon.getRarity().getDisplayName() + "]",
+                                                    NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
 
                 // /donjon list
                 .then(Commands.literal("list")
@@ -116,7 +154,7 @@ public class DonjonCommand {
                                                 .append(Component.text(d.getName(), d.getRarity().getColor()))
                                                 .append(Component.text(
                                                         " LvL." + d.getLevel()
-                                                                + " | " + d.getType().getDisplayName()
+                                                                + " | " + DonjonManager.getTypeDisplayName(d.getType())
                                                                 + " | " + d.getStatus().name()
                                                                 + (d.isInProgress() ? " (IN PROGRESS)" : ""),
                                                         NamedTextColor.YELLOW)));
@@ -127,48 +165,50 @@ public class DonjonCommand {
 
                 // /donjon info <id>
                 .then(Commands.literal("info")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "info <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
                                     String id = StringArgumentType.getString(ctx, "id");
                                     Donjon d = DonjonManager.getDonjon(id);
-
                                     if (d == null) {
-                                        ctx.getSource().getSender().sendMessage(
-                                                Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
                                         return Command.SINGLE_SUCCESS;
                                     }
-
-                                    ctx.getSource().getSender().sendMessage(
-                                            Component.text("=== " + d.getName() + " ===", d.getRarity().getColor()));
-                                    ctx.getSource().getSender().sendMessage(
-                                            Component.text("ID: " + d.getId()
-                                                    + " | Type: " + d.getType().getDisplayName()
-                                                    + " | Level: " + d.getLevel()
-                                                    + " | Rarity: ", NamedTextColor.AQUA)
-                                            .append(Component.text(
-                                                    "[" + d.getRarity().getDisplayName() + "] Lv." + d.getLevel(),
-                                                    d.getRarity().getColor())));
-                                    ctx.getSource().getSender().sendMessage(Component.text(
-                                            "Status: " + d.getStatus().name()
-                                                    + " | InProgress: " + d.isInProgress()
-                                                    + " | Wave: " + (d.getCurrentWaveIndex() + 1) + "/" + d.getWaves().size(),
-                                            NamedTextColor.YELLOW));
-
-                                    if (d.getCenter() != null) {
-                                        ctx.getSource().getSender().sendMessage(Component.text(
-                                                "Center: " + d.getCenter().getWorld().getName()
-                                                        + " " + d.getCenter().getBlockX()
-                                                        + "," + d.getCenter().getBlockY()
-                                                        + "," + d.getCenter().getBlockZ(),
-                                                NamedTextColor.GRAY));
+                                    var s = ctx.getSource().getSender();
+                                    s.sendMessage(Component.text("=== " + d.getName() + " ===", d.getRarity().getColor()));
+                                    s.sendMessage(infoLine("ID",         d.getId(),                                NamedTextColor.GRAY));
+                                    s.sendMessage(infoLine("Type",       DonjonManager.getTypeDisplayName(d.getType()), NamedTextColor.AQUA));
+                                    s.sendMessage(infoLine("Difficulty", "LvL." + d.getLevel(),                   NamedTextColor.YELLOW));
+                                    s.sendMessage(infoLine("Rarity",     d.getRarity().getDisplayName(),           d.getRarity().getColor()));
+                                    s.sendMessage(infoLine("Status",     d.getStatus().name(),                     NamedTextColor.WHITE));
+                                    s.sendMessage(infoLine("In Progress",String.valueOf(d.isInProgress()),          d.isInProgress() ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY));
+                                    s.sendMessage(infoLine("Wave",       (d.getCurrentWaveIndex() + 1) + "/" + d.getWaves().size(), NamedTextColor.WHITE));
+                                    s.sendMessage(infoLine("Claims",     d.getProtectedChunkKeys().size() + " chunk(s)", NamedTextColor.GREEN));
+                                    org.bukkit.Location ts = d.getTeleportSpawn();
+                                    s.sendMessage(infoLine("TP Spawn",   ts != null
+                                            ? ts.getWorld().getName() + " " + ts.getBlockX() + ", " + ts.getBlockY() + ", " + ts.getBlockZ()
+                                            : "not set", ts != null ? NamedTextColor.WHITE : NamedTextColor.RED));
+                                    org.bukkit.Location vl = d.getVaultLocation();
+                                    s.sendMessage(infoLine("Vault",      vl != null
+                                            ? vl.getWorld().getName() + " " + vl.getBlockX() + ", " + vl.getBlockY() + ", " + vl.getBlockZ()
+                                            : "not set", vl != null ? NamedTextColor.WHITE : NamedTextColor.RED));
+                                    Map<Integer, org.bukkit.Location> spawnById = d.getSpawnPointsById();
+                                    if (spawnById.isEmpty()) {
+                                        s.sendMessage(infoLine("Wave Spawns", "none", NamedTextColor.RED));
+                                    } else {
+                                        s.sendMessage(infoLine("Wave Spawns", spawnById.size() + " point(s):", NamedTextColor.WHITE));
+                                        for (Map.Entry<Integer, org.bukkit.Location> e : spawnById.entrySet()) {
+                                            org.bukkit.Location pt = e.getValue();
+                                            s.sendMessage(Component.text("    #" + e.getKey() + " → " + pt.getBlockX() + ", " + pt.getBlockY() + ", " + pt.getBlockZ(), NamedTextColor.GRAY));
+                                        }
                                     }
-
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
                 // /donjon activate <id>
                 .then(Commands.literal("activate")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "activate <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
@@ -187,9 +227,23 @@ public class DonjonCommand {
                                         return Command.SINGLE_SUCCESS;
                                     }
 
+                                    // Doctor requirements
+                                    java.util.List<String> missing = new java.util.ArrayList<>();
+                                    if (d.getVaultLocation() == null)       missing.add("vault block");
+                                    if (d.getTeleportSpawn() == null)       missing.add("teleport spawn");
+                                    if (d.getSpawnPointsById().isEmpty())   missing.add("wave spawn points");
+                                    if (!missing.isEmpty()) {
+                                        ctx.getSource().getSender().sendMessage(Component.text(
+                                                "Cannot activate " + d.getName() + ": missing "
+                                                + String.join(", ", missing)
+                                                + ". Run /donjon doctor " + id + " for details.",
+                                                NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+
                                     DonjonManager.activateDonjon(d);
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon activated: " + d.getName(), NamedTextColor.GREEN));
 
@@ -198,6 +252,7 @@ public class DonjonCommand {
 
                 // /donjon deactivate <id>
                 .then(Commands.literal("deactivate")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "deactivate <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
@@ -217,8 +272,8 @@ public class DonjonCommand {
                                     }
 
                                     DonjonManager.setIdle(d, null);
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon deactivated: " + d.getName(), NamedTextColor.GREEN));
 
@@ -227,6 +282,7 @@ public class DonjonCommand {
 
                 // /donjon reset <id>
                 .then(Commands.literal("reset")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "reset <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
@@ -240,8 +296,8 @@ public class DonjonCommand {
                                     }
 
                                     DonjonManager.setIdle(d, null);
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon reset to idle: " + d.getName(), NamedTextColor.GREEN));
 
@@ -250,6 +306,7 @@ public class DonjonCommand {
 
                 // /donjon tp <id>
                 .then(Commands.literal("tp")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "tp <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
@@ -283,6 +340,7 @@ public class DonjonCommand {
 
                 // /donjon delete <id>
                 .then(Commands.literal("delete")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "delete <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
@@ -297,23 +355,170 @@ public class DonjonCommand {
 
                                     String name = d.getName();
                                     DonjonManager.deleteDonjon(id);
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
                                     ctx.getSource().getSender().sendMessage(
                                             Component.text("Donjon deleted: " + name, NamedTextColor.GREEN));
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
-                // /donjon setspawn <id>
-                .then(Commands.literal("setspawn")
+                // /donjon set difficulty <id> <difficulty>
+                // /donjon set rarity    <id> <rarity>
+                // /donjon set spawn     <id>
+                .then(Commands.literal("set")
+                        .executes(ctx -> {
+                            ctx.getSource().getSender().sendMessage(
+                                Component.text("--- /donjon set ---", NamedTextColor.GOLD)
+                                    .append(Component.newline()).append(helpEntry("set difficulty", "<id> <0-99>", "Set donjon difficulty level"))
+                                    .append(Component.newline()).append(helpEntry("set rarity", "<id> <rarity>", "Set donjon rarity"))
+                                    .append(Component.newline()).append(helpEntry("set spawn", "<id>", "Set player teleport spawn"))
+                                    .append(Component.newline()).append(helpEntry("set vault", "<id>", "Set the vault block"))
+                            );
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        .then(Commands.literal("difficulty")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "set difficulty <id> <0-99>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> usage(ctx.getSource().getSender(), "set difficulty <id> <0-99>"))
+                                        .then(Commands.argument("difficulty", IntegerArgumentType.integer(0, 99))
+                                                .executes(ctx -> {
+                                                    String id = StringArgumentType.getString(ctx, "id");
+                                                    Donjon d = DonjonManager.getDonjon(id);
+                                                    if (d == null) {
+                                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    int difficulty = IntegerArgumentType.getInteger(ctx, "difficulty");
+                                                    d.setLevel(difficulty);
+                                                    DonjonManager.spawnOrUpdateNametag(d);
+                                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                                    Atlas.saveDonjonsDataConfig();
+                                                    ctx.getSource().getSender().sendMessage(Component.text(
+                                                            "Donjon " + d.getName() + " difficulty set to LvL." + difficulty + ".", NamedTextColor.GREEN));
+                                                    return Command.SINGLE_SUCCESS;
+                                                }))))
+                        .then(Commands.literal("rarity")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "set rarity <id> <common|rare|epic|legendary|mystic|goddess>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> usage(ctx.getSource().getSender(), "set rarity <id> <rarity>"))
+                                        .then(Commands.argument("rarity", StringArgumentType.word())
+                                                .suggests(RARITY_NAMES)
+                                                .executes(ctx -> {
+                                                    String id = StringArgumentType.getString(ctx, "id");
+                                                    Donjon d = DonjonManager.getDonjon(id);
+                                                    if (d == null) {
+                                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    String rarityArg = StringArgumentType.getString(ctx, "rarity");
+                                                    DonjonRarity rarity;
+                                                    try { rarity = DonjonRarity.valueOf(rarityArg.toUpperCase()); }
+                                                    catch (IllegalArgumentException e) {
+                                                        ctx.getSource().getSender().sendMessage(Component.text("Unknown rarity: " + rarityArg, NamedTextColor.RED));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    d.setRarity(rarity);
+                                                    DonjonManager.spawnOrUpdateNametag(d);
+                                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                                    Atlas.saveDonjonsDataConfig();
+                                                    ctx.getSource().getSender().sendMessage(Component.text(
+                                                            "Donjon " + d.getName() + " rarity set to " + rarity.getDisplayName() + ".", NamedTextColor.GREEN));
+                                                    return Command.SINGLE_SUCCESS;
+                                                }))))
+                        .then(Commands.literal("spawn")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "set spawn <id>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(Component.text("Only players can use this.", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            Donjon d = DonjonManager.getDonjon(id);
+                                            if (d == null) {
+                                                player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            d.setTeleportSpawn(player.getLocation());
+                                            DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                            Atlas.saveDonjonsDataConfig();
+                                            player.sendMessage(Component.text("Teleport spawn set for donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        })))
+                        // /donjon set vault <id>
+                        .then(Commands.literal("vault")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "set vault <id>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(Component.text("Only players can use this.", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            Donjon d = DonjonManager.getDonjon(id);
+                                            if (d == null) {
+                                                player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            org.bukkit.block.Block target = player.getTargetBlockExact(10);
+                                            if (target == null) {
+                                                player.sendMessage(Component.text("No block in sight (look at a block within 10 blocks).", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            long targetChunkKey = org.bukkit.Chunk.getChunkKey(target.getX() >> 4, target.getZ() >> 4);
+                                            if (!d.getProtectedChunkKeys().contains(targetChunkKey)) {
+                                                player.sendMessage(Component.text(
+                                                        "That block is not inside the donjon's protected area. Use /donjon claim first.",
+                                                        NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            d.setVaultLocation(target.getLocation());
+                                            DonjonManager.spawnOrUpdateNametag(d);
+                                            DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                            Atlas.saveDonjonsDataConfig();
+                                            player.sendMessage(Component.text(
+                                                    "Vault block set to " + target.getType().name()
+                                                    + " at " + target.getX() + ", " + target.getY() + ", " + target.getZ()
+                                                    + " for donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
+
+                // /donjon doctor <id>
+                .then(Commands.literal("doctor")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "doctor <id>"))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(DONJON_IDS)
+                                .executes(ctx -> {
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    Donjon d = DonjonManager.getDonjon(id);
+                                    if (d == null) {
+                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    var s = ctx.getSource().getSender();
+                                    s.sendMessage(Component.text("=== Doctor: " + d.getName() + " ===", NamedTextColor.GOLD));
+                                    doctorCheck(s, "Vault block",      d.getVaultLocation() != null);
+                                    doctorCheck(s, "Teleport spawn",   d.getTeleportSpawn() != null);
+                                    doctorCheck(s, "Wave spawn points",!d.getSpawnPointsById().isEmpty());
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
+                // /donjon claim <id>  — add player's current chunk to the donjon's protected area
+                .then(Commands.literal("claim")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "claim <id>"))
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(DONJON_IDS)
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
                                     if (!(executor instanceof Player player)) {
-                                        ctx.getSource().getSender().sendMessage(
-                                                Component.text("Only players can use this.", NamedTextColor.RED));
+                                        ctx.getSource().getSender().sendMessage(Component.text("Only players can use this.", NamedTextColor.RED));
                                         return Command.SINGLE_SUCCESS;
                                     }
                                     String id = StringArgumentType.getString(ctx, "id");
@@ -322,17 +527,179 @@ public class DonjonCommand {
                                         player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
                                         return Command.SINGLE_SUCCESS;
                                     }
-                                    d.setTeleportSpawn(player.getLocation());
-                                    DonjonManager.saveDonjonConfig(Atlas.donjonsConfig);
-                                    Atlas.saveDonjonsConfig();
+                                    int cx = player.getLocation().getChunk().getX();
+                                    int cz = player.getLocation().getChunk().getZ();
+                                    long chunkKey = org.bukkit.Chunk.getChunkKey(cx, cz);
+                                    if (d.getProtectedChunkKeys().contains(chunkKey)) {
+                                        player.sendMessage(Component.text(
+                                                "Chunk [" + cx + ", " + cz + "] is already claimed by donjon " + d.getName() + ".",
+                                                NamedTextColor.YELLOW));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    if (!DonjonManager.addProtectedChunk(id, player.getWorld(), cx, cz)) {
+                                        player.sendMessage(Component.text("Cannot add chunk: donjon not found or wrong world.", NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
                                     player.sendMessage(Component.text(
-                                            "Teleport spawn set for donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                            "Chunk [" + cx + ", " + cz + "] added to donjon " + d.getName() + " protected area.", NamedTextColor.GREEN));
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
+                // /donjon wavespawn add|list|delete
+                .then(Commands.literal("wavespawn")
+                        .executes(ctx -> {
+                            ctx.getSource().getSender().sendMessage(
+                                Component.text("--- /donjon wavespawn ---", NamedTextColor.GOLD)
+                                    .append(Component.newline()).append(helpEntry("wavespawn add", "<id>", "Add current location as wave spawn point"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn list", "<id>", "List all wave spawn points with IDs"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn delete", "<id> <spawnid>", "Delete a wave spawn point by ID"))
+                            );
+                            return Command.SINGLE_SUCCESS;
+                        })
+                        // /donjon wavespawn add <id>
+                        .then(Commands.literal("add")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "wavespawn add <id>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(Component.text("Only players can use this.", NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            Donjon d = DonjonManager.getDonjon(id);
+                                            if (d == null) {
+                                                player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            int px = player.getLocation().getChunk().getX();
+                                            int pz = player.getLocation().getChunk().getZ();
+                                            if (!d.getProtectedChunkKeys().contains(org.bukkit.Chunk.getChunkKey(px, pz))) {
+                                                player.sendMessage(Component.text(
+                                                        "Your current chunk [" + px + ", " + pz + "] is not inside the donjon's protected area. Use /donjon claim first.",
+                                                        NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            int spawnId = d.addSpawnPoint(player.getLocation());
+                                            DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                            Atlas.saveDonjonsDataConfig();
+                                            player.sendMessage(Component.text(
+                                                    "Wave spawn point #" + spawnId + " added to donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        })))
+                        // /donjon wavespawn list <id>
+                        .then(Commands.literal("list")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "wavespawn list <id>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> {
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            Donjon d = DonjonManager.getDonjon(id);
+                                            if (d == null) {
+                                                ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            Map<Integer, org.bukkit.Location> spawnById = d.getSpawnPointsById();
+                                            if (spawnById.isEmpty()) {
+                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                        "No wave spawn points defined for " + d.getName() + ".", NamedTextColor.YELLOW));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            Component list = Component.text("=== " + d.getName() + " Wave Spawns ===", NamedTextColor.GOLD);
+                                            for (Map.Entry<Integer, org.bukkit.Location> e : spawnById.entrySet()) {
+                                                org.bukkit.Location loc = e.getValue();
+                                                list = list.append(Component.newline())
+                                                        .append(Component.text("  #" + e.getKey() + " ", NamedTextColor.AQUA))
+                                                        .append(Component.text(
+                                                                loc.getBlockX() + ", " + loc.getBlockY() + ", " + loc.getBlockZ(),
+                                                                NamedTextColor.YELLOW));
+                                            }
+                                            ctx.getSource().getSender().sendMessage(list);
+                                            return Command.SINGLE_SUCCESS;
+                                        })))
+                        // /donjon wavespawn delete <id> <spawnid>
+                        .then(Commands.literal("delete")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "wavespawn delete <id> <spawnid>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> usage(ctx.getSource().getSender(), "wavespawn delete <id> <spawnid>"))
+                                        .then(Commands.argument("spawnid", IntegerArgumentType.integer(0))
+                                                .executes(ctx -> {
+                                                    String id = StringArgumentType.getString(ctx, "id");
+                                                    Donjon d = DonjonManager.getDonjon(id);
+                                                    if (d == null) {
+                                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    int spawnId = IntegerArgumentType.getInteger(ctx, "spawnid");
+                                                    if (!d.removeSpawnPoint(spawnId)) {
+                                                        ctx.getSource().getSender().sendMessage(Component.text(
+                                                                "No spawn point with ID #" + spawnId + " found.", NamedTextColor.RED));
+                                                        return Command.SINGLE_SUCCESS;
+                                                    }
+                                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                                    Atlas.saveDonjonsDataConfig();
+                                                    ctx.getSource().getSender().sendMessage(Component.text(
+                                                            "Spawn point #" + spawnId + " removed from donjon " + d.getName() + ".", NamedTextColor.GREEN));
+                                                    return Command.SINGLE_SUCCESS;
+                                                })))))
+
+                // /donjon give <player> key
+                // /donjon give <player> ominouskey [difficulty [rarity]]
+                .then(Commands.literal("give")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey [difficulty] [rarity]"))
+                        .then(Commands.argument("player", StringArgumentType.word())
+                                .suggests(ONLINE_PLAYERS)
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey [difficulty] [rarity]"))
+                                .then(Commands.literal("key")
+                                        .executes(ctx -> {
+                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                    DonjonManager.createTrialKey(), "key");
+                                        }))
+                                .then(Commands.literal("ominouskey")
+                                        // /donjon give <player> ominouskey  — weighted random
+                                        .executes(ctx -> {
+                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                    DonjonManager.createOminousKey(), "ominouskey");
+                                        })
+                                        // /donjon give <player> ominouskey <difficulty>  — fixed level, random rarity
+                                        .then(Commands.argument("difficulty", IntegerArgumentType.integer(50, 99))
+                                                .executes(ctx -> {
+                                                    int diff = IntegerArgumentType.getInteger(ctx, "difficulty");
+                                                    return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                            DonjonManager.buildOminousKey(diff, DonjonManager.rollOminousRarity()),
+                                                            "ominouskey (lvl " + diff + ")");
+                                                })
+                                                // /donjon give <player> ominouskey <difficulty> <rarity>  — both fixed
+                                                .then(Commands.argument("rarity", StringArgumentType.word())
+                                                        .suggests(OMINOUS_RARITY_NAMES)
+                                                        .executes(ctx -> {
+                                                            int diff = IntegerArgumentType.getInteger(ctx, "difficulty");
+                                                            String rarityArg = StringArgumentType.getString(ctx, "rarity");
+                                                            DonjonRarity rarity;
+                                                            try {
+                                                                rarity = DonjonRarity.valueOf(rarityArg.toUpperCase());
+                                                            } catch (IllegalArgumentException e) {
+                                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                                        "Unknown rarity: " + rarityArg
+                                                                                + ". Valid: epic, legendary, mystic, goddess",
+                                                                        NamedTextColor.RED));
+                                                                return Command.SINGLE_SUCCESS;
+                                                            }
+                                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                                    DonjonManager.buildOminousKey(diff, rarity),
+                                                                    "ominouskey (lvl " + diff + " " + rarity.getDisplayName() + ")");
+                                                        }))))))
+
+
                 // /donjon npc spawn smuggler
                 .then(Commands.literal("npc")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "npc spawn smuggler"))
                         .then(Commands.literal("spawn")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "npc spawn smuggler"))
                                 .then(Commands.literal("smuggler")
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();
@@ -348,6 +715,37 @@ public class DonjonCommand {
                                         }))))
 
                 .build();
+    }
+
+    private static Component infoLine(String label, String value, NamedTextColor valueColor) {
+        return Component.text("  " + label + ": ", NamedTextColor.GRAY)
+                .append(Component.text(value, valueColor));
+    }
+
+    private static void doctorCheck(net.kyori.adventure.audience.Audience audience, String label, boolean ok) {
+        audience.sendMessage(ok
+                ? Component.text("  ✔ " + label, NamedTextColor.GREEN)
+                : Component.text("  ⚠ " + label + ": NOT SET", NamedTextColor.RED));
+    }
+
+    private static int doGiveKey(CommandSourceStack src, String playerName,
+                                 ItemStack item, String label) {
+        Player target = Bukkit.getPlayerExact(playerName);
+        if (target == null) {
+            src.getSender().sendMessage(Component.text(
+                    "Player not found or offline: " + playerName, NamedTextColor.RED));
+            return Command.SINGLE_SUCCESS;
+        }
+        target.getInventory().addItem(item);
+        src.getSender().sendMessage(Component.text(
+                "Gave " + label + " to " + target.getName() + ".", NamedTextColor.GREEN));
+        target.sendMessage(Component.text("You received a donjon " + label + ".", NamedTextColor.GOLD));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {
+        audience.sendMessage(Component.text("Usage: /donjon " + syntax, NamedTextColor.RED));
+        return Command.SINGLE_SUCCESS;
     }
 
     private static Component helpEntry(String sub, String args, String desc) {

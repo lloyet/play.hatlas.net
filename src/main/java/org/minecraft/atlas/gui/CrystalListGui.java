@@ -38,7 +38,7 @@ public class CrystalListGui implements AtlasGui {
         this.mainCrystalUUID = mainCrystalUUID;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text(faction.getName() + " - Crystals", faction.getColor()));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Crystals", faction.getColor()));
 
         Collection<AtlasCrystal> crystals = AtlasCrystalManager.getFactionCrystals(factionName);
         int[] slots = GuiUtil.contentSlots54();

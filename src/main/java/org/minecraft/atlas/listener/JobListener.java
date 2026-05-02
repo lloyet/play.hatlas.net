@@ -35,6 +35,7 @@ import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.HashMap;
@@ -179,7 +180,7 @@ public class JobListener implements Listener {
             if (isHarvest || isBreak) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
                 String actionType = isHarvest ? "harvest_crop" : "break_block";
-                JobManager.onTargetGathered(player.getUniqueId(), actionType, blockName, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), actionType, blockName, player);
             }
         }
 
@@ -209,7 +210,7 @@ public class JobListener implements Listener {
 
         if (data != null && (data.getJob() == Job.HUNTER || data.getJob() == Job.ALCHEMIST)) {
             JobManager.addProgress(killer.getUniqueId(), 1, killer);
-            JobManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
+            QuestManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
         }
 
         JokeyriniManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
@@ -235,7 +236,7 @@ public class JobListener implements Listener {
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
         if (data != null && data.getJob() == Job.ALCHEMIST) {
             JobManager.addProgress(player.getUniqueId(), 1, player);
-            JobManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
+            QuestManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
         }
 
         JokeyriniManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
@@ -257,7 +258,7 @@ public class JobListener implements Listener {
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
         if (data != null && data.getJob() == Job.ALCHEMIST) {
             JobManager.addProgress(player.getUniqueId(), amount, player);
-            JobManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
+            QuestManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
         }
 
         JokeyriniManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
@@ -310,7 +311,7 @@ public class JobListener implements Listener {
             PlayerJobData data = JobManager.getJobData(player.getUniqueId());
             if (data != null && data.getJob() == Job.FARMER) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
-                JobManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
             }
             JokeyriniManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
             return;
@@ -323,7 +324,7 @@ public class JobListener implements Listener {
             PlayerJobData data = JobManager.getJobData(player.getUniqueId());
             if (data != null && data.getJob() == Job.FARMER) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
-                JobManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
             }
             JokeyriniManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
         }

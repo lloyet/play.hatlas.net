@@ -309,16 +309,27 @@ public class FactionListener implements Listener {
             faction.setLevel(newLevel);
             faction.setExp(0);
 
-            // Shrink territory claims: keep only rings for upgrade levels ≤ newLevel
-            int targetRings = 0;
+            // Reduce freeclaims by the total claims bonus of all upgrade levels lost in this downgrade
+            int claimsLost = 0;
             for (int cp : FactionLevelManager.getUpgradeLevels()) {
-                if (cp <= newLevel) targetRings++;
-                else break;
+                if (cp > newLevel && cp <= factionLevel) {
+                    claimsLost += FactionLevelManager.getUpgradeClaims(cp);
+                }
             }
-            FactionClaimManager.shrinkClaimsTo(crystalFaction, targetRings);
+            faction.setFreeclaims(Math.max(0, faction.getFreeclaims() - claimsLost));
 
-            // Drop and delete virtual chests whose index exceeds what newLevel allows
-            int allowedChests = FactionLevelManager.getAvailableChests(newLevel);
+            // Strip upgrade bonuses above newLevel first so chest count reflects removed upgrades
+            Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
+            Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
+            for (AtlasCrystal fc : allCrystals) {
+                fc.stripUpgradesAbove(newLevel, bonusMap);
+                fc.updateNametag();
+                AtlasCrystalManager.persistCrystalState(fc);
+            }
+
+            // Drop and delete virtual chests above what the remaining applied upgrades allow
+            int allowedChests = FactionLevelManager.getAvailableChestsFromApplied(
+                    AtlasCrystalManager.getEffectiveAppliedUpgrades(crystalFaction));
             Map<Integer, ItemStack[]> chestMap = faction.getChestContentsMap();
             List<ItemStack> itemsToDrop = new ArrayList<>();
             Iterator<Map.Entry<Integer, ItemStack[]>> chestIter = chestMap.entrySet().iterator();
@@ -344,15 +355,6 @@ public class FactionListener implements Listener {
                         dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
                     }
                 }, 2L);
-            }
-
-            // Strip upgrade bonuses above newLevel from all named faction crystals
-            Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
-            Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
-            for (AtlasCrystal fc : allCrystals) {
-                fc.stripUpgradesAbove(newLevel, bonusMap);
-                fc.updateNametag();
-                AtlasCrystalManager.persistCrystalState(fc);
             }
 
             // Restore the attacked crystal's HP to full and grant computed immunity

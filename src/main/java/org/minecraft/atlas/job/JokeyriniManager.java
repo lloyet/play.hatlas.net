@@ -166,7 +166,7 @@ public class JokeyriniManager {
 
     // ── Persistence ───────────────────────────────────────────────────────────
 
-    public static void saveJokeyrini(FileConfiguration config) {
+    public static void saveJokeyriniData(FileConfiguration config) {
         config.set("jokeyrini_player_data", null);
         ConfigurationSection root = config.createSection("jokeyrini_player_data");
         long now = System.currentTimeMillis();
@@ -194,14 +194,9 @@ public class JokeyriniManager {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public static void loadJokeyrini(FileConfiguration config) {
+    public static void loadJokeyriniConfig(FileConfiguration config) {
         taskPool.clear();
-        dailyReset.clear();
-        dailyOffer.clear();
-        activeQuests.clear();
 
-        // Load config and task templates
         ConfigurationSection jokSection = config.getConfigurationSection("jokeyrini");
         if (jokSection != null) {
             specialQuestChance = jokSection.getDouble("special_quest_chance", 0.15);
@@ -214,8 +209,14 @@ public class JokeyriniManager {
                 }
             }
         }
+    }
 
-        // Load player data
+    @SuppressWarnings("unchecked")
+    public static void loadJokeyriniData(FileConfiguration config) {
+        dailyReset.clear();
+        dailyOffer.clear();
+        activeQuests.clear();
+
         ConfigurationSection playerSection = config.getConfigurationSection("jokeyrini_player_data");
         if (playerSection == null) return;
 

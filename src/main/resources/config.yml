@@ -29,7 +29,7 @@ random_teleport:
   # Cooldown in seconds between uses
   cooldown_seconds: 30
   # Maximum distance in blocks from world spawn for the random destination
-  radius: 4096
+  radius: 1024
 
 # AFK auto-disconnect settings
 afk:
@@ -39,7 +39,7 @@ afk:
 # Death-based teleport penalty cooldown (applies to /home, /f home, /tpa — not /spawn)
 death_teleport_cooldown:
   # Base cooldown in seconds after the first death.
-  base_seconds: 20
+  base_seconds: 10
   # Escalation multiplier applied on each death within the active escalation window.
   # Also the value the multiplier resets to when the window expires.
   multiplier: 2

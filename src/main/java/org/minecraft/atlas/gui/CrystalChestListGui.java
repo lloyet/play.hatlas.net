@@ -12,6 +12,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -31,9 +32,10 @@ public class CrystalChestListGui implements AtlasGui {
         this.factionName = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
-        int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+        int available = FactionLevelManager.getAvailableChestsFromApplied(
+                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(faction.getName() + " - Chests", faction.getColor()));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Chests", faction.getColor()));
 
         int[] slots = GuiUtil.chestListSlots(available);
         for (int i = 0; i < available; i++) {
@@ -62,7 +64,8 @@ public class CrystalChestListGui implements AtlasGui {
         if (fn == null) { player.closeInventory(); return; }
 
         Faction faction  = FactionManager.getFaction(fn);
-        int available    = FactionLevelManager.getAvailableChests(faction.getLevel());
+        int available    = FactionLevelManager.getAvailableChestsFromApplied(
+                AtlasCrystalManager.getEffectiveAppliedUpgrades(fn));
         int[] chestSlots = GuiUtil.chestListSlots(available);
 
         int slot = event.getRawSlot();
@@ -80,7 +83,8 @@ public class CrystalChestListGui implements AtlasGui {
 
     private static ItemStack buildChestListItem(int index, Faction faction) {
         ItemStack[] contents = faction.getChestContents(index);
-        int chestSize = FactionLevelManager.getChestSize(index);
+        int chestSize = FactionLevelManager.getChestSizeFromApplied(index,
+                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
         int itemCount = 0;
         for (ItemStack stack : contents) {
             if (stack != null && stack.getType() != Material.AIR) itemCount++;

@@ -38,7 +38,7 @@ public class CrystalColorGui implements AtlasGui {
         this.crystalEntityUUID = crystalEntityUUID;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(faction.getName() + " - Color", NamedTextColor.GOLD));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Color", NamedTextColor.GOLD));
 
         for (int i = 0; i < ALL_COLORS.length; i++) {
             this.inventory.setItem(i, buildColorPickerItem(ALL_COLORS[i], ALL_COLORS[i].equals(faction.getColor())));

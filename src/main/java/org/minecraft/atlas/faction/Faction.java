@@ -21,11 +21,16 @@ public class Faction {
     private final Map<UUID, FactionRole> roles = new HashMap<>();
     private int level = 0;
     private int exp = 0;
+    /** Exp accumulated beyond the current level's cap — carried into the next level when a level-up is confirmed. */
+    private int pendingLevelExp = 0;
     /**
      * Upgrade levels reached but whose crystal HP bonus has not yet been applied
      * via /faction upgrade apply. Persisted across restarts.
      */
     private final List<Integer> pendingUpgrades = new ArrayList<>();
+
+    /** Number of free chunk claims available to this faction. */
+    private int freeclaims = 0;
 
     /**
      * Virtual double-chest storage — index → 54-slot ItemStack array.
@@ -72,6 +77,15 @@ public class Faction {
         this.exp += amount;
     }
 
+    public int getPendingLevelExp() { return pendingLevelExp; }
+    public void setPendingLevelExp(int v) { this.pendingLevelExp = Math.max(0, v); }
+    public void addPendingLevelExp(int amount) { this.pendingLevelExp += amount; }
+
+    /** Returns true if this faction has retained overflow exp waiting to be released. */
+    public boolean isLevelUpReady() {
+        return pendingLevelExp > 0 && level < FactionLevelManager.MAX_LEVEL;
+    }
+
     public FactionRole getRole(UUID uuid) {
         return roles.getOrDefault(uuid, FactionRole.MEMBER);
     }
@@ -107,6 +121,10 @@ public class Faction {
     public boolean hasPendingUpgrade() {
         return !pendingUpgrades.isEmpty();
     }
+
+    public int getFreeclaims() { return freeclaims; }
+    public void setFreeclaims(int n) { this.freeclaims = Math.max(0, n); }
+    public void addFreeclaims(int n) { this.freeclaims = Math.max(0, this.freeclaims + n); }
 
     /** Returns the contents of the virtual chest at {@code index}, or an empty array if never written. */
     public ItemStack[] getChestContents(int index) {

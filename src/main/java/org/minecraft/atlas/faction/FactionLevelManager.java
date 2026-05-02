@@ -11,7 +11,7 @@ import java.util.*;
  */
 public class FactionLevelManager {
 
-    public static final int MAX_LEVEL = 100;
+    public static final int MAX_LEVEL = 99;
     private static final double BASE_EXP = 100.0;
     private static final double EXP_MULTIPLIER = 1.09;
 
@@ -24,6 +24,8 @@ public class FactionLevelManager {
     private static final Map<Integer, Integer> upgradeChestMap = new LinkedHashMap<>();
     // Upgrade level -> inventory size (27 or 54) for chests unlocked at that level
     private static final Map<Integer, Integer> upgradeChestSizeMap = new LinkedHashMap<>();
+    // Upgrade level -> number of freeclaims granted when this upgrade is applied
+    private static final Map<Integer, Integer> upgradeClaimsMap = new LinkedHashMap<>();
     // Sorted ascending list of upgrade levels
     private static final List<Integer> upgradeLevels = new ArrayList<>();
 
@@ -48,6 +50,7 @@ public class FactionLevelManager {
         upgradeHpMap.clear();
         upgradeChestMap.clear();
         upgradeChestSizeMap.clear();
+        upgradeClaimsMap.clear();
         upgradeLevels.clear();
 
         List<?> list = config.getList("upgrades");
@@ -67,6 +70,8 @@ public class FactionLevelManager {
                         upgradeChestSizeMap.put(level,
                                 chestSize instanceof Number ? ((Number) chestSize).intValue() : 27);
                     }
+                    Object claimsBonus = map.get("bonus_claims");
+                    upgradeClaimsMap.put(level, claimsBonus instanceof Number ? ((Number) claimsBonus).intValue() : 0);
                     upgradeLevels.add(level);
                 }
             }
@@ -86,6 +91,45 @@ public class FactionLevelManager {
     /** Returns the number of virtual chests unlocked at the given upgrade level (0 if none). */
     public static int getUpgradeChests(int level) {
         return upgradeChestMap.getOrDefault(level, 0);
+    }
+
+    /** Returns the slot count (27 = single, 54 = double) of the chest(s) unlocked at this upgrade level. */
+    public static int getUpgradeChestSize(int level) {
+        return upgradeChestSizeMap.getOrDefault(level, 27);
+    }
+
+    /**
+     * Returns the number of chests available based on which upgrade levels have actually
+     * been applied to a crystal (i.e. confirmed by the player).
+     */
+    public static int getAvailableChestsFromApplied(java.util.Set<Integer> appliedUpgrades) {
+        int total = 0;
+        for (Map.Entry<Integer, Integer> e : upgradeChestMap.entrySet()) {
+            if (appliedUpgrades.contains(e.getKey())) total += e.getValue();
+        }
+        return total;
+    }
+
+    /**
+     * Returns the slot count for a chest at {@code chestIndex} counting only
+     * upgrade levels present in {@code appliedUpgrades}.
+     */
+    public static int getChestSizeFromApplied(int chestIndex, java.util.Set<Integer> appliedUpgrades) {
+        int count = 0;
+        for (int upgradeLevel : upgradeLevels) {
+            if (!appliedUpgrades.contains(upgradeLevel)) continue;
+            int chestsAtLevel = upgradeChestMap.getOrDefault(upgradeLevel, 0);
+            for (int i = 0; i < chestsAtLevel; i++) {
+                if (count == chestIndex) return upgradeChestSizeMap.getOrDefault(upgradeLevel, 27);
+                count++;
+            }
+        }
+        return 27;
+    }
+
+    /** Returns the number of freeclaims granted when the given upgrade level is applied (0 if none). */
+    public static int getUpgradeClaims(int level) {
+        return upgradeClaimsMap.getOrDefault(level, 0);
     }
 
     /** Returns an unmodifiable sorted list of all upgrade levels. */

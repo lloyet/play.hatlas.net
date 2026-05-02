@@ -30,6 +30,7 @@ import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class CrystalMainGui implements AtlasGui {
         this.crystalEntityUUID = crystal.getEntity().getUniqueId();
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text("Faction - " + faction.getName(), faction.getColor()));
+                Component.text("Faction - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
         this.inventory.setItem(SLOT_CRYSTAL_LIST, buildCrystalListButton(faction));
         this.inventory.setItem(SLOT_FACTION_INFO, buildFactionInfoItem(faction, crystal));
         this.inventory.setItem(SLOT_COLOR_INFO,   buildColorItem(faction));
@@ -106,7 +107,7 @@ public class CrystalMainGui implements AtlasGui {
         }
 
         if (slot == SLOT_CHEST_BTN) {
-            int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+            int available = FactionLevelManager.getAvailableChestsFromApplied(AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
             if (available == 0) {
                 player.sendMessage(Component.text(
                         "Your faction has no chests yet. Reach an upgrade level to unlock one.",
@@ -272,7 +273,7 @@ public class CrystalMainGui implements AtlasGui {
     }
 
     private static ItemStack buildChestButton(Faction faction) {
-        int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+        int available = FactionLevelManager.getAvailableChestsFromApplied(AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
         ItemStack item = new ItemStack(available > 0 ? Material.BARREL : Material.CHEST);
         ItemMeta meta  = item.getItemMeta();
         meta.displayName(Component.text("Faction Chests", NamedTextColor.YELLOW)
@@ -346,7 +347,7 @@ public class CrystalMainGui implements AtlasGui {
 
         if (JobManager.hasJob(player.getUniqueId())) {
             var data = JobManager.getJobData(player.getUniqueId());
-            int active = JobManager.getActiveQuests(player.getUniqueId()).size();
+            int active = QuestManager.getActiveQuests(player.getUniqueId()).size();
             lore.add(GuiUtil.loreLine("Job",    data.getJob().getDisplayName(), data.getJob().getColor()));
             lore.add(GuiUtil.loreLine("Active", active + " / 2", NamedTextColor.AQUA));
         } else {

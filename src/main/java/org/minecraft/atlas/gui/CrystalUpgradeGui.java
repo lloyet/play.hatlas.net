@@ -38,7 +38,7 @@ public class CrystalUpgradeGui implements AtlasGui {
         AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text(faction.getName() + " - Upgrades", NamedTextColor.GOLD));
+                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Upgrades", NamedTextColor.GOLD));
 
         if (crystal != null) {
             int[] slots = GuiUtil.contentSlots54();
@@ -49,9 +49,14 @@ public class CrystalUpgradeGui implements AtlasGui {
 
             for (int i = 0; i < upgradeLevels.size() && i < slots.length; i++) {
                 int ul = upgradeLevels.get(i);
-                this.inventory.setItem(slots[i], buildUpgradeItem(ul, i + 1, applied.contains(ul),
+                this.inventory.setItem(slots[i], buildUpgradeItem(ul, applied.contains(ul),
                         pending.contains(ul), factionLevel >= ul));
             }
+        }
+
+        // Level-up button in bottom-center if a level-up is waiting for confirmation
+        if (faction.isLevelUpReady()) {
+            this.inventory.setItem(49, buildLevelUpButton(faction));
         }
 
         GuiUtil.fillGray(this.inventory);
@@ -73,6 +78,13 @@ public class CrystalUpgradeGui implements AtlasGui {
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
         int slot = event.getRawSlot();
+
+        // Level-up button
+        if (slot == SLOT_LEVEL_UP) {
+            handleLevelUpClick(player);
+            return;
+        }
+
         int[] slots = GuiUtil.contentSlots54();
         int idx = -1;
         for (int i = 0; i < slots.length; i++) {
@@ -103,9 +115,44 @@ public class CrystalUpgradeGui implements AtlasGui {
         new CrystalUpgradeConfirmGui(player, faction, crystalEntityUUID, upgradeLevel).open(player);
     }
 
+    private static final int SLOT_LEVEL_UP = 49;
+
+    private void handleLevelUpClick(Player player) {
+        boolean isOwner  = false;
+        boolean isLeader = false;
+        String fn = FactionManager.getPlayerFaction(player.getUniqueId());
+        if (fn != null) {
+            Faction f = FactionManager.getFaction(fn);
+            isOwner  = f.getOwner().equals(player.getUniqueId());
+            isLeader = !isOwner && f.getRole(player.getUniqueId()) == FactionRole.LEADER;
+        }
+        if (!isOwner && !isLeader) {
+            player.sendMessage(Component.text("Only the Owner or a Leader can confirm a level-up.", NamedTextColor.RED));
+            return;
+        }
+        FactionManager.ApplyLevelUpResult result = FactionManager.applyLevelUp(player.getUniqueId());
+        switch (result) {
+            case SUCCESS -> {
+                player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 1.0f, 1.0f);
+                Faction f = FactionManager.getFaction(fn);
+                player.sendMessage(Component.text(
+                        "Faction reached level " + f.getLevel() + "!", NamedTextColor.GOLD));
+                if (f.hasPendingUpgrade()) {
+                    player.sendMessage(Component.text(
+                            "⚡ Upgrade available! Apply it to an Atlas Crystal.", NamedTextColor.LIGHT_PURPLE));
+                }
+                player.closeInventory();
+            }
+            case NOT_READY -> player.sendMessage(Component.text("Level-up not ready yet.", NamedTextColor.RED));
+            case NO_PERMISSION -> player.sendMessage(Component.text("Only the Owner or a Leader can do this.", NamedTextColor.RED));
+            case MAX_LEVEL -> player.sendMessage(Component.text("Your faction is already at max level.", NamedTextColor.YELLOW));
+            default -> {}
+        }
+    }
+
     // ── Item builders ─────────────────────────────────────────────────────────
 
-    private static ItemStack buildUpgradeItem(int upgradeLevel, int ringIndex, boolean applied,
+    private static ItemStack buildUpgradeItem(int upgradeLevel, boolean applied,
                                               boolean pending, boolean levelReached) {
         Material mat;
         NamedTextColor nameColor;
@@ -136,7 +183,7 @@ public class CrystalUpgradeGui implements AtlasGui {
 
         double bonusHp     = FactionLevelManager.getUpgradeHp(upgradeLevel);
         int    bonusChests = FactionLevelManager.getUpgradeChests(upgradeLevel);
-        int claimsGained = 8 * ringIndex;
+        int claimsGained = FactionLevelManager.getUpgradeClaims(upgradeLevel);
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
@@ -147,7 +194,8 @@ public class CrystalUpgradeGui implements AtlasGui {
         lore.add(GuiUtil.loreLine("  Crystal HP", "+" + (int) bonusHp + " ♥", NamedTextColor.RED));
         lore.add(GuiUtil.loreLine("  Claims", "+" + claimsGained + " chunks", NamedTextColor.GREEN));
         if (bonusChests > 0) {
-            lore.add(GuiUtil.loreLine("  Chests", "+" + bonusChests, NamedTextColor.YELLOW));
+            int chestSlots = FactionLevelManager.getUpgradeChestSize(upgradeLevel);
+            lore.add(GuiUtil.loreLine("  Chests", "+" + bonusChests + " (" + chestSlots + " slots)", NamedTextColor.YELLOW));
         }
         if (upgradeLevel == 21) {
             lore.add(GuiUtil.loreLine("  Outpost", "+1 Atlas Outpost", NamedTextColor.AQUA));
@@ -156,6 +204,33 @@ public class CrystalUpgradeGui implements AtlasGui {
         lore.add(Component.text("  " + statusText, nameColor)
                 .decoration(TextDecoration.ITALIC, false));
 
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static ItemStack buildLevelUpButton(Faction faction) {
+        int nextLevel = faction.getLevel() + 1;
+        ItemStack item = new ItemStack(Material.NETHER_STAR);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("⬆ Level Up → Lv." + nextLevel, NamedTextColor.GREEN)
+                .decoration(TextDecoration.ITALIC, false)
+                .decoration(TextDecoration.BOLD, true));
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(Component.text("  Exp threshold reached!", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+        if (faction.getPendingLevelExp() > 0) {
+            lore.add(GuiUtil.loreLine("  Carry-over exp", String.valueOf(faction.getPendingLevelExp()), NamedTextColor.AQUA));
+        }
+        lore.add(Component.empty());
+        if (FactionLevelManager.isUpgrade(nextLevel)) {
+            lore.add(Component.text("  ⚡ Unlocks an upgrade bonus!", NamedTextColor.LIGHT_PURPLE)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.empty());
+        }
+        lore.add(Component.text("  Click to confirm level-up (owner/leader)", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;

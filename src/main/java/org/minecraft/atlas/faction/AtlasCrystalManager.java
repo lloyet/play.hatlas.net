@@ -106,7 +106,6 @@ public class AtlasCrystalManager {
         immunityBaseMs         = config.getLong("crystal.immunity_base_seconds", 18000L) * 1000L;
         immunityMultiplierBase = config.getInt("crystal.immunity_multiplier", 2);
         regenTimeoutMs         = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
-        loadCrystalHomes(config);
     }
 
     public static void loadCrystalHomes(FileConfiguration config) {
@@ -195,21 +194,18 @@ public class AtlasCrystalManager {
     }
 
     /**
-     * Persists a crystal's home location to PDC and to config.yml. Call after setting crystal.setHome().
+     * Persists a crystal's home location to the in-memory map and to the data file.
+     * Home is intentionally NOT stored in PDC — the data file is the single source of
+     * truth so the home remains accessible even when the entity is in an unloaded chunk.
      */
     public static void saveHome(AtlasCrystal crystal) {
         Location home = crystal.getHome();
-
         if (home == null || home.getWorld() == null) return;
-
-        String encoded = encodeHome(home);
-        crystal.getEntity().getPersistentDataContainer()
-                .set(getKeyHome(), PersistentDataType.STRING, encoded);
 
         factionHomes.computeIfAbsent(crystal.getFactionName(), k -> new LinkedHashMap<>())
                 .put(crystal.getEntity().getUniqueId(), home);
-        saveCrystalHomes(Atlas.factionsConfig);
-        Atlas.saveFactionsConfig();
+        saveCrystalHomes(Atlas.factionsDataConfig);
+        Atlas.saveFactionsDataConfig();
     }
 
     /**
@@ -249,16 +245,25 @@ public class AtlasCrystalManager {
         crystal.setName(savedName);
         entity.setCustomNameVisible(false);
 
-        // Restore home
-        String homeStr = entity.getPersistentDataContainer().get(getKeyHome(), PersistentDataType.STRING);
-        if (homeStr != null) {
-            Location home = decodeHome(homeStr);
-            crystal.setHome(home);
-            if (home != null) {
-                factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
-                        .put(entity.getUniqueId(), home);
+        // Restore home — primary source is the in-memory/data-file factionHomes map
+        Location home = null;
+        LinkedHashMap<UUID, Location> homes = factionHomes.get(factionName);
+        if (homes != null) home = homes.get(entity.getUniqueId());
+        if (home == null) {
+            // Migration fallback: read from legacy PDC if factionHomes has no entry yet
+            String homeStr = entity.getPersistentDataContainer().get(getKeyHome(), PersistentDataType.STRING);
+            if (homeStr != null) {
+                home = decodeHome(homeStr);
+                if (home != null) {
+                    factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
+                            .put(entity.getUniqueId(), home);
+                    // Persist migrated home immediately
+                    saveCrystalHomes(Atlas.factionsDataConfig);
+                    Atlas.saveFactionsDataConfig();
+                }
             }
         }
+        if (home != null) crystal.setHome(home);
 
         // Restore applied upgrades (stored as comma-separated upgrade levels)
         String upgradesStr = entity.getPersistentDataContainer().get(getKeyUpgrades(), PersistentDataType.STRING);
@@ -371,6 +376,18 @@ public class AtlasCrystalManager {
         return null;
     }
 
+    /**
+     * Returns the union of all applied upgrade levels across every crystal in this faction.
+     * Used to compute faction-wide chest availability based on confirmed upgrades only.
+     */
+    public static java.util.Set<Integer> getEffectiveAppliedUpgrades(String factionName) {
+        Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);
+        if (map == null || map.isEmpty()) return java.util.Set.of();
+        java.util.Set<Integer> all = new java.util.HashSet<>();
+        for (AtlasCrystal c : map.values()) all.addAll(c.getAppliedUpgrades());
+        return all;
+    }
+
     /** Returns all named crystals for a faction in insertion order. */
     public static Collection<AtlasCrystal> getFactionCrystals(String factionName) {
         Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);
@@ -394,6 +411,7 @@ public class AtlasCrystalManager {
         if (homes != null && !homes.isEmpty()) {
             return homes.values().iterator().next();
         }
+        
         return null;
     }
 

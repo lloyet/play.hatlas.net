@@ -9,22 +9,19 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
-import org.bukkit.block.BlockState;
-import org.bukkit.util.BlockVector;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeInstance;
-import org.bukkit.block.structure.Mirror;
-import org.bukkit.block.structure.StructureRotation;
-import org.bukkit.enchantments.Enchantment;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.Sound;
 import org.bukkit.SoundCategory;
-import org.bukkit.structure.StructureManager;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
@@ -32,8 +29,6 @@ import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.util.TitleUtil;
 
-import java.io.File;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
@@ -55,19 +50,8 @@ public class DonjonManager {
      */
     private static final Map<UUID, Set<String>> playerVisitedDonjons = new HashMap<>();
 
-    /**
-     * Cached per-structure offsets derived from the NBT palette on first placement.
-     * {@code spawnOffsets} — relative positions of every RESPAWN_ANCHOR (wave spawn points).
-     * {@code nametagOffset} — relative position of the VAULT block (nametag anchor).
-     */
-    private record StructureOffsets(List<BlockVector> spawnOffsets, BlockVector nametagOffset, int protectionRadiusChunks) {}
-    private static final Map<String, StructureOffsets> structureOffsetCache = new HashMap<>();
-
-    /** Holds the absolute world locations computed after a structure is placed. */
-    private record PlacedStructureResult(Location nametagLocation, List<Location> spawnPoints) {}
-
-    /** Type-specific configuration, loaded from config.yml. */
-    private static final Map<DonjonType, DonjonTypeConfig> typeConfigMap = new EnumMap<>(DonjonType.class);
+    /** Type-specific configuration, keyed by the config section name (e.g. "trial", "desert"). */
+    private static final Map<String, DonjonTypeConfig> typeConfigMap = new LinkedHashMap<>();
 
     // -------------------------------------------------------------------------
     // Global settings (loaded from config)
@@ -87,6 +71,15 @@ public class DonjonManager {
     /** Rarity weights indexed by DonjonRarity.ordinal() */
     private static int[] rarityWeights = {66, 14, 10, 5, 3, 2};
 
+    /** {minLevel, maxLevel, weight} difficulty tiers for ominous key generation. */
+    private static int[][] ominousDifficultyTiers = {{50, 60, 60}, {61, 75, 25}, {76, 80, 10}, {81, 99, 5}};
+
+    /** Rarity weights for ominous keys — indexed EPIC=0, LEGENDARY=1, MYSTIC=2, GODDESS=3. */
+    private static int[] ominousRarityWeights = {60, 25, 10, 5};
+
+    private static final DonjonRarity[] OMINOUS_RARITIES =
+            {DonjonRarity.EPIC, DonjonRarity.LEGENDARY, DonjonRarity.MYSTIC, DonjonRarity.GODDESS};
+
     // -------------------------------------------------------------------------
     // PDC keys (initialised in loadConfig, after Atlas.instance is set)
     // -------------------------------------------------------------------------
@@ -95,6 +88,10 @@ public class DonjonManager {
     public static NamespacedKey keyDonjonWave;
     public static NamespacedKey keyIsBoss;
     public static NamespacedKey keyTotemDisplay;
+    public static NamespacedKey keyOminousLevel;
+    public static NamespacedKey keyOminousRarity;
+    /** Marker placed on every admin-created donjon key to distinguish it from vanilla items. */
+    public static NamespacedKey keyDonjonMarker;
 
     // -------------------------------------------------------------------------
     // Config loading
@@ -104,18 +101,17 @@ public class DonjonManager {
         keyDonjonId    = new NamespacedKey(Atlas.instance, "donjon_id");
         keyDonjonWave  = new NamespacedKey(Atlas.instance, "donjon_wave");
         keyIsBoss      = new NamespacedKey(Atlas.instance, "donjon_is_boss");
-        keyTotemDisplay = new NamespacedKey(Atlas.instance, "donjon_totem_display");
+        keyTotemDisplay  = new NamespacedKey(Atlas.instance, "donjon_totem_display");
+        keyOminousLevel  = new NamespacedKey(Atlas.instance, "donjon_ominous_level");
+        keyOminousRarity = new NamespacedKey(Atlas.instance, "donjon_ominous_rarity");
+        keyDonjonMarker  = new NamespacedKey(Atlas.instance, "donjon_key_marker");
 
-        ConfigurationSection sec = config.getConfigurationSection("donjon");
-        if (sec == null) return;
-
-        activationIntervalMs = sec.getLong("activation_interval_hours", 6) * 3_600_000L;
-        idleTimeoutMs        = sec.getLong("idle_timeout_hours", 24)        * 3_600_000L;
-        lastActivationTime   = sec.getLong("last_activation_time", 0);
-        maxActiveDonjonons   = sec.getInt("max_active_donjons", 2);
+        activationIntervalMs = config.getLong("activation_interval_hours", 6) * 3_600_000L;
+        idleTimeoutMs        = config.getLong("idle_timeout_hours", 24)        * 3_600_000L;
+        maxActiveDonjonons   = config.getInt("max_active_donjons", 2);
 
         // Difficulty ranges
-        List<?> diffList = sec.getList("difficulty");
+        List<?> diffList = config.getList("difficulty");
         if (diffList != null && !diffList.isEmpty()) {
             List<int[]> ranges = new ArrayList<>();
             for (Object obj : diffList) {
@@ -131,7 +127,7 @@ public class DonjonManager {
         }
 
         // Rarity weights
-        ConfigurationSection raritySec = sec.getConfigurationSection("rarity");
+        ConfigurationSection raritySec = config.getConfigurationSection("rarity");
         if (raritySec != null) {
             rarityWeights = new int[]{
                     raritySec.getInt("common",    66),
@@ -143,14 +139,39 @@ public class DonjonManager {
             };
         }
 
-        // Type configs
-        ConfigurationSection typesSec = sec.getConfigurationSection("types");
+        // Type configs — read all sections present in the YAML, no enum required
+        typeConfigMap.clear();
+        ConfigurationSection typesSec = config.getConfigurationSection("types");
         if (typesSec != null) {
-            for (DonjonType type : DonjonType.values()) {
-                ConfigurationSection typeSec = typesSec.getConfigurationSection(type.getConfigKey());
+            for (String typeKey : typesSec.getKeys(false)) {
+                ConfigurationSection typeSec = typesSec.getConfigurationSection(typeKey);
                 if (typeSec != null) {
-                    typeConfigMap.put(type, DonjonTypeConfig.load(typeSec));
+                    typeConfigMap.put(typeKey, DonjonTypeConfig.load(typeSec));
                 }
+            }
+        }
+
+        // Ominous key generation weights
+        ConfigurationSection ominousSec = config.getConfigurationSection("ominous_key");
+        if (ominousSec != null) {
+            List<?> tierList = ominousSec.getList("difficulty_tiers");
+            if (tierList != null && !tierList.isEmpty()) {
+                List<int[]> tiers = new ArrayList<>();
+                for (Object obj : tierList) {
+                    if (obj instanceof Map<?, ?> m) {
+                        tiers.add(new int[]{toInt(m.get("min")), toInt(m.get("max")), toInt(m.get("weight"))});
+                    }
+                }
+                if (!tiers.isEmpty()) ominousDifficultyTiers = tiers.toArray(new int[0][]);
+            }
+            ConfigurationSection rwSec = ominousSec.getConfigurationSection("rarity_weights");
+            if (rwSec != null) {
+                ominousRarityWeights = new int[]{
+                        rwSec.getInt("epic",      60),
+                        rwSec.getInt("legendary", 25),
+                        rwSec.getInt("mystic",    10),
+                        rwSec.getInt("goddess",    5)
+                };
             }
         }
     }
@@ -159,9 +180,9 @@ public class DonjonManager {
     // Persistence
     // -------------------------------------------------------------------------
 
-    public static void saveDonjonConfig(FileConfiguration config) {
-        config.set("donjon.last_activation_time", lastActivationTime);
-        config.set("donjon.instances", null);
+    public static void saveDonjonData(FileConfiguration config) {
+        config.set("last_activation_time", lastActivationTime);
+        config.set("instances", null);
 
         // Persist which players have visited which donjons (needed for Smuggler NPC teleport)
         config.set("visited_donjons", null);
@@ -176,10 +197,10 @@ public class DonjonManager {
 
         if (donjons.isEmpty()) return;
 
-        ConfigurationSection instances = config.createSection("donjon.instances");
+        ConfigurationSection instances = config.createSection("instances");
         for (Donjon d : donjons.values()) {
             ConfigurationSection s = instances.createSection(d.getId());
-            s.set("type",             d.getType().getConfigKey());
+            s.set("type",             d.getType());
             s.set("name",             d.getName());
             s.set("level",            d.getLevel());
             s.set("rarity",           d.getRarity().name());
@@ -200,17 +221,33 @@ public class DonjonManager {
                 s.set("nametag_z", nt.getBlockZ());
             }
 
-            List<Location> spawnPts = d.getSpawnPoints();
-            if (!spawnPts.isEmpty()) {
+            Map<Integer, Location> spawnById = d.getSpawnPointsById();
+            if (!spawnById.isEmpty()) {
                 List<String> encoded = new ArrayList<>();
-                for (Location pt : spawnPts) {
-                    encoded.add(pt.getBlockX() + "," + pt.getBlockY() + "," + pt.getBlockZ());
+                for (Map.Entry<Integer, Location> e : spawnById.entrySet()) {
+                    Location pt = e.getValue();
+                    encoded.add(e.getKey() + "," + pt.getBlockX() + "," + pt.getBlockY() + "," + pt.getBlockZ());
                 }
                 s.set("spawn_points", encoded);
+                s.set("next_spawn_id", d.getNextSpawnId());
+            }
+
+            Set<Long> protectedKeys = d.getProtectedChunkKeys();
+            if (!protectedKeys.isEmpty()) {
+                List<String> chunkList = new ArrayList<>();
+                for (long key : protectedKeys) chunkList.add(String.valueOf(key));
+                s.set("protected_chunks", chunkList);
             }
 
             if (d.getTextDisplayUUID() != null) {
                 s.set("text_display_uuid", d.getTextDisplayUUID().toString());
+            }
+
+            Location vl = d.getVaultLocation();
+            if (vl != null) {
+                s.set("vault_x", vl.getBlockX());
+                s.set("vault_y", vl.getBlockY());
+                s.set("vault_z", vl.getBlockZ());
             }
 
             Location ts = d.getTeleportSpawn();
@@ -227,6 +264,7 @@ public class DonjonManager {
     public static void loadDonjons(FileConfiguration config) {
         donjons.clear();
         playerVisitedDonjons.clear();
+        lastActivationTime = config.getLong("last_activation_time", 0);
 
         ConfigurationSection visitedSection = config.getConfigurationSection("visited_donjons");
         if (visitedSection != null) {
@@ -241,15 +279,15 @@ public class DonjonManager {
             }
         }
 
-        ConfigurationSection instances = config.getConfigurationSection("donjon.instances");
+        ConfigurationSection instances = config.getConfigurationSection("instances");
         if (instances == null) return;
 
         for (String id : instances.getKeys(false)) {
             ConfigurationSection s = instances.getConfigurationSection(id);
             if (s == null) continue;
 
-            DonjonType type = DonjonType.fromConfigKey(s.getString("type", ""));
-            if (type == null) continue;
+            String type = s.getString("type", "");
+            if (type.isEmpty() || !typeConfigMap.containsKey(type)) continue;
 
             String worldName = s.getString("world");
             if (worldName == null) continue;
@@ -274,25 +312,36 @@ public class DonjonManager {
             }
 
             List<String> spawnPtsRaw = s.getStringList("spawn_points");
-            if (!spawnPtsRaw.isEmpty()) {
-                List<Location> spawnPts = new ArrayList<>();
-                for (String enc : spawnPtsRaw) {
-                    String[] parts = enc.split(",");
-                    if (parts.length != 3) continue;
-                    try {
+            for (String enc : spawnPtsRaw) {
+                String[] parts = enc.split(",");
+                try {
+                    if (parts.length == 4) {
+                        // New format: id,x,y,z
+                        int spawnId = Integer.parseInt(parts[0].trim());
+                        int sx = Integer.parseInt(parts[1].trim());
+                        int sy = Integer.parseInt(parts[2].trim());
+                        int sz = Integer.parseInt(parts[3].trim());
+                        donjon.putSpawnPoint(spawnId, new Location(world, sx + 0.5, sy, sz + 0.5));
+                    } else if (parts.length == 3) {
+                        // Legacy format: x,y,z — assign IDs sequentially
                         int sx = Integer.parseInt(parts[0].trim());
                         int sy = Integer.parseInt(parts[1].trim());
                         int sz = Integer.parseInt(parts[2].trim());
-                        spawnPts.add(new Location(world, sx + 0.5, sy, sz + 0.5));
-                    } catch (NumberFormatException ignored) {}
-                }
-                donjon.setSpawnPoints(spawnPts);
+                        donjon.addSpawnPoint(new Location(world, sx + 0.5, sy, sz + 0.5));
+                    }
+                } catch (NumberFormatException ignored) {}
             }
+            if (s.contains("next_spawn_id")) donjon.setNextSpawnId(s.getInt("next_spawn_id"));
 
             String displayUUIDStr = s.getString("text_display_uuid");
             if (displayUUIDStr != null) {
                 try { donjon.setTextDisplayUUID(UUID.fromString(displayUUIDStr)); }
                 catch (IllegalArgumentException ignored) {}
+            }
+
+            if (s.contains("vault_x")) {
+                donjon.setVaultLocation(new Location(world,
+                        s.getInt("vault_x"), s.getInt("vault_y"), s.getInt("vault_z")));
             }
 
             if (s.contains("teleport_spawn_x")) {
@@ -305,7 +354,17 @@ public class DonjonManager {
                 donjon.setTeleportSpawn(ts);
             }
 
-            computeProtectedChunks(donjon);
+            List<String> protectedChunkStrs = s.getStringList("protected_chunks");
+            if (!protectedChunkStrs.isEmpty()) {
+                for (String keyStr : protectedChunkStrs) {
+                    try { donjon.getProtectedChunkKeys().add(Long.parseLong(keyStr)); }
+                    catch (NumberFormatException ignored) {}
+                }
+            } else {
+                // Fallback for data saved before manual claim support — protect center chunk only
+                Location c = donjon.getCenter();
+                donjon.getProtectedChunkKeys().add(Chunk.getChunkKey(c.getBlockX() >> 4, c.getBlockZ() >> 4));
+            }
             donjons.put(id, donjon);
         }
     }
@@ -336,8 +395,8 @@ public class DonjonManager {
         if (!donjons.isEmpty() && (now - lastActivationTime) >= activationIntervalMs) {
             activateRandomDonjon();
             lastActivationTime = now;
-            Atlas.donjonsConfig.set("donjon.last_activation_time", lastActivationTime);
-            Atlas.saveDonjonsConfig();
+            Atlas.donjonsDataConfig.set("last_activation_time", lastActivationTime);
+            Atlas.saveDonjonsDataConfig();
         }
 
         // Timeout checks
@@ -385,44 +444,6 @@ public class DonjonManager {
     // Donjon creation / deletion
     // -------------------------------------------------------------------------
 
-    public static Donjon createDonjon(DonjonType type, Location center) {
-        DonjonTypeConfig cfg = typeConfigMap.get(type);
-
-        if (cfg == null) {
-            Atlas.instance.getLogger().warning("No config for donjon type: " + type);
-
-            return null;
-        }
-
-        // Reject if any proposed protected chunk already belongs to another donjon
-        int cx = center.getBlockX() >> 4, cz = center.getBlockZ() >> 4;
-        int radius = getOrCacheStructureOffsets(cfg.structureFilename()).protectionRadiusChunks();
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                long key = Chunk.getChunkKey(cx + dx, cz + dz);
-                if (getDonjonAtChunk(center.getWorld(), key) != null) {
-                    Atlas.instance.getLogger().warning(
-                            "Cannot create donjon: proposed chunks overlap with an existing donjon.");
-                    return null;
-                }
-            }
-        }
-
-        String id = UUID.randomUUID().toString().substring(0, 8);
-        int level = randomLevel();
-        DonjonRarity rarity = randomRarity();
-        String name = generateName(type, cfg);
-
-        Donjon donjon = new Donjon(id, name, type, center, level, rarity);
-        donjon.setStatus(DonjonStatus.IDLE);
-
-        computeProtectedChunks(donjon, cfg);
-
-        donjons.put(id, donjon);
-
-        return donjon;
-    }
-
     public static void deleteDonjon(String id) {
         Donjon donjon = donjons.remove(id);
         if (donjon == null) return;
@@ -435,6 +456,10 @@ public class DonjonManager {
 
         // Kill all tracked mobs
         clearEntities(donjon);
+
+        // Remove this donjon from every player's visited list
+        playerVisitedDonjons.values().forEach(visited -> visited.remove(id));
+        playerVisitedDonjons.entrySet().removeIf(e -> e.getValue().isEmpty());
     }
 
     // -------------------------------------------------------------------------
@@ -459,6 +484,106 @@ public class DonjonManager {
         DonjonRarity[] forcedRarities = {DonjonRarity.LEGENDARY, DonjonRarity.MYSTIC, DonjonRarity.GODDESS};
         donjon.setRarity(forcedRarities[ThreadLocalRandom.current().nextInt(forcedRarities.length)]);
         doActivateDonjon(donjon);
+    }
+
+    /** Activates a donjon with an explicit level and rarity (admin command or ominous key lore). */
+    public static void activateDonjonWithParams(Donjon donjon, int level, DonjonRarity rarity) {
+        donjon.setLevel(level);
+        donjon.setRarity(rarity);
+        doActivateDonjon(donjon);
+    }
+
+    /**
+     * Creates an Ominous Trial Key using weighted random selection for difficulty tier
+     * and rarity, as configured under {@code ominous_key} in donjons.yml.
+     */
+    public static ItemStack createOminousKey() {
+        return buildOminousKey(rollOminousLevel(), rollOminousRarity());
+    }
+
+    /** Rolls a difficulty level from the configured ominous key tiers. */
+    public static int rollOminousLevel() {
+        int total = 0;
+        for (int[] t : ominousDifficultyTiers) total += t[2];
+        int roll = ThreadLocalRandom.current().nextInt(total);
+        int cum = 0;
+        for (int[] t : ominousDifficultyTiers) {
+            cum += t[2];
+            if (roll < cum) return ThreadLocalRandom.current().nextInt(t[0], t[1] + 1);
+        }
+        return 50;
+    }
+
+    /** Rolls a rarity from the configured ominous key rarity weights (EPIC and above). */
+    public static DonjonRarity rollOminousRarity() {
+        int total = 0;
+        for (int w : ominousRarityWeights) total += w;
+        int roll = ThreadLocalRandom.current().nextInt(total);
+        int cum = 0;
+        for (int i = 0; i < ominousRarityWeights.length; i++) {
+            cum += ominousRarityWeights[i];
+            if (roll < cum) return OMINOUS_RARITIES[i];
+        }
+        return DonjonRarity.EPIC;
+    }
+
+    /** Builds an Ominous Trial Key for the given level and rarity, writing both into lore and PDC. */
+    public static ItemStack buildOminousKey(int level, DonjonRarity rarity) {
+        ItemStack item = new ItemStack(Material.OMINOUS_TRIAL_KEY);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text("✦ Ominous Donjon Key", NamedTextColor.LIGHT_PURPLE)
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
+            meta.lore(List.of(
+                Component.empty(),
+                Component.text("  Right-click the Vault in any donjon to", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.text("  force-activate it and begin your trial.", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.empty(),
+                Component.text("  ⚠ Difficulty ≥ 50  ·  Rarity ≥ Epic", NamedTextColor.YELLOW)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.empty(),
+                Component.text("  Difficulty: ", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
+                        .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW)
+                                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)),
+                Component.text("  Rarity: ", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
+                        .append(Component.text(rarity.getDisplayName(), rarity.getColor())
+                                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
+            ));
+            meta.setEnchantmentGlintOverride(true);
+            meta.getPersistentDataContainer().set(keyDonjonMarker,  PersistentDataType.BYTE,    (byte) 1);
+            meta.getPersistentDataContainer().set(keyOminousLevel,  PersistentDataType.INTEGER, level);
+            meta.getPersistentDataContainer().set(keyOminousRarity, PersistentDataType.STRING,  rarity.name());
+            item.setItemMeta(meta);
+        }
+        return item;
+    }
+
+    /** Creates a Trial Key usable to start an already-ACTIVE donjon. */
+    public static ItemStack createTrialKey() {
+        ItemStack item = new ItemStack(Material.TRIAL_KEY);
+        ItemMeta meta = item.getItemMeta();
+        if (meta != null) {
+            meta.displayName(Component.text("✦ Donjon Trial Key", NamedTextColor.GOLD)
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
+            meta.lore(List.of(
+                Component.empty(),
+                Component.text("  Right-click the Vault in an ACTIVE donjon", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.text("  to begin your faction's trial.", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.empty()
+            ));
+            meta.setEnchantmentGlintOverride(true);
+            meta.getPersistentDataContainer().set(keyDonjonMarker, PersistentDataType.BYTE, (byte) 1);
+            item.setItemMeta(meta);
+        }
+        return item;
     }
 
     /** Internal activation: sets ACTIVE state, updates nametag, and broadcasts. */
@@ -635,6 +760,16 @@ public class DonjonManager {
             alertDonjonPlayersSubtitle(donjon, "⚔ " + killed + " / " + total, NamedTextColor.YELLOW);
         }
 
+        // When 5 or fewer mobs remain in the wave, make them glow so players can locate them
+        if (remaining > 0 && remaining <= 5) {
+            for (UUID remainingUuid : wave.getSpawnedEntities()) {
+                Entity e = Bukkit.getEntity(remainingUuid);
+                if (e instanceof LivingEntity le && !le.isDead()) {
+                    le.addPotionEffect(new PotionEffect(PotionEffectType.GLOWING, Integer.MAX_VALUE, 0, false, false));
+                }
+            }
+        }
+
         // Drop boss loot when a boss entity dies
         if (isBossEntity(entity)) {
             spawnBossDrops(entity.getLocation(), donjon);
@@ -736,9 +871,7 @@ public class DonjonManager {
         if (donjon.getRarity().ordinal() >= DonjonRarity.EPIC.ordinal()) {
             double dropChance = ominousKeyDropChance(donjon.getRarity());
             if (dropWorld != null && ThreadLocalRandom.current().nextDouble() < dropChance) {
-                ItemStack ominousKey = new ItemStack(Material.OMINOUS_TRIAL_KEY);
-                ominousKey.addUnsafeEnchantment(Enchantment.UNBREAKING, 1);
-                dropWorld.dropItemNaturally(dropLoc, ominousKey);
+                dropWorld.dropItemNaturally(dropLoc, createOminousKey());
             }
         }
 
@@ -830,6 +963,39 @@ public class DonjonManager {
             entityToDonjonId.remove(uuid);
         }
         donjon.getAuxiliaryEntities().clear();
+
+        // Sweep loaded chunks for any surviving tagged mobs not in tracking sets (e.g. slime splits)
+        World world = donjon.getCenter().getWorld();
+        if (world != null) {
+            Set<Long> protectedKeys = donjon.getProtectedChunkKeys();
+            for (Chunk chunk : world.getLoadedChunks()) {
+                if (!protectedKeys.contains(Chunk.getChunkKey(chunk.getX(), chunk.getZ()))) continue;
+                for (Entity e : chunk.getEntities()) {
+                    if (e instanceof LivingEntity le
+                            && le.getPersistentDataContainer().has(keyDonjonId, PersistentDataType.STRING)) {
+                        le.remove();
+                        entityToDonjonId.remove(le.getUniqueId());
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers a freshly-spawned split child (slime, magma cube, etc.) into the current wave
+     * so it counts toward wave completion and is cleaned up on reset.
+     */
+    public static void registerSplitChild(LivingEntity child, Donjon donjon, int waveIndex) {
+        DonjonWave wave = donjon.getCurrentWave();
+        if (wave == null) return;
+
+        String donjonId = donjon.getId();
+        tagEntity(child, donjonId, waveIndex, false);
+        child.customName(Component.text(prettyMobName(child.getType().name()), NamedTextColor.YELLOW));
+        child.setCustomNameVisible(true);
+
+        wave.addSpawnedEntity(child.getUniqueId());
+        entityToDonjonId.put(child.getUniqueId(), donjonId);
     }
 
     // -------------------------------------------------------------------------
@@ -837,8 +1003,12 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     public static void spawnOrUpdateNametag(Donjon donjon) {
-        Location base = donjon.getNametagLocation() != null ? donjon.getNametagLocation() : donjon.getCenter();
-        Location displayLoc = base.add(0, 4.0, 0);
+        // Prefer vault block location, fall back to nametagLocation, then center
+        Location vaultLoc = donjon.getVaultLocation();
+        Location base = vaultLoc != null ? vaultLoc.clone()
+                : donjon.getNametagLocation() != null ? donjon.getNametagLocation()
+                : donjon.getCenter();
+        Location displayLoc = base.clone().add(0.5, 3.5, 0.5);
 
         TextDisplay display = null;
         UUID existingUUID = donjon.getTextDisplayUUID();
@@ -858,6 +1028,14 @@ public class DonjonManager {
                 td.getPersistentDataContainer().set(keyTotemDisplay, PersistentDataType.STRING, id);
             });
             donjon.setTextDisplayUUID(display.getUniqueId());
+        } else {
+            // Teleport to updated position if the vault/nametag location changed
+            Location current = display.getLocation();
+            if (current.getBlockX() != displayLoc.getBlockX()
+                    || current.getBlockY() != displayLoc.getBlockY()
+                    || current.getBlockZ() != displayLoc.getBlockZ()) {
+                display.teleport(displayLoc);
+            }
         }
 
         display.text(buildNametag(donjon));
@@ -880,7 +1058,7 @@ public class DonjonManager {
 
     private static Component buildNametag(Donjon donjon) {
         DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
-        String typeName = cfg != null ? cfg.displayName() : donjon.getType().getDisplayName();
+        String typeName = cfg != null ? cfg.displayName() : donjon.getType();
 
         Component statusLine;
         if (donjon.isInProgress()) {
@@ -1047,139 +1225,56 @@ public class DonjonManager {
     }
 
     /**
-     * Creates a donjon of the given type, placing the NBT structure with its NW-bottom corner
-     * at {@code origin} (the player's feet). The donjon center is set to the same location.
-     * Used exclusively by the {@code /donjon create} admin command.
+     * Creates a donjon instance at {@code origin} without placing any NBT structure.
+     * The protected area is initialised to the single chunk under the player.
+     * Spawn points and the nametag location must be set afterwards via admin commands.
      *
-     * @return the created {@link Donjon}, or {@code null} on failure.
+     * @return the created {@link Donjon}, or {@code null} if the chunk is already inside another donjon.
      */
-    public static Donjon generateDonjon(DonjonType type, Location origin) {
-        if (donjonExistsNear(origin, 64)) return null;
-
+    public static Donjon generateDonjon(String type, String name, Location origin) {
         DonjonTypeConfig cfg = typeConfigMap.get(type);
         if (cfg == null) return null;
 
-        Location blockOrigin = origin.toBlockLocation();
-        PlacedStructureResult placed = placeStructure(cfg, blockOrigin);
+        int cx = origin.getBlockX() >> 4;
+        int cz = origin.getBlockZ() >> 4;
+        long centerKey = Chunk.getChunkKey(cx, cz);
 
-        Donjon donjon = createDonjon(type, blockOrigin);
-        if (donjon == null) return null;
-        if (placed != null) {
-            donjon.setNametagLocation(placed.nametagLocation());
-            donjon.setSpawnPoints(placed.spawnPoints());
-            spawnOrUpdateNametag(donjon);
+        // Reject if the center chunk is already inside another donjon
+        for (Donjon existing : donjons.values()) {
+            if (existing.getCenter().getWorld().equals(origin.getWorld())
+                    && existing.getProtectedChunkKeys().contains(centerKey)) {
+                return null;
+            }
         }
 
+        String id    = UUID.randomUUID().toString().substring(0, 8);
+        int level    = randomLevel();
+        DonjonRarity rarity = randomRarity();
+
+        Donjon donjon = new Donjon(id, name, type, origin.toBlockLocation(), level, rarity);
+        donjon.setStatus(DonjonStatus.IDLE);
+        donjon.getProtectedChunkKeys().add(centerKey);
+
+        donjons.put(id, donjon);
+
         Bukkit.getScheduler().runTaskLater(Atlas.instance, () -> {
-            saveDonjonConfig(Atlas.donjonsConfig);
-            Atlas.saveDonjonsConfig();
+            saveDonjonData(Atlas.donjonsDataConfig);
+            Atlas.saveDonjonsDataConfig();
         }, 20L);
 
         return donjon;
     }
 
     /**
-     * Computes and caches {@link StructureOffsets} for an already-loaded structure object.
-     * Collects all RESPAWN_ANCHOR positions (spawn points), the first VAULT (nametag),
-     * and derives the protection radius from the structure's XZ footprint.
+     * Adds the chunk at ({@code chunkX}, {@code chunkZ}) in {@code world} to the
+     * protected area of the specified donjon. Returns false if the donjon does not
+     * exist or belongs to a different world.
      */
-    private static StructureOffsets computeStructureOffsets(String filename, org.bukkit.structure.Structure structure) {
-        return structureOffsetCache.computeIfAbsent(filename, k -> {
-            List<BlockVector> spawnOffsets = new ArrayList<>();
-            BlockVector nametagOffset = null;
-            if (!structure.getPalettes().isEmpty()) {
-                for (BlockState block : structure.getPalettes().getFirst().getBlocks()) {
-                    Material type = block.getType();
-                    Location blockLocation = block.getLocation();
-                    if (type == Material.RESPAWN_ANCHOR) {
-                        spawnOffsets.add(new BlockVector(blockLocation.getBlockX(), blockLocation.getBlockY(), blockLocation.getBlockZ()));
-                    } else if (nametagOffset == null && type == Material.VAULT) {
-                        nametagOffset = new BlockVector(blockLocation.getBlockX(), blockLocation.getBlockY(), blockLocation.getBlockZ());
-                    }
-                }
-            }
-
-            BlockVector size = structure.getSize();
-            if (nametagOffset == null) {
-                nametagOffset = new BlockVector(size.getBlockX() / 2, 0, size.getBlockZ() / 2);
-            }
-
-            int maxDim = Math.max(size.getBlockX(), size.getBlockZ());
-            int radius = (int) Math.ceil(maxDim / 16.0) + 1;
-
-            return new StructureOffsets(List.copyOf(spawnOffsets), nametagOffset, radius);
-        });
-    }
-
-    /**
-     * Ensures the {@link StructureOffsets} for the given filename are in the cache,
-     * loading the structure file if necessary. Returns a fallback with radius 3 on any error.
-     */
-    private static StructureOffsets getOrCacheStructureOffsets(String filename) {
-        if (structureOffsetCache.containsKey(filename)) return structureOffsetCache.get(filename);
-        if (filename == null || filename.isEmpty())
-            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
-        File file = new File(Atlas.instance.getDataFolder(), "structures/" + filename);
-        if (!file.exists())
-            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
-        try {
-            org.bukkit.structure.Structure structure = Bukkit.getServer().getStructureManager().loadStructure(file);
-            return computeStructureOffsets(filename, structure);
-        } catch (IOException e) {
-            Atlas.instance.getLogger().warning("Failed to read structure '" + filename + "': " + e.getMessage());
-            return new StructureOffsets(List.of(), new BlockVector(0, 0, 0), 3);
-        }
-    }
-
-    /**
-     * Loads the NBT structure file and places it in the world, with {@code loc} as the NW-bottom corner.
-     *
-     * <ul>
-     *   <li>Every {@code RESPAWN_ANCHOR} block becomes a wave spawn point.</li>
-     *   <li>The first {@code VAULT} block found in the placed region is the nametag anchor.</li>
-     * </ul>
-     *
-     * @param origin NW-bottom corner of the structure.
-     * @return a {@link PlacedStructureResult} with absolute world locations, or {@code null} on error.
-     */
-    private static PlacedStructureResult placeStructure(DonjonTypeConfig cfg, Location origin) {
-        String filename = cfg.structureFilename();
-        if (filename == null || filename.isEmpty()) return null;
-
-        File file = new File(Atlas.instance.getDataFolder(), "structures/" + filename);
-        if (!file.exists()) {
-            Atlas.instance.getLogger().warning(
-                    "Structure file not found: " + file.getPath()
-                    + " — place your .nbt file there and restart.");
-            return null;
-        }
-
-        try {
-            StructureManager sm = Bukkit.getServer().getStructureManager();
-            org.bukkit.structure.Structure structure = sm.loadStructure(file);
-
-            structure.place(origin, true, StructureRotation.NONE, Mirror.NONE, 0, 1.0f, new Random());
-
-            // Resolve spawn offsets from palette[0] (cached per filename).
-            StructureOffsets offsets = computeStructureOffsets(filename, structure);
-
-            int ox = origin.getBlockX(), oy = origin.getBlockY(), oz = origin.getBlockZ();
-            World world = origin.getWorld();
-
-            List<Location> spawnPoints = new ArrayList<>();
-            for (BlockVector sv : offsets.spawnOffsets()) {
-                spawnPoints.add(new Location(world, ox + sv.getBlockX() + 0.5, oy + sv.getBlockY(), oz + sv.getBlockZ() + 0.5));
-            }
-
-            BlockVector nv = offsets.nametagOffset();
-            Location nametagLoc = new Location(world, ox + nv.getBlockX() + 0.5, oy + nv.getBlockY(), oz + nv.getBlockZ() + 0.5);
-
-            return new PlacedStructureResult(nametagLoc, spawnPoints);
-
-        } catch (IOException e) {
-            Atlas.instance.getLogger().warning("Failed to place structure '" + filename + "': " + e.getMessage());
-            return null;
-        }
+    public static boolean addProtectedChunk(String donjonId, World world, int chunkX, int chunkZ) {
+        Donjon d = donjons.get(donjonId);
+        if (d == null || !d.getCenter().getWorld().equals(world)) return false;
+        d.getProtectedChunkKeys().add(Chunk.getChunkKey(chunkX, chunkZ));
+        return true;
     }
 
     /** Returns {@code true} if any existing donjon's center is within {@code radiusBlocks} of {@code loc}. */
@@ -1197,6 +1292,34 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
     // Queries
     // -------------------------------------------------------------------------
+
+    /**
+     * Returns the donjon whose vault block is at the given location, or null if none matches.
+     * Used by the listener to find which donjon a player is triggering.
+     */
+    public static Donjon getDonjonAtVault(Location loc) {
+        if (loc == null || loc.getWorld() == null) return null;
+        for (Donjon d : donjons.values()) {
+            Location vl = d.getVaultLocation();
+            if (vl == null) continue;
+            if (!vl.getWorld().equals(loc.getWorld())) continue;
+            if (vl.getBlockX() == loc.getBlockX()
+                    && vl.getBlockY() == loc.getBlockY()
+                    && vl.getBlockZ() == loc.getBlockZ()) return d;
+        }
+        return null;
+    }
+
+    /** Returns the set of type keys currently loaded from donjons.yml (e.g. "trial", "desert"). */
+    public static Set<String> getAvailableTypes() {
+        return Collections.unmodifiableSet(typeConfigMap.keySet());
+    }
+
+    /** Returns the display name for a type key, or the key itself if the type is not loaded. */
+    public static String getTypeDisplayName(String typeKey) {
+        DonjonTypeConfig cfg = typeConfigMap.get(typeKey);
+        return cfg != null ? cfg.displayName() : typeKey;
+    }
 
     public static boolean isBossEntity(LivingEntity e) {
         return e.getPersistentDataContainer().has(keyIsBoss, PersistentDataType.BYTE);
@@ -1304,15 +1427,6 @@ public class DonjonManager {
         return DonjonRarity.COMMON;
     }
 
-    private static String generateName(DonjonType type, DonjonTypeConfig cfg) {
-        List<String> adjectives = cfg.nameAdjectives();
-        List<String> nouns      = cfg.nameNouns();
-        if (adjectives.isEmpty() || nouns.isEmpty()) return type.getDisplayName();
-        ThreadLocalRandom rand = ThreadLocalRandom.current();
-        String adj  = adjectives.get(rand.nextInt(adjectives.size()));
-        String noun = nouns.get(rand.nextInt(nouns.size()));
-        return adj + " " + noun;
-    }
 
     private static Location randomSpawnLocation(Donjon donjon) {
         List<Location> spawnPoints = donjon.getSpawnPoints();
@@ -1324,23 +1438,6 @@ public class DonjonManager {
         Location c = donjon.getCenter();
         int range = 8;
         return c.clone().add(rand.nextInt(-range, range + 1), 0, rand.nextInt(-range, range + 1));
-    }
-
-    private static void computeProtectedChunks(Donjon donjon) {
-        DonjonTypeConfig cfg = typeConfigMap.get(donjon.getType());
-        if (cfg != null) computeProtectedChunks(donjon, cfg);
-    }
-
-    private static void computeProtectedChunks(Donjon donjon, DonjonTypeConfig cfg) {
-        donjon.getProtectedChunkKeys().clear();
-        Location c = donjon.getCenter();
-        int radius = getOrCacheStructureOffsets(cfg.structureFilename()).protectionRadiusChunks();
-        int cx = c.getBlockX() >> 4, cz = c.getBlockZ() >> 4;
-        for (int dx = -radius; dx <= radius; dx++) {
-            for (int dz = -radius; dz <= radius; dz++) {
-                donjon.getProtectedChunkKeys().add(Chunk.getChunkKey(cx + dx, cz + dz));
-            }
-        }
     }
 
     private static void broadcastGlobal(Component chatMsg, String shortTitle, NamedTextColor color) {
