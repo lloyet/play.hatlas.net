@@ -13,8 +13,8 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.GeneratedTask;
-import org.minecraft.atlas.job.QuestTemplate;
+import org.minecraft.atlas.quest.GeneratedTask;
+import org.minecraft.atlas.quest.QuestTemplate;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
@@ -25,7 +25,6 @@ import java.util.UUID;
 public class JobDailyGui implements AtlasGui {
 
     private static final int[] DAILY_ITEM_SLOTS = {10, 13, 16};
-    private static final int   SLOT_BACK        = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -49,8 +48,7 @@ public class JobDailyGui implements AtlasGui {
             }
         }
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Back"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -70,8 +68,8 @@ public class JobDailyGui implements AtlasGui {
 
         int slot = event.getRawSlot();
 
-        if (slot == SLOT_BACK) {
-            new JobMainGui(player).open(player);
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
             return;
         }
 

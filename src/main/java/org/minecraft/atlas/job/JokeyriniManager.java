@@ -10,8 +10,10 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonKey;
+import org.minecraft.atlas.quest.ActiveQuest;
+import org.minecraft.atlas.quest.GeneratedTask;
+import org.minecraft.atlas.quest.TaskTemplate;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -41,7 +43,8 @@ public class JokeyriniManager {
     private static final Map<UUID, List<GeneratedTask>>  dailyOffer   = new HashMap<>();
     private static final Map<UUID, ActiveQuest>          activeQuests = new HashMap<>();
 
-    private static double specialQuestChance = 0.15;
+    private static double specialQuestChance       = 0.15;
+    private static long   jokeyriniResetIntervalMs = 24 * 3_600_000L;
 
     // ── Task templates ────────────────────────────────────────────────────────
 
@@ -54,10 +57,11 @@ public class JokeyriniManager {
      * Empty list means the player already accepted the offer today.
      */
     public static List<GeneratedTask> getDailyOffer(UUID uuid, int playerLevel) {
-        long today = LocalDate.now().toEpochDay();
-        Long reset = dailyReset.get(uuid);
-        if (reset == null || reset != today) {
-            dailyReset.put(uuid, today);
+        long now = System.currentTimeMillis();
+        Long lastReset = dailyReset.get(uuid);
+        boolean needsReset = lastReset == null || (now - lastReset) >= jokeyriniResetIntervalMs;
+        if (needsReset) {
+            dailyReset.put(uuid, now);
             boolean isSpecial = ThreadLocalRandom.current().nextDouble() < specialQuestChance;
             dailyOffer.put(uuid, isSpecial ? generateSpecialQuest(playerLevel) : generateQuest(playerLevel));
         }
@@ -175,7 +179,7 @@ public class JokeyriniManager {
             ConfigurationSection s = root.createSection(uuid.toString());
 
             Long reset = dailyReset.get(uuid);
-            if (reset != null) s.set("daily_reset", reset);
+            if (reset != null) s.set("last_daily_reset_ms", reset);
 
             List<GeneratedTask> offer = dailyOffer.get(uuid);
             if (offer != null && !offer.isEmpty()) {
@@ -199,7 +203,9 @@ public class JokeyriniManager {
 
         ConfigurationSection jokSection = config.getConfigurationSection("jokeyrini");
         if (jokSection != null) {
-            specialQuestChance = jokSection.getDouble("special_quest_chance", 0.15);
+            specialQuestChance       = jokSection.getDouble("special_quest_chance", 0.15);
+            double resetHours        = jokSection.getDouble("daily_reset_hours", 24.0);
+            jokeyriniResetIntervalMs = (long)(resetHours * 3_600_000L);
             List<?> taskList = jokSection.getList("tasks");
             if (taskList != null) {
                 for (Object obj : taskList) {
@@ -229,7 +235,7 @@ public class JokeyriniManager {
             ConfigurationSection s = playerSection.getConfigurationSection(uuidStr);
             if (s == null) continue;
 
-            long reset = s.getLong("daily_reset", 0);
+            long reset = s.getLong("last_daily_reset_ms", 0);
             if (reset > 0) dailyReset.put(uuid, reset);
 
             List<?> offerRaw = s.getList("daily_offer");

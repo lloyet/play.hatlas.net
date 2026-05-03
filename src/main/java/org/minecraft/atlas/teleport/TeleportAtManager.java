@@ -1,4 +1,4 @@
-package org.minecraft.atlas.faction;
+package org.minecraft.atlas.teleport;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class TpaManager {
+public class TeleportAtManager {
 
     private record TpaRequest(UUID requesterUUID, UUID targetUUID, long expiryMs) {
     }

@@ -13,6 +13,7 @@ import java.util.List;
 import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SetSpawnCommand;
+import org.minecraft.atlas.command.ProtectionCommand;
 import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
@@ -23,16 +24,18 @@ import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
-import org.minecraft.atlas.faction.RandomTeleportManager;
-import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
-import org.minecraft.atlas.faction.HomeManager;
-import org.minecraft.atlas.faction.HomeTeleportManager;
-import org.minecraft.atlas.faction.SpawnManager;
-import org.minecraft.atlas.faction.SpawnTeleportManager;
-import org.minecraft.atlas.faction.TpaManager;
-import org.minecraft.atlas.faction.CrystalGui;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.teleport.RandomTeleportManager;
+import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
+import org.minecraft.atlas.teleport.HomeManager;
+import org.minecraft.atlas.teleport.HomeTeleportManager;
+import org.minecraft.atlas.spawn.ProtectionManager;
+import org.minecraft.atlas.spawn.SpawnManager;
+import org.minecraft.atlas.spawn.SpawnTeleportManager;
+import org.minecraft.atlas.teleport.TeleportAtManager;
+import org.minecraft.atlas.listener.CrystalListener;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
+import org.minecraft.atlas.faction.FactionClaimBorderRenderer;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -120,13 +123,13 @@ public final class Atlas extends JavaPlugin {
 
         // Load from config.yml
         AtlasCrystalManager.loadConfig(factionsConfig);
-        SpawnProtectionListener.loadConfig(configFile);
+        ProtectionManager.loadConfig(configFile);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
         SpawnTeleportManager.loadConfig(configFile);
         HomeManager.loadConfig(configFile);
         HomeTeleportManager.loadConfig(factionsConfig);
-        TpaManager.loadConfig(configFile);
+        TeleportAtManager.loadConfig(configFile);
         AfkManager.loadConfig(configFile);
         DeathTeleportCooldownManager.loadConfig(configFile);
 
@@ -162,7 +165,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JobListener(), this);
         getServer().getPluginManager().registerEvents(new DonjonListener(), this);
         getServer().getPluginManager().registerEvents(new TagListener(), this);
-        getServer().getPluginManager().registerEvents(new CrystalGui(), this);
+        getServer().getPluginManager().registerEvents(new CrystalListener(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
         AfkManager afkManager = new AfkManager();
@@ -175,6 +178,7 @@ public final class Atlas extends JavaPlugin {
         QuestManager.scheduleExpiry(this);
         ItemClearManager.schedule(this);
         AfkManager.schedule(this);
+        FactionClaimBorderRenderer.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -191,6 +195,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(RandomTeleportCommand.build());
                         event.registrar().register(SpawnCommand.build());
                         event.registrar().register(SetSpawnCommand.build());
+                        event.registrar().register(ProtectionCommand.build());
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
@@ -209,6 +214,7 @@ public final class Atlas extends JavaPlugin {
         // Save to config.yml
         HomeManager.saveHomes(configFile);
         SpawnManager.saveSpawn(configFile);
+        ProtectionManager.saveConfig(configFile);
         saveConfig();
 
         // Save to tags-data.yml

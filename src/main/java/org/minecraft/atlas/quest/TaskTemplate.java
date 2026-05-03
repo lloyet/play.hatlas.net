@@ -1,6 +1,7 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.job.Job;
 
 import java.util.List;
 
@@ -13,7 +14,7 @@ public class TaskTemplate {
     private final String          id;
     private final String          name;
     private final String          description;
-    private final Job             job;
+    private final Job job;
     private final String          actionType;       // e.g. "break_block", "kill_entity"
     private final List<String>    targets;          // block/entity names that count
     private final List<ItemStack> baseItemRewards;  // base amounts, scaled at generation time

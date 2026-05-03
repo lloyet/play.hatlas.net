@@ -535,18 +535,10 @@ public class DonjonManager {
         ItemStack item = new ItemStack(Material.OMINOUS_TRIAL_KEY);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.displayName(Component.text("✦ Ominous Donjon Key", NamedTextColor.LIGHT_PURPLE)
+            meta.displayName(Component.text("✦ Donjon Ominous Key", NamedTextColor.LIGHT_PURPLE)
                     .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
                     .decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
             meta.lore(List.of(
-                Component.empty(),
-                Component.text("  Right-click the Vault in any donjon to", NamedTextColor.GRAY)
-                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
-                Component.text("  force-activate it and begin your trial.", NamedTextColor.GRAY)
-                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
-                Component.empty(),
-                Component.text("  ⚠ Difficulty ≥ 50  ·  Rarity ≥ Epic", NamedTextColor.YELLOW)
-                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
                 Component.empty(),
                 Component.text("  Difficulty: ", NamedTextColor.GRAY)
                         .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
@@ -555,7 +547,12 @@ public class DonjonManager {
                 Component.text("  Rarity: ", NamedTextColor.GRAY)
                         .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
                         .append(Component.text(rarity.getDisplayName(), rarity.getColor())
-                                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false))
+                                .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)),
+                Component.empty(),
+                Component.text("  Right-click the Vault in any donjon to", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false),
+                Component.text("  force-activate it and begin your trial.", NamedTextColor.GRAY)
+                        .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC, false)
             ));
             meta.setEnchantmentGlintOverride(true);
             meta.getPersistentDataContainer().set(keyDonjonMarker,  PersistentDataType.BYTE,    (byte) 1);

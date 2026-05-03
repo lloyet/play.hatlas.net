@@ -62,7 +62,9 @@ public class BossDropConfig {
                     } else if (entry.raiderLevel() > 0) {
                         int count = Math.max(1, entry.amount());
                         for (int j = 0; j < count; j++) {
-                            drops.add(RaiderPickaxe.create(entry.raiderLevel()));
+                            ItemStack raiderItem = new ItemStack(entry.material());
+                            RaiderPickaxe.applyToItem(raiderItem, entry.raiderLevel());
+                            drops.add(raiderItem);
                         }
                     } else {
                         ItemStack stack = new ItemStack(entry.material(), entry.amount());
@@ -105,9 +107,9 @@ public class BossDropConfig {
                         isPoweredEgg = true;
                         continue; // not a real Minecraft enchantment — handled as special flag
                     }
-                    if ("raider".equals(encStr) && "DIAMOND_PICKAXE".equals(matName) && encLevel >= 1) {
+                    if ("raider".equals(encStr) && encLevel >= 1) {
                         raiderLevel = encLevel;
-                        continue; // custom flag — not a real enchantment
+                        continue; // custom flag — handled as Raider enchantment on any item
                     }
                     Enchantment enc = RegistryAccess.registryAccess()
                             .getRegistry(RegistryKey.ENCHANTMENT)

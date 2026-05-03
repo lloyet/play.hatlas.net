@@ -1,7 +1,8 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.job.Job;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

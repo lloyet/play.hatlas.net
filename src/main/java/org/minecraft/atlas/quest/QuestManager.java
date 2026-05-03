@@ -11,15 +11,10 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.ActiveQuest;
-import org.minecraft.atlas.job.GeneratedTask;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.PlayerJobData;
-import org.minecraft.atlas.job.QuestTemplate;
-import org.minecraft.atlas.job.TaskTemplate;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -33,7 +28,8 @@ public class QuestManager {
     // ── State ─────────────────────────────────────────────────────────────────
 
     private static final Map<Job, List<TaskTemplate>> taskTemplates = new EnumMap<>(Job.class);
-    private static int baseExpReward = 10;
+    private static int  baseExpReward       = 10;
+    private static long questResetIntervalMs = 24 * 3_600_000L;
 
     // ── Task template access ──────────────────────────────────────────────────
 
@@ -162,12 +158,15 @@ public class QuestManager {
         PlayerJobData data = JobManager.getJobData(uuid);
         if (data == null) return List.of();
 
-        long today = LocalDate.now().toEpochDay();
-        if (data.dailyResetEpochDay != today || data.dailyOfferedQuests.isEmpty()) {
+        long now = System.currentTimeMillis();
+        boolean needsReset = data.lastDailyResetMs == 0
+                || (now - data.lastDailyResetMs) >= questResetIntervalMs
+                || data.dailyOfferedQuests.isEmpty();
+        if (needsReset) {
             data.dailyOfferedQuests.clear();
             data.dailySelectedIds.clear();
             data.activeQuests.clear();
-            data.dailyResetEpochDay = today;
+            data.lastDailyResetMs = now;
             generateDailyQuests(data);
         }
 
@@ -183,20 +182,25 @@ public class QuestManager {
     public static boolean isDailyLocked(UUID uuid) {
         PlayerJobData data = JobManager.getJobData(uuid);
         if (data == null) return false;
-        return data.dailyResetEpochDay == LocalDate.now().toEpochDay()
-                && data.dailySelectedIds.size() >= 2;
+        long now = System.currentTimeMillis();
+        if (data.lastDailyResetMs == 0 || (now - data.lastDailyResetMs) >= questResetIntervalMs) return false;
+        return data.dailySelectedIds.size() >= 2;
     }
 
     public static int getDailySelectedCount(UUID uuid) {
         PlayerJobData data = JobManager.getJobData(uuid);
         if (data == null) return 0;
-        if (data.dailyResetEpochDay != LocalDate.now().toEpochDay()) return 0;
+        long now = System.currentTimeMillis();
+        if (data.lastDailyResetMs == 0 || (now - data.lastDailyResetMs) >= questResetIntervalMs) return 0;
         return data.dailySelectedIds.size();
     }
 
     public static boolean isDailyQuestSelected(UUID uuid, String questId) {
         PlayerJobData data = JobManager.getJobData(uuid);
-        return data != null && data.dailySelectedIds.contains(questId);
+        if (data == null) return false;
+        long now = System.currentTimeMillis();
+        if (data.lastDailyResetMs == 0 || (now - data.lastDailyResetMs) >= questResetIntervalMs) return false;
+        return data.dailySelectedIds.contains(questId);
     }
 
     public static boolean selectDailyQuest(UUID uuid, String questId) {
@@ -257,7 +261,9 @@ public class QuestManager {
         taskTemplates.clear();
 
         ConfigurationSection questSection = config.getConfigurationSection("quests");
-        baseExpReward = questSection != null ? questSection.getInt("exp_base_reward", 10) : 10;
+        baseExpReward        = questSection != null ? questSection.getInt("exp_base_reward", 10) : 10;
+        double resetHours    = questSection != null ? questSection.getDouble("daily_reset_hours", 24.0) : 24.0;
+        questResetIntervalMs = (long)(resetHours * 3_600_000L);
 
         List<?> taskList = questSection != null ? questSection.getList("tasks") : null;
         if (taskList != null) {

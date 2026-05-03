@@ -1,4 +1,4 @@
-package org.minecraft.atlas.faction;
+package org.minecraft.atlas.spawn;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;

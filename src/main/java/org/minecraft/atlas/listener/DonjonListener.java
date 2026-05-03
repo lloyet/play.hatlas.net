@@ -250,7 +250,7 @@ public class DonjonListener implements Listener {
             DonjonManager.startDonjon(donjon, player, factionName);
         } else {
             // ACTIVE donjon — any Donjon Key (trial or ominous) with the PDC marker
-            boolean isTrial  = itemType.equals(Material.TRIAL_KEY);
+            boolean isTrial   = itemType.equals(Material.TRIAL_KEY);
             boolean isOminous = itemType.equals(Material.OMINOUS_TRIAL_KEY);
             if ((!isTrial && !isOminous) || !isDonjonKey) {
                 TitleUtil.notify(player,
@@ -259,6 +259,22 @@ public class DonjonListener implements Listener {
                 return;
             }
             player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
+
+            // Ominous key overrides the donjon's current level and rarity with the key's values
+            if (isOminous) {
+                var pdc = heldMeta.getPersistentDataContainer();
+                int storedLevel = -1;
+                DonjonRarity storedRarity = null;
+                if (pdc.has(DonjonManager.keyOminousLevel, PersistentDataType.INTEGER))
+                    storedLevel = pdc.get(DonjonManager.keyOminousLevel, PersistentDataType.INTEGER);
+                if (pdc.has(DonjonManager.keyOminousRarity, PersistentDataType.STRING)) {
+                    try { storedRarity = DonjonRarity.valueOf(pdc.get(DonjonManager.keyOminousRarity, PersistentDataType.STRING)); }
+                    catch (IllegalArgumentException ignored) {}
+                }
+                if (storedLevel >= 0) donjon.setLevel(storedLevel);
+                if (storedRarity != null) donjon.setRarity(storedRarity);
+            }
+
             DonjonManager.startDonjon(donjon, player, factionName);
         }
     }

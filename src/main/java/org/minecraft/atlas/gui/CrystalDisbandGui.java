@@ -27,7 +27,7 @@ public class CrystalDisbandGui implements AtlasGui {
         this.factionName = faction.getName();
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Confirm Disband?", NamedTextColor.RED));
+                Component.text("Confirm Disband? - " + GuiUtil.truncateFactionName(faction.getName()), NamedTextColor.RED));
 
         ItemStack green = GuiUtil.labeledPane(Material.GREEN_STAINED_GLASS_PANE,
                 Component.text("✔ Disband", NamedTextColor.GREEN));

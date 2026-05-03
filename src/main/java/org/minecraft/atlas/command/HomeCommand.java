@@ -13,9 +13,12 @@ import org.bukkit.Location;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.faction.HomeManager;
+import org.minecraft.atlas.teleport.HomeManager;
 
 public class HomeCommand {
+
+    private static Component error(String msg)   { return Component.text(msg, NamedTextColor.RED); }
+    private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
 
     public static LiteralCommandNode<CommandSourceStack> buildSetHome() {
         return Commands.literal("sethome")
@@ -25,16 +28,15 @@ public class HomeCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
                             boolean alreadyExists = HomeManager.hasHome(player.getUniqueId(), name);
 
                             if (!alreadyExists && HomeManager.hasAnyHome(player.getUniqueId())) {
-                                player.sendMessage(Component.text(
-                                        "You already have a home set. Delete it first or use the same name to update it.",
-                                        NamedTextColor.RED));
+                                player.sendMessage(error(
+                                        "You already have a home set. Delete it first or use the same name to update it."));
                                 return Command.SINGLE_SUCCESS;
                             }
 
@@ -43,8 +45,7 @@ public class HomeCommand {
                             String claimOwner = FactionClaimManager.getClaimingFaction(
                                     loc.getWorld().getName(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
                             if (claimOwner != null && !claimOwner.equals(FactionManager.getPlayerFaction(player.getUniqueId()))) {
-                                player.sendMessage(Component.text(
-                                        "You cannot set a home in another faction's territory!", NamedTextColor.RED));
+                                player.sendMessage(error("You cannot set a home in another faction's territory!"));
                                 return Command.SINGLE_SUCCESS;
                             }
 
@@ -52,9 +53,7 @@ public class HomeCommand {
                             HomeManager.saveHomes(Atlas.instance.getConfig());
                             Atlas.instance.saveConfig();
 
-                            player.sendMessage(Component.text(
-                                    (alreadyExists ? "Home updated" : "Home set") + ": '" + name + "'.",
-                                    NamedTextColor.GREEN));
+                            player.sendMessage(success((alreadyExists ? "Home updated" : "Home set") + ": '" + name + "'."));
                             return Command.SINGLE_SUCCESS;
                         }))
                 .build();
@@ -69,7 +68,7 @@ public class HomeCommand {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
                         ctx.getSource().getSender().sendMessage(
-                                Component.text("Only players can use this command.", NamedTextColor.RED));
+                                error("Only players can use this command."));
                         return Command.SINGLE_SUCCESS;
                     }
                     HomeManager.startTeleport(player, null);
@@ -89,7 +88,7 @@ public class HomeCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
@@ -115,7 +114,7 @@ public class HomeCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
@@ -123,11 +122,9 @@ public class HomeCommand {
                             if (deleted) {
                                 HomeManager.saveHomes(Atlas.instance.getConfig());
                                 Atlas.instance.saveConfig();
-                                player.sendMessage(Component.text(
-                                        "Home '" + name + "' deleted.", NamedTextColor.GREEN));
+                                player.sendMessage(success("Home '" + name + "' deleted."));
                             } else {
-                                player.sendMessage(Component.text(
-                                        "Home '" + name + "' not found.", NamedTextColor.RED));
+                                player.sendMessage(error("Home '" + name + "' not found."));
                             }
                             return Command.SINGLE_SUCCESS;
                         }))

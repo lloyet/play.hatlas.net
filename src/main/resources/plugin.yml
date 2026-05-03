@@ -81,6 +81,9 @@ permissions:
   atlas.faction.admin.disband:
     description: Administratively disband any faction by name
     default: op
+  atlas.faction.admin.join:
+    description: Force-join any player into any faction without invitation
+    default: op
   atlas.crystal:
     description: Access to /crystal commands
     default: true
@@ -102,6 +105,12 @@ permissions:
   atlas.spawn:
     description: Teleport to world spawn with a 10-second countdown
     default: true
+  atlas.spawn.admin:
+    description: Teleport to any protection area with /spawn <name> regardless of visit history
+    default: op
+  atlas.protection.admin:
+    description: Create and manage protection areas via /protection
+    default: op
   atlas.tpa:
     description: Send and respond to teleport-to-player requests
     default: true

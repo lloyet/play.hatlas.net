@@ -11,7 +11,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.job.ActiveQuest;
+import org.minecraft.atlas.quest.ActiveQuest;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.PlayerJobData;
 import org.minecraft.atlas.quest.QuestManager;
@@ -25,7 +25,6 @@ public class JobMainGui implements AtlasGui {
 
     private static final int SLOT_MY_QUESTS    = 11;
     private static final int SLOT_DAILY_QUESTS = 15;
-    private static final int SLOT_BACK         = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -73,8 +72,7 @@ public class JobMainGui implements AtlasGui {
         daily.setItemMeta(dMeta);
         this.inventory.setItem(SLOT_DAILY_QUESTS, daily);
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Close"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -94,12 +92,13 @@ public class JobMainGui implements AtlasGui {
 
         int slot = event.getRawSlot();
 
-        if (slot == SLOT_BACK) {
-            player.closeInventory();
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
             return;
         }
 
         if (slot == SLOT_MY_QUESTS) {
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobQuestListGui(player).open(player);
             return;
         }
@@ -110,6 +109,7 @@ public class JobMainGui implements AtlasGui {
                         "You have already selected your 2 daily quests. Come back tomorrow!", NamedTextColor.RED));
                 return;
             }
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobDailyGui(player).open(player);
         }
     }

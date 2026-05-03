@@ -12,11 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
-import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
-import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -25,18 +22,23 @@ import java.util.UUID;
 
 public class CrystalUpgradeConfirmGui implements AtlasGui {
 
+    public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST }
+
     private final String factionName;
     private final UUID crystalEntityUUID;
-    private final int upgradeLevel;
+    private final SkillPurchaseType type;
+    private final int tierIndex;
     private final Inventory inventory;
 
-    public CrystalUpgradeConfirmGui(Player player, Faction faction, UUID crystalEntityUUID, int upgradeLevel) {
-        this.factionName       = faction.getName();
+    public CrystalUpgradeConfirmGui(Player player, String factionName, UUID crystalEntityUUID,
+                                    SkillPurchaseType type, int tierIndex) {
+        this.factionName       = factionName;
         this.crystalEntityUUID = crystalEntityUUID;
-        this.upgradeLevel      = upgradeLevel;
+        this.type              = type;
+        this.tierIndex         = tierIndex;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Confirm Upgrade?", NamedTextColor.GOLD));
+                Component.text("Confirm Upgrade? - " + GuiUtil.truncateFactionName(factionName), NamedTextColor.GOLD));
 
         ItemStack green = GuiUtil.labeledPane(Material.GREEN_STAINED_GLASS_PANE,
                 Component.text("✔ Confirm", NamedTextColor.GREEN));
@@ -48,7 +50,7 @@ public class CrystalUpgradeConfirmGui implements AtlasGui {
         for (int slot : GuiUtil.CONFIRM_RED)   this.inventory.setItem(slot, red);
         this.inventory.setItem(4,  gray);
         this.inventory.setItem(22, gray);
-        this.inventory.setItem(GuiUtil.SLOT_CONFIRM_INFO, buildConfirmInfoItem(upgradeLevel));
+        this.inventory.setItem(GuiUtil.SLOT_CONFIRM_INFO, buildConfirmInfoItem(type, tierIndex));
     }
 
     public void open(Player player) {
@@ -66,61 +68,108 @@ public class CrystalUpgradeConfirmGui implements AtlasGui {
         int slot = event.getRawSlot();
 
         if (GuiUtil.CONFIRM_GREEN.contains(slot)) {
-            FactionManager.ApplyUpgradeResult result =
-                    FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalEntityUUID);
-
-            switch (result) {
-                case SUCCESS -> {
-                    player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
-                    double bonus = FactionLevelManager.getUpgradeHp(upgradeLevel);
-                    player.sendMessage(
-                            Component.text("Upgrade applied! Crystal gained ", NamedTextColor.GREEN)
-                                    .append(Component.text("+" + (int) bonus + " ♥", NamedTextColor.RED))
-                                    .append(Component.text(" max HP.", NamedTextColor.GREEN)));
+            boolean success = switch (type) {
+                case HP -> {
+                    List<FactionLevelManager.HpTier> tiers = FactionLevelManager.getHpTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseHpUpgrade(factionName, crystalEntityUUID, tiers.get(tierIndex));
                 }
-                case NO_PERMISSION ->
-                    player.sendMessage(Component.text(
-                            "You don't have permission to apply upgrades.", NamedTextColor.RED));
-                case UPGRADE_NOT_PENDING ->
-                    player.sendMessage(Component.text(
-                            "This upgrade is no longer pending.", NamedTextColor.YELLOW));
-                case CRYSTAL_NOT_FOUND ->
-                    player.sendMessage(Component.text(
-                            "Crystal not found. Make sure it is still placed.", NamedTextColor.RED));
-                default -> {}
+                case CLAIMS -> {
+                    List<FactionLevelManager.ClaimTier> tiers = FactionLevelManager.getClaimTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseClaimUpgrade(factionName, crystalEntityUUID, tiers.get(tierIndex));
+                }
+                case CHEST -> {
+                    List<FactionLevelManager.ChestTier> tiers = FactionLevelManager.getChestTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseChestUpgrade(factionName, crystalEntityUUID, tiers.get(tierIndex));
+                }
+                case PROTECTION -> {
+                    List<FactionLevelManager.ProtectionTier> tiers = FactionLevelManager.getProtectionTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseProtectionUpgrade(factionName, crystalEntityUUID, tiers.get(tierIndex));
+                }
+                case OUTPOST -> AtlasCrystalManager.purchaseOutpostUpgrade(factionName);
+            };
+
+            if (success) {
+                player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
+                player.sendMessage(Component.text("Upgrade purchased!", NamedTextColor.GREEN));
+            } else {
+                player.sendMessage(Component.text(
+                        "Purchase failed — not enough skill points or crystal not found.", NamedTextColor.RED));
             }
             player.closeInventory();
 
         } else if (GuiUtil.CONFIRM_RED.contains(slot)) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
-            String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-            if (fn == null) { player.closeInventory(); return; }
-            Faction faction  = FactionManager.getFaction(fn);
-            AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
-            if (crystal == null) { player.closeInventory(); return; }
-            new CrystalUpgradeGui(player, faction, crystalEntityUUID).open(player);
+            GuiNavigator.back(player);
         }
     }
 
     // ── Item builder ──────────────────────────────────────────────────────────
 
-    private static ItemStack buildConfirmInfoItem(int upgradeLevel) {
-        double bonusHp     = FactionLevelManager.getUpgradeHp(upgradeLevel);
-        int    bonusChests = FactionLevelManager.getUpgradeChests(upgradeLevel);
-
+    private static ItemStack buildConfirmInfoItem(SkillPurchaseType type, int tierIndex) {
         ItemStack item = new ItemStack(Material.BOOK);
         ItemMeta meta  = item.getItemMeta();
-        meta.displayName(Component.text("Apply Lv." + upgradeLevel + " Upgrade?", NamedTextColor.GOLD)
-                .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(Component.text("  Bonuses:", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
-        lore.add(GuiUtil.loreLine("  Crystal HP", "+" + (int) bonusHp + " ♥", NamedTextColor.RED));
-        if (bonusChests > 0) {
-            lore.add(GuiUtil.loreLine("  Chests", "+" + bonusChests, NamedTextColor.YELLOW));
+
+        switch (type) {
+            case HP -> {
+                List<FactionLevelManager.HpTier> tiers = FactionLevelManager.getHpTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.HpTier tier = tiers.get(tierIndex);
+                    meta.displayName(Component.text("Purchase HP Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Bonus HP", "+" + (int) tier.bonus() + " ♥", NamedTextColor.RED));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case CLAIMS -> {
+                List<FactionLevelManager.ClaimTier> tiers = FactionLevelManager.getClaimTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.ClaimTier tier = tiers.get(tierIndex);
+                    meta.displayName(Component.text("Purchase Claim Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Bonus Claims", "+" + tier.amount() + " chunks", NamedTextColor.GREEN));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case CHEST -> {
+                List<FactionLevelManager.ChestTier> tiers = FactionLevelManager.getChestTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.ChestTier tier = tiers.get(tierIndex);
+                    meta.displayName(Component.text("Purchase Chest Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Chest Size", tier.size() + " slots", NamedTextColor.YELLOW));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case PROTECTION -> {
+                List<FactionLevelManager.ProtectionTier> tiers = FactionLevelManager.getProtectionTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.ProtectionTier tier = tiers.get(tierIndex);
+                    long secs = tier.durationMs() / 1000L;
+                    String timeStr = secs >= 3600 ? (secs / 3600) + "h" : (secs / 60) + "m";
+                    meta.displayName(Component.text("Purchase Protection Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Duration", timeStr + " immunity", NamedTextColor.AQUA));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case OUTPOST -> {
+                FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
+                meta.displayName(Component.text("Purchase Outpost Skill?", NamedTextColor.GOLD)
+                        .decoration(TextDecoration.ITALIC, false));
+                lore.add(GuiUtil.loreLine("Unlocks", "Outpost crystal placement", NamedTextColor.AQUA));
+                lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+            }
+            default -> meta.displayName(Component.text("Purchase Upgrade?", NamedTextColor.GOLD)
+                    .decoration(TextDecoration.ITALIC, false));
         }
+
         lore.add(Component.empty());
         lore.add(Component.text("  This action is permanent.", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));

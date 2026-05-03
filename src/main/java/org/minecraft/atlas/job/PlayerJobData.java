@@ -1,5 +1,8 @@
 package org.minecraft.atlas.job;
 
+import org.minecraft.atlas.quest.ActiveQuest;
+import org.minecraft.atlas.quest.GeneratedTask;
+
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -16,8 +19,8 @@ public class PlayerJobData {
     /** Quests currently being worked on (max 2). */
     public final List<ActiveQuest> activeQuests = new ArrayList<>();
 
-    /** Epoch-day when today's daily offer was generated (0 = never). */
-    public long dailyResetEpochDay = 0;
+    /** System.currentTimeMillis() when the last daily offer was generated (0 = never). */
+    public long lastDailyResetMs = 0;
 
     /**
      * Maps generated questId → list of GeneratedTasks for today's offered quests.

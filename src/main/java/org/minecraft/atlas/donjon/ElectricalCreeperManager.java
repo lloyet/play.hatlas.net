@@ -51,7 +51,7 @@ public class ElectricalCreeperManager {
                 Component.text("  Right-click on ground to spawn a Powered Creeper.", NamedTextColor.GRAY)
                         .decoration(TextDecoration.ITALIC, false),
                 Component.empty(),
-                Component.text("  ⛏ Siege weapon — damages Obsidian:", NamedTextColor.YELLOW)
+                Component.text("  ⛏ Damages Obsidian:", NamedTextColor.YELLOW)
                         .decoration(TextDecoration.ITALIC, false),
                 Component.text("  " + OBSIDIAN_HITS_REQUIRED + " explosions to break 1 Obsidian block.", NamedTextColor.GRAY)
                         .decoration(TextDecoration.ITALIC, false),
@@ -59,6 +59,7 @@ public class ElectricalCreeperManager {
                 Component.text("  ✔ Usable in enemy faction territory!", NamedTextColor.GREEN)
                         .decoration(TextDecoration.ITALIC, false)
         ));
+        meta.setEnchantmentGlintOverride(true);
         meta.getPersistentDataContainer().set(keyElectricalCreeperEgg, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
         return item;

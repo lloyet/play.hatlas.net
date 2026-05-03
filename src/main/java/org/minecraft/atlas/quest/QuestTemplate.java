@@ -1,4 +1,4 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import org.bukkit.inventory.ItemStack;
 

@@ -23,7 +23,9 @@
       "Bash(Sort-Object)",
       "Bash(Remove-Item *)",
       "Bash(./gradlew assemble *)",
-      "Bash(./gradlew clean *)"
+      "Bash(./gradlew clean *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(Get-ChildItem *)"
     ]
   }
 }

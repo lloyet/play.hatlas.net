@@ -14,18 +14,15 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -58,14 +55,14 @@ public class CrystalMainGui implements AtlasGui {
         this.crystalEntityUUID = crystal.getEntity().getUniqueId();
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text("Faction - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
+                Component.text("Crystal Menu - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
         this.inventory.setItem(SLOT_CRYSTAL_LIST, buildCrystalListButton(faction));
         this.inventory.setItem(SLOT_FACTION_INFO, buildFactionInfoItem(faction, crystal));
         this.inventory.setItem(SLOT_COLOR_INFO,   buildColorItem(faction));
         this.inventory.setItem(SLOT_CHEST_BTN,    buildChestButton(faction));
         this.inventory.setItem(SLOT_UPGRADES_BTN, buildUpgradesButton(faction));
         this.inventory.setItem(SLOT_QUESTS_BTN,   buildQuestsButton(player));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -95,6 +92,7 @@ public class CrystalMainGui implements AtlasGui {
                 player.closeInventory();
                 return;
             }
+            player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.0f);
             player.closeInventory();
             openRenameDialog(player, factionName, crystalEntityUUID, null);
             return;
@@ -102,25 +100,29 @@ public class CrystalMainGui implements AtlasGui {
 
         if (slot == SLOT_CRYSTAL_LIST) {
             player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_CHEST_BTN) {
-            int available = FactionLevelManager.getAvailableChestsFromApplied(AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
+            AtlasCrystal crystalForChest = AtlasCrystalManager.getCrystal(crystalEntityUUID);
+            int available = crystalForChest != null ? crystalForChest.getPurchasedChestSizes().size() : 0;
             if (available == 0) {
                 player.sendMessage(Component.text(
-                        "Your faction has no chests yet. Reach an upgrade level to unlock one.",
+                        "This crystal has no chests yet. Purchase a chest upgrade via the Skills menu.",
                         NamedTextColor.YELLOW));
                 return;
             }
             player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalChestListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_COLOR_INFO) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalColorGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
@@ -133,12 +135,18 @@ public class CrystalMainGui implements AtlasGui {
                 return;
             }
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalUpgradeGui(player, faction, crystalEntityUUID).open(player);
         }
 
         if (slot == SLOT_QUESTS_BTN) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobMainGui(player).open(player);
+        }
+
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
         }
     }
 
@@ -263,6 +271,7 @@ public class CrystalMainGui implements AtlasGui {
         } else {
             lore.add(GuiUtil.loreLine("EXP", "MAX LEVEL", NamedTextColor.GOLD));
         }
+        lore.add(GuiUtil.loreLine("Skill Points", String.valueOf(faction.getSkillPoints()), NamedTextColor.LIGHT_PURPLE));
         lore.add(Component.empty());
         lore.add(Component.text("  Click to rename this crystal", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
@@ -273,7 +282,9 @@ public class CrystalMainGui implements AtlasGui {
     }
 
     private static ItemStack buildChestButton(Faction faction) {
-        int available = FactionLevelManager.getAvailableChestsFromApplied(AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
+        // Count total chests across all crystals of this faction
+        int available = AtlasCrystalManager.getFactionCrystals(faction.getName())
+                .stream().mapToInt(c -> c.getPurchasedChestSizes().size()).sum();
         ItemStack item = new ItemStack(available > 0 ? Material.BARREL : Material.CHEST);
         ItemMeta meta  = item.getItemMeta();
         meta.displayName(Component.text("Faction Chests", NamedTextColor.YELLOW)
@@ -315,20 +326,20 @@ public class CrystalMainGui implements AtlasGui {
     }
 
     private static ItemStack buildUpgradesButton(Faction faction) {
-        int pendingCount = faction.getPendingUpgrades().size();
-        NamedTextColor nameColor = pendingCount > 0 ? NamedTextColor.YELLOW : NamedTextColor.WHITE;
+        int sp = faction.getSkillPoints();
+        NamedTextColor nameColor = sp > 0 ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.WHITE;
 
         ItemStack item = new ItemStack(Material.ANVIL);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("Upgrades", nameColor)
+        meta.displayName(Component.text("Skills", nameColor)
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(GuiUtil.loreLine("Pending", String.valueOf(pendingCount),
-                pendingCount > 0 ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
+        lore.add(GuiUtil.loreLine("Skill Points", String.valueOf(sp),
+                sp > 0 ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.GRAY));
         lore.add(Component.empty());
-        lore.add(Component.text("  Click to view all upgrades", NamedTextColor.GRAY)
+        lore.add(Component.text("  Click to spend skill points on upgrades", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
         meta.lore(lore);

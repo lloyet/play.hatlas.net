@@ -13,10 +13,10 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.ActiveQuest;
-import org.minecraft.atlas.job.GeneratedTask;
+import org.minecraft.atlas.quest.ActiveQuest;
+import org.minecraft.atlas.quest.GeneratedTask;
 import org.minecraft.atlas.job.JokeyriniManager;
-import org.minecraft.atlas.job.QuestTemplate;
+import org.minecraft.atlas.quest.QuestTemplate;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
@@ -28,7 +28,6 @@ public class JobQuestListGui implements AtlasGui {
 
     private static final int[] QUEST_ITEM_SLOTS   = {11, 15};
     private static final int   SLOT_JOKEYRINI     = 13;
-    private static final int   SLOT_BACK          = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -55,8 +54,7 @@ public class JobQuestListGui implements AtlasGui {
             this.inventory.setItem(SLOT_JOKEYRINI, buildJokeyriniQuestItem(jokeyriniQuest));
         }
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Back"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -74,8 +72,8 @@ public class JobQuestListGui implements AtlasGui {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        if (event.getRawSlot() == SLOT_BACK) {
-            new JobMainGui(player).open(player);
+        if (event.getRawSlot() == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
         }
     }
 

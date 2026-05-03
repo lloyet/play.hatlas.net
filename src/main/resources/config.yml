@@ -5,14 +5,15 @@
 # spawn: set via /setspawn in-game
 player_homes: { }
 
-# Spawn protection: players cannot PvP while either of them is within this radius of world spawn.
-spawn_protection:
-  pvp_radius: 64
+# Protection areas: managed via /protection create|claim|unclaim|setspawn.
+# Managed at runtime — do not edit manually.
+protections: {}
+protection_visits: {}
 
 # Personal home command settings for /home
 home_teleport:
   # Cooldown in seconds after a successful /home teleport
-  cooldown_seconds: 300
+  cooldown_seconds: 30
 
 # Teleport-to-player settings for /tpa
 tpa:

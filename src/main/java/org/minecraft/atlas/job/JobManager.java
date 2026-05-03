@@ -7,6 +7,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.quest.ActiveQuest;
+import org.minecraft.atlas.quest.GeneratedTask;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -153,7 +155,7 @@ public class JobManager {
             }
             s.set("active_quests", questList);
 
-            s.set("daily_reset_epoch_day", data.dailyResetEpochDay);
+            s.set("last_daily_reset_ms", data.lastDailyResetMs);
 
             // Daily offered quests
             List<Map<String, Object>> offeredList = new ArrayList<>();
@@ -232,7 +234,7 @@ public class JobManager {
                 }
             }
 
-            data.dailyResetEpochDay = s.getLong("daily_reset_epoch_day", 0);
+            data.lastDailyResetMs = s.getLong("last_daily_reset_ms", 0);
 
             // Daily offered quests
             List<?> offeredList = s.getList("daily_offered_quests");

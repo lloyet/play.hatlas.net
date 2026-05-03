@@ -9,9 +9,12 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.SpawnManager;
+import org.minecraft.atlas.spawn.SpawnManager;
 
 public class SetSpawnCommand {
+
+    private static Component error(String msg)   { return Component.text(msg, NamedTextColor.RED); }
+    private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
 
     public static LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("setspawn")
@@ -20,18 +23,17 @@ public class SetSpawnCommand {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
                         ctx.getSource().getSender().sendMessage(
-                                Component.text("Only players can use this command.", NamedTextColor.RED));
+                                error("Only players can use this command."));
                         return Command.SINGLE_SUCCESS;
                     }
                     SpawnManager.setSpawn(player.getLocation());
                     SpawnManager.saveSpawn(Atlas.instance.getConfig());
                     Atlas.instance.saveConfig();
-                    player.sendMessage(Component.text(
+                    player.sendMessage(success(
                             "Server spawn set to your location ("
                                     + player.getLocation().getBlockX() + ", "
                                     + player.getLocation().getBlockY() + ", "
-                                    + player.getLocation().getBlockZ() + ").",
-                            NamedTextColor.GREEN));
+                                    + player.getLocation().getBlockZ() + ")."));
                     return Command.SINGLE_SUCCESS;
                 })
                 .build();

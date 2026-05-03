@@ -43,6 +43,17 @@ public class FactionClaimManager {
         return owner;
     }
 
+    /** Removes a batch of chunk keys from the global claim map. Used on crystal destruction. */
+    public static void removeClaimsForCrystal(Collection<String> chunkKeys) {
+        for (String key : chunkKeys) {
+            String owner = claimedChunks.remove(key);
+            if (owner != null) {
+                Set<String> set = factionChunks.get(owner);
+                if (set != null) set.remove(key);
+            }
+        }
+    }
+
     /** Removes all claims when a faction is disbanded. */
     public static void removeAllClaims(String factionName) {
         Set<String> chunks = factionChunks.remove(factionName);

@@ -656,73 +656,76 @@ public class DonjonCommand {
                                 .suggests(ONLINE_PLAYERS)
                                 .executes(ctx -> usage(ctx.getSource().getSender(), "give <player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe [difficulty] [rarity]"))
                                 .then(Commands.literal("creeper_egg")
-                                        .executes(ctx -> {
-                                            String playerName = StringArgumentType.getString(ctx, "player");
-                                            Player target = Bukkit.getPlayerExact(playerName);
-                                            if (target == null) {
-                                                ctx.getSource().getSender().sendMessage(Component.text(
-                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
-                                                return Command.SINGLE_SUCCESS;
-                                            }
-                                            target.getInventory().addItem(ElectricalCreeperManager.createCreeperEgg(1));
-                                            ctx.getSource().getSender().sendMessage(Component.text(
-                                                    "Gave creeper_egg to " + target.getName() + ".", NamedTextColor.GREEN));
-                                            target.sendMessage(Component.text(
-                                                    "You received a Creeper Spawn Egg.", NamedTextColor.GOLD));
-                                            return Command.SINGLE_SUCCESS;
-                                        }))
+                                        .executes(ctx -> doGiveKey(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "player"),
+                                                ElectricalCreeperManager.createCreeperEgg(1), "Creeper Spawn Egg"))
+                                        .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                .executes(ctx -> {
+                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                    return doGiveKey(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
+                                                            ElectricalCreeperManager.createCreeperEgg(amount),
+                                                            "Creeper Spawn Egg", amount);
+                                                })))
                                 .then(Commands.literal("powered_creeper_egg")
-                                        .executes(ctx -> {
-                                            String playerName = StringArgumentType.getString(ctx, "player");
-                                            Player target = Bukkit.getPlayerExact(playerName);
-                                            if (target == null) {
-                                                ctx.getSource().getSender().sendMessage(Component.text(
-                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
-                                                return Command.SINGLE_SUCCESS;
-                                            }
-                                            target.getInventory().addItem(ElectricalCreeperManager.createElectricalCreeperEgg());
-                                            ctx.getSource().getSender().sendMessage(Component.text(
-                                                    "Gave powered_creeper_egg to " + target.getName() + ".", NamedTextColor.GREEN));
-                                            target.sendMessage(Component.text(
-                                                    "You received a ⚡ Powered Creeper Egg.", NamedTextColor.GOLD));
-                                            return Command.SINGLE_SUCCESS;
-                                        }))
+                                        .executes(ctx -> doGiveKey(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "player"),
+                                                ElectricalCreeperManager.createElectricalCreeperEgg(), "⚡ Powered Creeper Egg"))
+                                        .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                .executes(ctx -> {
+                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                    return doGiveKey(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
+                                                            ElectricalCreeperManager.createElectricalCreeperEgg(),
+                                                            "⚡ Powered Creeper Egg", amount);
+                                                })))
                                 .then(Commands.literal("raider_diamond_pickaxe")
-                                        .executes(ctx -> {
-                                            String playerName = StringArgumentType.getString(ctx, "player");
-                                            Player target = Bukkit.getPlayerExact(playerName);
-                                            if (target == null) {
-                                                ctx.getSource().getSender().sendMessage(Component.text(
-                                                        "Player not found or offline: " + playerName, NamedTextColor.RED));
-                                                return Command.SINGLE_SUCCESS;
-                                            }
-                                            target.getInventory().addItem(RaiderPickaxe.create());
-                                            ctx.getSource().getSender().sendMessage(Component.text(
-                                                    "Gave raider_diamond_pickaxe to " + target.getName() + ".", NamedTextColor.GREEN));
-                                            target.sendMessage(Component.text(
-                                                    "You received a ⚔ Raider's Pickaxe.", NamedTextColor.GOLD));
-                                            return Command.SINGLE_SUCCESS;
-                                        }))
+                                        .executes(ctx -> doGiveKey(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "player"),
+                                                RaiderPickaxe.create(), "⚔ Raider's Pickaxe"))
+                                        .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                .executes(ctx -> {
+                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                    return doGiveKey(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
+                                                            RaiderPickaxe.create(), "⚔ Raider's Pickaxe", amount);
+                                                })))
                                 .then(Commands.literal("key")
-                                        .executes(ctx -> {
-                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
-                                                    DonjonManager.createTrialKey(), "key");
-                                        }))
+                                        .executes(ctx -> doGiveKey(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "player"),
+                                                DonjonManager.createTrialKey(), "key"))
+                                        .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                .executes(ctx -> {
+                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                    return doGiveKey(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
+                                                            DonjonManager.createTrialKey(), "key", amount);
+                                                })))
                                 .then(Commands.literal("ominouskey")
-                                        // /donjon give <player> ominouskey  — weighted random
-                                        .executes(ctx -> {
-                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
-                                                    DonjonManager.createOminousKey(), "ominouskey");
-                                        })
-                                        // /donjon give <player> ominouskey <difficulty>  — fixed level, random rarity
+                                        // /donjon give <player> ominouskey — weighted random
+                                        .executes(ctx -> doGiveKey(ctx.getSource(),
+                                                StringArgumentType.getString(ctx, "player"),
+                                                DonjonManager.createOminousKey(), "ominouskey"))
+                                        // /donjon give <player> ominouskey <difficulty> — fixed level, random rarity
                                         .then(Commands.argument("difficulty", IntegerArgumentType.integer(50, 99))
                                                 .executes(ctx -> {
                                                     int diff = IntegerArgumentType.getInteger(ctx, "difficulty");
-                                                    return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                    return doGiveKey(ctx.getSource(),
+                                                            StringArgumentType.getString(ctx, "player"),
                                                             DonjonManager.buildOminousKey(diff, DonjonManager.rollOminousRarity()),
                                                             "ominouskey (lvl " + diff + ")");
                                                 })
-                                                // /donjon give <player> ominouskey <difficulty> <rarity>  — both fixed
+                                                // /donjon give <player> ominouskey <difficulty> <amount> — Nx fixed level, random rarity
+                                                .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                        .executes(ctx -> {
+                                                            int diff   = IntegerArgumentType.getInteger(ctx, "difficulty");
+                                                            int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                            return doGiveKey(ctx.getSource(),
+                                                                    StringArgumentType.getString(ctx, "player"),
+                                                                    DonjonManager.buildOminousKey(diff, DonjonManager.rollOminousRarity()),
+                                                                    "ominouskey (lvl " + diff + ")", amount);
+                                                        }))
+                                                // /donjon give <player> ominouskey <difficulty> <rarity> — fixed level + rarity
                                                 .then(Commands.argument("rarity", StringArgumentType.word())
                                                         .suggests(OMINOUS_RARITY_NAMES)
                                                         .executes(ctx -> {
@@ -732,16 +735,34 @@ public class DonjonCommand {
                                                             try {
                                                                 rarity = DonjonRarity.valueOf(rarityArg.toUpperCase());
                                                             } catch (IllegalArgumentException e) {
-                                                                ctx.getSource().getSender().sendMessage(Component.text(
-                                                                        "Unknown rarity: " + rarityArg
-                                                                                + ". Valid: epic, legendary, mystic, goddess",
-                                                                        NamedTextColor.RED));
+                                                                ctx.getSource().getSender().sendMessage(error(
+                                                                        "Unknown rarity: " + rarityArg + ". Valid: epic, legendary, mystic, goddess"));
                                                                 return Command.SINGLE_SUCCESS;
                                                             }
-                                                            return doGiveKey(ctx.getSource(), StringArgumentType.getString(ctx, "player"),
+                                                            return doGiveKey(ctx.getSource(),
+                                                                    StringArgumentType.getString(ctx, "player"),
                                                                     DonjonManager.buildOminousKey(diff, rarity),
                                                                     "ominouskey (lvl " + diff + " " + rarity.getDisplayName() + ")");
-                                                        }))))))
+                                                        })
+                                                        // /donjon give <player> ominouskey <difficulty> <rarity> <amount>
+                                                        .then(Commands.argument("amount", IntegerArgumentType.integer(1, 64))
+                                                                .executes(ctx -> {
+                                                                    int diff   = IntegerArgumentType.getInteger(ctx, "difficulty");
+                                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
+                                                                    String rarityArg = StringArgumentType.getString(ctx, "rarity");
+                                                                    DonjonRarity rarity;
+                                                                    try {
+                                                                        rarity = DonjonRarity.valueOf(rarityArg.toUpperCase());
+                                                                    } catch (IllegalArgumentException e) {
+                                                                        ctx.getSource().getSender().sendMessage(error(
+                                                                                "Unknown rarity: " + rarityArg + ". Valid: epic, legendary, mystic, goddess"));
+                                                                        return Command.SINGLE_SUCCESS;
+                                                                    }
+                                                                    return doGiveKey(ctx.getSource(),
+                                                                            StringArgumentType.getString(ctx, "player"),
+                                                                            DonjonManager.buildOminousKey(diff, rarity),
+                                                                            "ominouskey (lvl " + diff + " " + rarity.getDisplayName() + ")", amount);
+                                                                })))))))
 
 
                 // /donjon npc spawn smuggler
@@ -777,18 +798,25 @@ public class DonjonCommand {
                 : Component.text("  ⚠ " + label + ": NOT SET", NamedTextColor.RED));
     }
 
+    private static Component error(String msg)   { return Component.text(msg, NamedTextColor.RED); }
+    private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
+
     private static int doGiveKey(CommandSourceStack src, String playerName,
                                  ItemStack item, String label) {
+        return doGiveKey(src, playerName, item, label, 1);
+    }
+
+    private static int doGiveKey(CommandSourceStack src, String playerName,
+                                 ItemStack item, String label, int amount) {
         Player target = Bukkit.getPlayerExact(playerName);
         if (target == null) {
-            src.getSender().sendMessage(Component.text(
-                    "Player not found or offline: " + playerName, NamedTextColor.RED));
+            src.getSender().sendMessage(error("Player not found or offline: " + playerName));
             return Command.SINGLE_SUCCESS;
         }
+        item.setAmount(amount);
         target.getInventory().addItem(item);
-        src.getSender().sendMessage(Component.text(
-                "Gave " + label + " to " + target.getName() + ".", NamedTextColor.GREEN));
-        target.sendMessage(Component.text("You received a donjon " + label + ".", NamedTextColor.GOLD));
+        src.getSender().sendMessage(success("Gave " + amount + "x " + label + " to " + target.getName() + "."));
+        target.sendMessage(Component.text("You received " + amount + "x " + label + ".", NamedTextColor.GOLD));
         return Command.SINGLE_SUCCESS;
     }
 

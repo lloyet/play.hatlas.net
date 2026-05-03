@@ -1,72 +1,65 @@
 # Faction home command settings for /faction home
 faction_home:
   cooldown_seconds: 30
+  teleport_delay_seconds: 10
 
-# Faction upgrade configuration.
-# When a faction reaches an upgrade level, an Owner or Leader can run
-# /faction upgrade apply <crystalName> to permanently increase that crystal's max HP.
-upgrades:
-  - level: 1
-    bonus_hp: 20
-    bonus_chest: 1
-    bonus_chest_size: 27
-    bonus_claims: 2
-  - level: 3
-    bonus_hp: 30
-    bonus_chest: 0
-    bonus_claims: 2
-  - level: 5
-    bonus_hp: 40
-    bonus_chest: 0
-    bonus_claims: 4
-  - level: 9
-    bonus_hp: 60
-    bonus_chest: 1
-    bonus_chest_size: 27
-    bonus_claims: 4
-  - level: 15
-    bonus_hp: 70
-    bonus_chest: 1
-    bonus_chest_size: 27
-    bonus_claims: 4
-  - level: 21
-    bonus_hp: 80
-    bonus_chest: 1
-    bonus_chest_size: 27
-    bonus_claims: 6
-  - level: 42
-    bonus_hp: 120
-    bonus_chest: 0
-    bonus_claims: 6
-  - level: 58
-    bonus_hp: 160
-    bonus_chest: 1
-    bonus_chest_size: 54
-    bonus_claims: 10
-  - level: 64
-    bonus_hp: 200
-    bonus_chest: 0
-    bonus_claims: 10
-  - level: 81
-    bonus_hp: 250
-    bonus_chest: 1
-    bonus_chest_size: 54
-    bonus_claims: 12
-  - level: 99
-    bonus_hp: 400
-    bonus_chest: 1
-    bonus_chest_size: 54
-    bonus_claims: 16
+# Skill points earned per faction level-up (default: 1).
+# Increase to reward players with more points per level.
+skill_points_per_level: 1
+
+# Skill upgrade prices — each entry is a purchasable tier that faction members
+# can buy via the Atlas Crystal skill GUI, spending faction skill points.
+#
+# hp        — adds permanent HP to the crystal           (bonus: hearts, cost: SP)
+# claims    — increases the crystal's claim capacity     (amount: chunks, cost: SP)
+# chest     — unlocks a faction chest on the crystal     (size: 27 or 54, cost: SP)
+# protection — adds to the crystal's immunity duration on defeat (minutes, cost: SP)
+skills:
+  hp:
+    - bonus: 20
+      cost: 1
+    - bonus: 50
+      cost: 2
+    - bonus: 100
+      cost: 3
+    - bonus: 200
+      cost: 5
+  claims:
+    - amount: 3
+      cost: 3
+    - amount: 5
+      cost: 4
+    - amount: 10
+      cost: 6
+  chest:
+    - size: 9
+      cost: 1
+    - size: 27
+      cost: 2
+    - size: 54
+      cost: 3
+  protection:
+    - minutes: 30
+      cost: 1
+    - minutes: 60
+      cost: 2
+    - minutes: 120
+      cost: 4
+    - minutes: 240
+      cost: 6
+    - minutes: 480
+      cost: 10
+  outpost:
+    cost: 15
 
 # Atlas Crystal settings
 crystal:
   # HP regenerated per second when the crystal has not been attacked for regen_timeout_seconds.
   regen_per_second: 1.5
-  # Base immunity in seconds granted after the first crystal defeat.
+  # Base immunity in seconds granted when a crystal is defeated.
   # Subsequent defeats within the escalation window multiply this by immunity_multiplier.
   immunity_base_seconds: 180
   # Escalation multiplier applied each time the crystal is defeated within the active window.
-  # Also the value the multiplier resets to when the window expires.
   immunity_multiplier: 2
   # Seconds of inactivity (no damage received) before a crystal starts regenerating HP.
   regen_timeout_seconds: 30

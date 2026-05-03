@@ -3,6 +3,8 @@
 # Tasks are combined randomly into dynamic daily quests.
 # ============================================================
 quests:
+  # How many hours until the daily quest offer resets (default: 24).
+  daily_reset_hours: 24
   # Base XP multiplier used in the quest exp formula.
   exp_base_reward: 10
 
@@ -776,6 +778,8 @@ quests:
 # Jokeyrini — the wandering trader of challenges.
 # ============================================================
 jokeyrini:
+  # How many hours until the Jokeyrini quest offer resets (default: 24).
+  daily_reset_hours: 24
   special_quest_chance: 0.15
   tasks:
     - id: jok_nether_slayer

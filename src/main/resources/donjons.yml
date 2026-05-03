@@ -83,7 +83,6 @@ types:
       - SPIDER
       - CAVE_SPIDER
       - SLIME
-      - SILVERFISH
       - CHICKEN_JOCKEY
 
     # Mob types used for the final boss wave.
@@ -116,8 +115,8 @@ types:
     boss_count_max: 3
 
     # Experience awarded for completing the donjon (scaled by level & rarity).
-    min_exp_reward: 500
-    max_exp_reward: 10000
+    min_exp_reward: 130
+    max_exp_reward: 800
 
     # Boss drop tables per rarity.
     boss_drops:
@@ -174,7 +173,7 @@ types:
           - material: EMERALD
             amount: 2
             chance: 0.35
-          - material: DIAMOND_SWORD
+          - material: IRON_SWORD
             amount: 1
             chance: 0.25
             enchantments:
@@ -182,8 +181,6 @@ types:
                 level: 3
               - enchantment: unbreaking
                 level: 3
-              - enchantment: looting
-                level: 2
           - material: TNT
             amount: 1
             chance: 0.15
@@ -197,9 +194,6 @@ types:
           - material: EMERALD
             amount: 4
             chance: 0.35
-          - material: NETHERITE_SCRAP
-            amount: 2
-            chance: 0.3
           - material: DIAMOND_CHESTPLATE
             amount: 1
             chance: 0.2
@@ -208,8 +202,6 @@ types:
                 level: 4
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
           - material: DIAMOND_SWORD
             amount: 1
             chance: 0.15
@@ -218,8 +210,8 @@ types:
                 level: 4
               - enchantment: fire_aspect
                 level: 2
-              - enchantment: mending
-                level: 1
+              - enchantment: unbreaking
+                level: 3
           - material: TNT
             amount: 1
             chance: 0.15
@@ -230,13 +222,13 @@ types:
         min_items: 3
         max_items: 5
         items:
-          - material: NETHERITE_SCRAP
-            amount: 3
+          - material: DIAMOND
+            amount: 5
+            chance: 0.4
+          - material: EMERALD
+            amount: 4
             chance: 0.35
-          - material: NETHERITE_INGOT
-            amount: 2
-            chance: 0.3
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.2
             enchantments:
@@ -244,22 +236,18 @@ types:
                 level: 5
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: looting
-                level: 3
-          - material: NETHERITE_CHESTPLATE
+                level: 2
+          - material: DIAMOND_CHESTPLATE
             amount: 1
-            chance: 0.15
+            chance: 0.10
             enchantments:
               - enchantment: protection
                 level: 4
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: thorns
-                level: 3
+                level: 2
           - material: TNT
             amount: 1
             chance: 0.15
@@ -270,24 +258,23 @@ types:
         min_items: 4
         max_items: 6
         items:
-          - material: NETHERITE_INGOT
-            amount: 3
-            chance: 0.3
+          - material: DIAMOND
+            amount: 8
+            chance: 0.2
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.15
           - material: NETHER_STAR
             amount: 2
             chance: 0.25
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.2
             enchantments:
-              - enchantment: sharpness
-                level: 5
               - enchantment: smite
                 level: 5
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: looting
                 level: 3
           - material: NETHERITE_CHESTPLATE
@@ -304,9 +291,6 @@ types:
                 level: 1
               - enchantment: thorns
                 level: 3
-          - material: DRAGON_EGG
-            amount: 1
-            chance: 0.1
           - material: TNT
             amount: 1
             chance: 0.15
@@ -320,9 +304,11 @@ types:
       - HUSK
       - STRAY
       - SPIDER
-      - SILVERFISH
+      - CAVE_SPIDER
+      - CREEPER
       - WITCH
       - BOGGED
+      - PARCHED
 
     boss_types:
       - VINDICATOR
@@ -347,8 +333,8 @@ types:
     boss_count_min: 1
     boss_count_max: 3
 
-    min_exp_reward: 500
-    max_exp_reward: 10000
+    min_exp_reward: 130
+    max_exp_reward: 800
 
     boss_drops:
       common:
@@ -363,10 +349,10 @@ types:
             chance: 0.35
           - material: DIAMOND
             amount: 1
-            chance: 0.2
+            chance: 0.25
           - material: BONE
             amount: 8
-            chance: 0.3
+            chance: 0.5
       rare:
         min_items: 1
         max_items: 3
@@ -384,7 +370,7 @@ types:
               - enchantment: sharpness
                 level: 2
               - enchantment: unbreaking
-                level: 2
+                level: 1
           - material: GOLDEN_APPLE
             amount: 1
             chance: 0.2
@@ -401,7 +387,7 @@ types:
           - material: GOLDEN_APPLE
             amount: 2
             chance: 0.3
-          - material: DIAMOND_SWORD
+          - material: IRON_SWORD
             amount: 1
             chance: 0.2
             enchantments:
@@ -427,8 +413,6 @@ types:
                 level: 4
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
           - material: TOTEM_OF_UNDYING
             amount: 1
             chance: 0.1
@@ -436,16 +420,13 @@ types:
         min_items: 3
         max_items: 5
         items:
-          - material: NETHERITE_SCRAP
-            amount: 3
-            chance: 0.35
           - material: ENCHANTED_GOLDEN_APPLE
-            amount: 2
+            amount: 1
             chance: 0.25
           - material: TOTEM_OF_UNDYING
             amount: 1
             chance: 0.2
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.15
             enchantments:
@@ -453,36 +434,29 @@ types:
                 level: 5
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
       goddess:
-        min_items: 4
-        max_items: 6
-        items:
-          - material: NETHERITE_INGOT
-            amount: 3
-            chance: 0.3
-          - material: NETHER_STAR
-            amount: 1
-            chance: 0.2
-          - material: ENCHANTED_GOLDEN_APPLE
-            amount: 3
-            chance: 0.25
-          - material: TOTEM_OF_UNDYING
-            amount: 2
-            chance: 0.2
-          - material: NETHERITE_CHESTPLATE
-            amount: 1
-            chance: 0.15
-            enchantments:
-              - enchantment: protection
-                level: 4
-              - enchantment: unbreaking
-                level: 3
-              - enchantment: mending
-                level: 1
-              - enchantment: thorns
-                level: 3
+        - material: DIAMOND
+          amount: 8
+          chance: 0.45
+        - material: EMERALD
+          amount: 6
+          chance: 0.4
+        - material: ENCHANTED_GOLDEN_APPLE
+          amount: 2
+          chance: 0.25
+        - material: TOTEM_OF_UNDYING
+          amount: 2
+          chance: 0.2
+        - material: DIAMOND_CHESTPLATE
+          amount: 1
+          chance: 0.15
+          enchantments:
+            - enchantment: protection
+              level: 4
+            - enchantment: unbreaking
+              level: 3
+            - enchantment: thorns
+              level: 3
 
   # â”€â”€ Nether Castle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   nether_castle:
@@ -494,6 +468,7 @@ types:
       - BLAZE
       - MAGMA_CUBE
       - GHAST
+      - HOGLIN
 
     boss_types:
       - WITHER_SKELETON
@@ -511,15 +486,15 @@ types:
     base_attack_multiplier: 1.2
     max_attack_multiplier: 3.5
 
-    boss_hp_multiplier: 12.0
-    boss_attack_multiplier: 2.5
+    boss_hp_multiplier: 13.0
+    boss_attack_multiplier: 1.5
     boss_speed_multiplier: 0.5
 
     boss_count_min: 1
     boss_count_max: 2
 
-    min_exp_reward: 600
-    max_exp_reward: 12000
+    min_exp_reward: 175
+    max_exp_reward: 1000
 
     boss_drops:
       common:
@@ -530,7 +505,7 @@ types:
             amount: 4
             chance: 0.5
           - material: GOLD_INGOT
-            amount: 3
+            amount: 4
             chance: 0.35
           - material: NETHER_BRICK
             amount: 8
@@ -546,7 +521,7 @@ types:
             amount: 6
             chance: 0.4
           - material: GOLD_INGOT
-            amount: 6
+            amount: 8
             chance: 0.35
           - material: GHAST_TEAR
             amount: 2
@@ -581,16 +556,16 @@ types:
               - enchantment: sharpness
                 level: 3
               - enchantment: unbreaking
-                level: 3
+                level: 2
       legendary:
         min_items: 2
         max_items: 5
         items:
+          - material: NETHER_STAR
+            amount: 1
+            chance: 0.3
           - material: ANCIENT_DEBRIS
             amount: 1
-            chance: 0.25
-          - material: NETHERITE_SCRAP
-            amount: 2
             chance: 0.3
           - material: DIAMOND_CHESTPLATE
             amount: 1
@@ -609,16 +584,16 @@ types:
         min_items: 3
         max_items: 5
         items:
+          - material: NETHER_STAR
+            amount: 2
+            chance: 0.35
           - material: ANCIENT_DEBRIS
             amount: 2
-            chance: 0.3
-          - material: NETHERITE_SCRAP
-            amount: 4
             chance: 0.35
           - material: WITHER_SKELETON_SKULL
             amount: 1
             chance: 0.25
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.2
             enchantments:
@@ -628,21 +603,19 @@ types:
                 level: 5
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
       goddess:
         min_items: 4
         max_items: 6
         items:
+          - material: NETHER_STAR
+            amount: 2
+            chance: 0.4
           - material: ANCIENT_DEBRIS
-            amount: 3
+            amount: 4
             chance: 0.3
           - material: NETHERITE_INGOT
-            amount: 2
-            chance: 0.25
-          - material: NETHER_STAR
             amount: 1
-            chance: 0.2
+            chance: 0.15
           - material: WITHER_SKELETON_SKULL
             amount: 2
             chance: 0.2
@@ -652,12 +625,8 @@ types:
             enchantments:
               - enchantment: fire_protection
                 level: 4
-              - enchantment: blast_protection
-                level: 4
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: thorns
                 level: 3
 
@@ -666,12 +635,16 @@ types:
     display_name: Plains
     mob_types:
       - ZOMBIE
+      - BABY_ZOMBIE
+      - ZOMBIE_VILAGER
       - SKELETON
       - SPIDER
       - CREEPER
       - WITCH
       - PILLAGER
       - VINDICATOR
+      - VEX
+      - EVOKER
 
     boss_types:
       - VINDICATOR
@@ -848,10 +821,11 @@ types:
       - ENDERMITE
       - PHANTOM
       - BLAZE
+      - SHULKER
 
     boss_types:
       - PHANTOM
-      - SHULKER
+      - ENDERMAN
 
     min_waves: 3
     max_waves: 9
@@ -865,15 +839,15 @@ types:
     base_attack_multiplier: 1.1
     max_attack_multiplier: 3.2
 
-    boss_hp_multiplier: 11.0
+    boss_hp_multiplier: 8.0
     boss_attack_multiplier: 2.2
     boss_speed_multiplier: 0.5
 
     boss_count_min: 1
     boss_count_max: 3
 
-    min_exp_reward: 550
-    max_exp_reward: 11000
+    min_exp_reward: 200
+    max_exp_reward: 1100
 
     boss_drops:
       common:
@@ -926,14 +900,11 @@ types:
             chance: 0.08
             enchantments:
               - enchantment: unbreaking
-                level: 3
+                level: 2
       legendary:
         min_items: 2
         max_items: 5
         items:
-          - material: NETHERITE_SCRAP
-            amount: 2
-            chance: 0.3
           - material: ELYTRA
             amount: 1
             chance: 0.12
@@ -959,12 +930,6 @@ types:
         min_items: 3
         max_items: 5
         items:
-          - material: NETHERITE_SCRAP
-            amount: 3
-            chance: 0.35
-          - material: NETHERITE_INGOT
-            amount: 1
-            chance: 0.25
           - material: ELYTRA
             amount: 1
             chance: 0.18
@@ -976,7 +941,7 @@ types:
           - material: DRAGON_BREATH
             amount: 5
             chance: 0.25
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.15
             enchantments:
@@ -990,12 +955,6 @@ types:
         min_items: 4
         max_items: 6
         items:
-          - material: NETHERITE_INGOT
-            amount: 3
-            chance: 0.3
-          - material: NETHER_STAR
-            amount: 1
-            chance: 0.2
           - material: ELYTRA
             amount: 1
             chance: 0.25
@@ -1007,13 +966,11 @@ types:
           - material: DRAGON_EGG
             amount: 1
             chance: 0.15
-          - material: NETHERITE_CHESTPLATE
+          - material: DIAMOND_CHESTPLATE
             amount: 1
             chance: 0.15
             enchantments:
               - enchantment: protection
-                level: 4
-              - enchantment: blast_protection
                 level: 4
               - enchantment: unbreaking
                 level: 3
@@ -1030,6 +987,7 @@ types:
       - GUARDIAN
       - WITCH
       - SKELETON
+      - DROWNED
 
     boss_types:
       - ELDER_GUARDIAN
@@ -1054,8 +1012,8 @@ types:
     boss_count_min: 1
     boss_count_max: 2
 
-    min_exp_reward: 550
-    max_exp_reward: 11000
+    min_exp_reward: 160
+    max_exp_reward: 850
 
     boss_drops:
       common:
@@ -1122,9 +1080,6 @@ types:
           - material: EMERALD
             amount: 5
             chance: 0.35
-          - material: NETHERITE_SCRAP
-            amount: 2
-            chance: 0.25
           - material: DIAMOND_CHESTPLATE
             amount: 1
             chance: 0.2
@@ -1146,16 +1101,10 @@ types:
         min_items: 3
         max_items: 5
         items:
-          - material: NETHERITE_SCRAP
-            amount: 3
-            chance: 0.35
-          - material: NETHERITE_INGOT
-            amount: 1
-            chance: 0.25
           - material: HEART_OF_THE_SEA
             amount: 1
             chance: 0.3
-          - material: NETHERITE_SWORD
+          - material: DIAMOND_SWORD
             amount: 1
             chance: 0.15
             enchantments:
@@ -1163,27 +1112,19 @@ types:
                 level: 5
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: looting
-                level: 3
+                level: 2
       goddess:
         min_items: 4
         max_items: 6
         items:
-          - material: NETHERITE_INGOT
-            amount: 3
-            chance: 0.3
-          - material: NETHER_STAR
-            amount: 1
-            chance: 0.2
           - material: HEART_OF_THE_SEA
             amount: 2
             chance: 0.25
           - material: CONDUIT
             amount: 1
             chance: 0.15
-          - material: NETHERITE_CHESTPLATE
+          - material: DIAMOND_HELMET
             amount: 1
             chance: 0.15
             enchantments:
@@ -1193,11 +1134,7 @@ types:
                 level: 3
               - enchantment: protection
                 level: 4
-              - enchantment: blast_protection
-                level: 4
               - enchantment: unbreaking
                 level: 3
-              - enchantment: mending
-                level: 1
               - enchantment: thorns
                 level: 3

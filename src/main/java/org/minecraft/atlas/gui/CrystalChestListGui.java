@@ -12,37 +12,55 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
-import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 public class CrystalChestListGui implements AtlasGui {
 
+    /** Links each displayed slot to the crystal + local chest index it represents. */
+    private record ChestEntry(UUID crystalUUID, int chestIndex, String crystalLabel) {}
+
     private final String factionName;
-    private final UUID crystalEntityUUID;
+    private final UUID mainCrystalUUID;
     private final Inventory inventory;
+    private final Map<Integer, ChestEntry> slotToChest = new HashMap<>();
 
-    public CrystalChestListGui(Player player, Faction faction, UUID crystalEntityUUID) {
+    public CrystalChestListGui(Player player, Faction faction, UUID mainCrystalUUID) {
         this.factionName = faction.getName();
-        this.crystalEntityUUID = crystalEntityUUID;
+        this.mainCrystalUUID = mainCrystalUUID;
 
-        int available = FactionLevelManager.getAvailableChestsFromApplied(
-                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
-        this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Chests", faction.getColor()));
-
-        int[] slots = GuiUtil.chestListSlots(available);
-        for (int i = 0; i < available; i++) {
-            this.inventory.setItem(slots[i], buildChestListItem(i, faction));
+        // Collect every chest from every named crystal in the faction
+        List<ChestEntry> allChests = new ArrayList<>();
+        for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
+            String label = c.getName().isEmpty() ? "Unnamed Crystal" : c.getName();
+            for (int i = 0; i < c.getPurchasedChestSizes().size(); i++) {
+                allChests.add(new ChestEntry(c.getEntity().getUniqueId(), i, label));
+            }
         }
 
-        GuiUtil.fillGray(this.inventory);
+        int rows = allChests.isEmpty() ? 1 : Math.min(6, (int) Math.ceil((allChests.size() + 1) / 9.0) + 1);
+        int invSize = rows * 9;
+
+        this.inventory = Atlas.instance.getServer().createInventory(this, invSize,
+                Component.text("Chests - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
+
+        for (int i = 0; i < allChests.size() && i < inventory.getSize() - 1; i++) {
+            ChestEntry entry = allChests.get(i);
+            AtlasCrystal crystal = AtlasCrystalManager.getCrystal(entry.crystalUUID());
+            this.inventory.setItem(i, buildChestItem(i + 1, entry, crystal));
+            slotToChest.put(i, entry);
+        }
+
+        finishGui();
     }
 
     public void open(Player player) {
@@ -60,43 +78,45 @@ public class CrystalChestListGui implements AtlasGui {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
+        int slot = event.getRawSlot();
+
+        // Back button
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
+            return;
+        }
+
+        ChestEntry entry = slotToChest.get(slot);
+        if (entry == null) return;
+
         String fn = FactionManager.getPlayerFaction(player.getUniqueId());
         if (fn == null) { player.closeInventory(); return; }
 
-        Faction faction  = FactionManager.getFaction(fn);
-        int available    = FactionLevelManager.getAvailableChestsFromApplied(
-                AtlasCrystalManager.getEffectiveAppliedUpgrades(fn));
-        int[] chestSlots = GuiUtil.chestListSlots(available);
-
-        int slot = event.getRawSlot();
-        int chestIndex = -1;
-        for (int i = 0; i < chestSlots.length; i++) {
-            if (chestSlots[i] == slot) { chestIndex = i; break; }
-        }
-        if (chestIndex < 0) return;
-
+        Faction faction = FactionManager.getFaction(fn);
         player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
-        CrystalChestViewGui.open(player, faction, chestIndex, crystalEntityUUID);
+        CrystalChestViewGui.open(player, faction, entry.chestIndex(), entry.crystalUUID());
     }
 
     // ── Item builder ──────────────────────────────────────────────────────────
 
-    private static ItemStack buildChestListItem(int index, Faction faction) {
-        ItemStack[] contents = faction.getChestContents(index);
-        int chestSize = FactionLevelManager.getChestSizeFromApplied(index,
-                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
+    private static ItemStack buildChestItem(int number, ChestEntry entry, AtlasCrystal crystal) {
+        ItemStack[] contents = crystal != null ? crystal.getChestContents(entry.chestIndex()) : new ItemStack[27];
+        int chestSize = crystal != null && entry.chestIndex() < crystal.getPurchasedChestSizes().size()
+                ? crystal.getPurchasedChestSizes().get(entry.chestIndex()) : 27;
         int itemCount = 0;
         for (ItemStack stack : contents) {
             if (stack != null && stack.getType() != Material.AIR) itemCount++;
         }
 
-        ItemStack item = new ItemStack(Material.BARREL);
-        ItemMeta meta  = item.getItemMeta();
-        meta.displayName(Component.text("Chest #" + (index + 1), NamedTextColor.YELLOW)
+        Material mat = chestSize >= 54 ? Material.BARREL : Material.CHEST;
+        ItemStack item = new ItemStack(mat);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("Chest #" + number, NamedTextColor.YELLOW)
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
+        lore.add(GuiUtil.loreLine("Crystal", entry.crystalLabel(), NamedTextColor.AQUA));
         lore.add(GuiUtil.loreLine("Items", itemCount + " / " + chestSize, NamedTextColor.WHITE));
         lore.add(Component.empty());
         lore.add(Component.text("  Click to open", NamedTextColor.GRAY)

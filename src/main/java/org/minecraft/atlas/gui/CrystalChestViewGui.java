@@ -9,10 +9,9 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
-import org.minecraft.atlas.faction.FactionLevelManager;
-import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.HashMap;
@@ -23,7 +22,7 @@ import java.util.UUID;
 
 public class CrystalChestViewGui implements AtlasGui {
 
-    /** Key "factionName:chestIndex" → shared holder instance. */
+    /** Key "factionName:crystalUUID:chestIndex" → shared holder instance. */
     private static final Map<String, CrystalChestViewGui> openChests = new HashMap<>();
 
     private final String factionName;
@@ -37,13 +36,17 @@ public class CrystalChestViewGui implements AtlasGui {
         this.crystalEntityUUID = crystalEntityUUID;
         this.chestIndex        = chestIndex;
 
-        int size = FactionLevelManager.getChestSizeFromApplied(chestIndex,
-                AtlasCrystalManager.getEffectiveAppliedUpgrades(faction.getName()));
+        AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
+        int size = crystal != null && chestIndex < crystal.getPurchasedChestSizes().size()
+                ? crystal.getPurchasedChestSizes().get(chestIndex) : 27;
+
         this.inventory = Atlas.instance.getServer().createInventory(this, size,
                 Component.text(GuiUtil.truncateFactionName(faction.getName()) + " - Chest #" + (chestIndex + 1), faction.getColor()));
-        ItemStack[] stored = faction.getChestContents(chestIndex);
-        // Truncate stored contents if the chest was previously larger (e.g. config change)
-        this.inventory.setContents(stored.length <= size ? stored : java.util.Arrays.copyOf(stored, size));
+
+        if (crystal != null) {
+            ItemStack[] stored = crystal.getChestContents(chestIndex);
+            this.inventory.setContents(stored.length <= size ? stored : java.util.Arrays.copyOf(stored, size));
+        }
     }
 
     /**
@@ -51,7 +54,7 @@ public class CrystalChestViewGui implements AtlasGui {
      * faction member already has this chest open.
      */
     public static void open(Player player, Faction faction, int chestIndex, UUID crystalEntityUUID) {
-        String key = faction.getName() + ":" + chestIndex;
+        String key = faction.getName() + ":" + crystalEntityUUID + ":" + chestIndex;
         CrystalChestViewGui holder = openChests.computeIfAbsent(key,
                 k -> new CrystalChestViewGui(faction, chestIndex, crystalEntityUUID));
         holder.viewers.add(player.getUniqueId());
@@ -76,18 +79,17 @@ public class CrystalChestViewGui implements AtlasGui {
         if (!(event.getPlayer() instanceof Player player)) return;
         UUID uuid = player.getUniqueId();
 
-        // Save chest contents
-        String fn = FactionManager.getPlayerFaction(uuid);
-        if (fn != null) {
-            Faction faction = FactionManager.getFaction(fn);
-            if (faction != null) {
-                faction.setChestContents(chestIndex, event.getInventory().getContents().clone());
-            }
+        // Save chest contents to the crystal
+        AtlasCrystal crystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
+        if (crystal != null) {
+            crystal.setChestContents(chestIndex, event.getInventory().getContents().clone());
+            AtlasCrystalManager.saveCrystalData(Atlas.factionsDataConfig);
+            Atlas.saveFactionsDataConfig();
         }
 
         viewers.remove(uuid);
         if (viewers.isEmpty()) {
-            String key = factionName + ":" + chestIndex;
+            String key = factionName + ":" + crystalEntityUUID + ":" + chestIndex;
             openChests.remove(key);
         }
     }
