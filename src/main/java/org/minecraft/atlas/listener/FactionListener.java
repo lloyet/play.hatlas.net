@@ -42,6 +42,7 @@ import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.teleport.RandomTeleportManager;
 import org.minecraft.atlas.teleport.HomeManager;
+import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
 import org.minecraft.atlas.teleport.HomeTeleportManager;
 import org.minecraft.atlas.spawn.SpawnTeleportManager;
 import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
@@ -49,16 +50,12 @@ import org.minecraft.atlas.teleport.TeleportAtManager;
 import org.minecraft.atlas.util.TabListManager;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionListener implements Listener {
 
     private static final Map<UUID, Long> lastHitTime = new ConcurrentHashMap<>();
-
-    /** Players currently inside the spawn protection radius. */
-    private static final Set<UUID> inSpawnProtection = ConcurrentHashMap.newKeySet();
 
     // -------------------------------------------------------------------------
     // Crystal naming fallback on disconnect
@@ -80,12 +77,11 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        inSpawnProtection.remove(player.getUniqueId());
         AtlasCrystal pending = AtlasCrystalManager.getPendingNaming(player.getUniqueId());
         if (pending == null) return;
 
         AtlasCrystalManager.clearPendingNaming(player.getUniqueId());
-        String fallback = "Crystal_" + pending.getEntity().getUniqueId().toString().substring(0, 6);
+        String fallback = "Crystal_" + pending.getEntityUUID().toString().substring(0, 6);
         String candidate = fallback;
         int i = 1;
         while (AtlasCrystalManager.hasCrystalWithName(pending.getFactionName(), candidate)) {
@@ -117,6 +113,9 @@ public class FactionListener implements Listener {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
         if (HomeManager.cancelTeleport(player.getUniqueId())) {
+            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
+        }
+        if (SafeZoneTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
     }
@@ -340,7 +339,7 @@ public class FactionListener implements Listener {
                     "⚠ Crystal defeated! Immune for " + immunStr + "!", NamedTextColor.RED);
             TitleUtil.notify(attacker, "Crystal defeated! Immune " + immunStr + ".", NamedTextColor.YELLOW);
         } else {
-            // No protection — crystal is permanently destroyed
+            // No protection — crystal is permanently destroyed.
             crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
             String displayName2 = atlasCrystal.getName().isEmpty() ? "An Atlas Crystal" : "'" + atlasCrystal.getName() + "'";
@@ -348,8 +347,10 @@ public class FactionListener implements Listener {
                     Component.text("☠ " + displayName2 + " was destroyed by " + attackerFaction + "!", NamedTextColor.RED), null);
             Component serverMsg = Component.text("☠ [" + crystalFaction + "] lost a crystal to [" + attackerFaction + "]!", NamedTextColor.RED);
             Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(serverMsg));
-            crystal.remove(); // despawn entity
-            AtlasCrystalManager.destroyCrystal(atlasCrystal.getEntity().getUniqueId());
+            // Drop this crystal's chests + remove its claims while the entity is still valid;
+            // other crystals of the same faction keep their own claims and chests.
+            AtlasCrystalManager.destroyCrystal(atlasCrystal.getEntityUUID());
+            crystal.remove(); // despawn the entity afterwards
         }
     }
 
@@ -364,24 +365,14 @@ public class FactionListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        boolean wasInSpawn = inSpawnProtection.contains(uuid);
-        boolean nowInSpawn = SpawnProtectionListener.isInSpawnProtection(to);
-
-        // Entering spawn protection — fires on radius crossing regardless of chunk boundary
-        if (!wasInSpawn && nowInSpawn) {
-            inSpawnProtection.add(uuid);
-            TitleUtil.alert(player, "Spawn Protection\nYou enter the protected zone", NamedTextColor.YELLOW);
-            return;
-        }
-
-        boolean leavingSpawn = wasInSpawn && !nowInSpawn;
-        if (leavingSpawn) inSpawnProtection.remove(uuid);
-
         int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
         int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
         boolean chunkChanged = fromCX != toCX || fromCZ != toCZ;
+        if (!chunkChanged) return;
 
-        if (!leavingSpawn && !chunkChanged) return;
+        boolean wasInSpawn = SafeZoneListener.isInSpawnProtection(from);
+        boolean nowInSpawn = SafeZoneListener.isInSpawnProtection(to);
+        boolean leavingSpawn = wasInSpawn && !nowInSpawn;
 
         String worldName = player.getWorld().getName();
         String fromFaction = FactionClaimManager.getClaimingFaction(worldName, fromCX, fromCZ);
@@ -415,10 +406,13 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (entity instanceof EnderCrystal crystal
-                    && crystal.getPersistentDataContainer()
-                    .has(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING)
-                    && !AtlasCrystalManager.isAtlasCrystal(crystal.getUniqueId())) {
+            if (!(entity instanceof EnderCrystal crystal)) continue;
+            if (!crystal.getPersistentDataContainer()
+                    .has(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING)) continue;
+            // Restore if not registered at all, or registered only as an unloaded stub
+            org.minecraft.atlas.crystal.AtlasCrystal existing =
+                    AtlasCrystalManager.getCrystal(crystal.getUniqueId());
+            if (existing == null || !existing.isLoaded()) {
                 AtlasCrystalManager.restore(crystal);
             }
         }

@@ -19,7 +19,8 @@ public class AtlasCrystal {
 
     static final double BASE_MAX_HP = 50.0;
 
-    private final EnderCrystal entity;
+    private EnderCrystal entity;
+    private UUID cachedEntityUUID;
     private String factionName;
     private String name;
     private Location home;
@@ -34,32 +35,50 @@ public class AtlasCrystal {
 
     // ── Skill-point-driven upgrades ───────────────────────────────────────────
     private double hpBonus            = 0;
-    private int    claimCapacity      = 1;
+    private int claimCapacity      = 1;
     private final LinkedHashSet<String>  claimedChunks       = new LinkedHashSet<>();
     private final List<Integer>          purchasedChestSizes = new ArrayList<>();
     private final Map<Integer, ItemStack[]> chestContents    = new HashMap<>();
-    private int  spentSkillPoints      = 0;
+    private int spentSkillPoints      = 0;
     private long purchasedProtectionMs = 0;
     /** Escalation multiplier for immunity duration — starts at 1, doubles on each defeat within the window. */
-    private int  defeatMul             = 1;
+    private int defeatMul             = 1;
     /** Epoch-ms timestamp when the current defeat window ends. 0 = no active window. */
     private long defeatWindowEndMs     = 0L;
     /** True when this crystal was placed as an outpost (not the faction's founding crystal). */
     private boolean outpost = false;
 
     public AtlasCrystal(EnderCrystal entity, String factionName, double hp, double maxHp) {
-        this.entity      = entity;
-        this.factionName = factionName;
-        this.name        = "";
-        this.home        = null;
-        this.hp          = hp;
-        this.maxHp       = maxHp;
+        this.entity            = entity;
+        this.cachedEntityUUID  = entity.getUniqueId();
+        this.factionName       = factionName;
+        this.name              = "";
+        this.home              = null;
+        this.hp                = hp;
+        this.maxHp             = maxHp;
+    }
+
+    /** Stub constructor — used when the backing entity chunk is not yet loaded. */
+    AtlasCrystal(UUID entityUUID, String factionName, double hp, double maxHp) {
+        this.entity           = null;
+        this.cachedEntityUUID = entityUUID;
+        this.factionName      = factionName;
+        this.name             = "";
+        this.home             = null;
+        this.hp               = hp;
+        this.maxHp            = maxHp;
     }
 
     // ── Basic getters/setters ─────────────────────────────────────────────────
-    public boolean isOutpost()              { return outpost; }
-    public void    setOutpost(boolean b)    { this.outpost = b; }
+    public boolean isOutpost()                { return outpost; }
+    public void    setOutpost(boolean b)      { this.outpost = b; }
     public EnderCrystal getEntity()           { return entity; }
+    /** UUID of the backing entity — valid even when the entity's chunk is unloaded. */
+    public UUID getEntityUUID()               { return cachedEntityUUID; }
+    /** True when the backing entity is present and valid in a loaded chunk. */
+    public boolean isLoaded()                 { return entity != null && entity.isValid(); }
+    /** Drops the entity reference; the crystal becomes a stub until the chunk reloads. */
+    public void detachEntity()                { this.entity = null; }
     public String getFactionName()            { return factionName; }
     public void setFactionName(String n)      { this.factionName = n; }
     public String getName()                   { return name; }
@@ -194,7 +213,7 @@ public class AtlasCrystal {
 
     /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */
     public void updateNametag() {
-        if (entity.isDead()) return;
+        if (entity == null || entity.isDead()) return;
         AtlasCrystalManager.spawnOrUpdateNametagDisplay(this);
     }
 }

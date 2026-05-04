@@ -106,11 +106,11 @@ public class CrystalMainGui implements AtlasGui {
         }
 
         if (slot == SLOT_CHEST_BTN) {
-            AtlasCrystal crystalForChest = AtlasCrystalManager.getCrystal(crystalEntityUUID);
-            int available = crystalForChest != null ? crystalForChest.getPurchasedChestSizes().size() : 0;
+            int available = AtlasCrystalManager.getFactionCrystals(faction.getName())
+                    .stream().mapToInt(c -> c.getPurchasedChestSizes().size()).sum();
             if (available == 0) {
                 player.sendMessage(Component.text(
-                        "This crystal has no chests yet. Purchase a chest upgrade via the Skills menu.",
+                        "Your faction has no chests yet. Purchase a chest upgrade via the Skills menu.",
                         NamedTextColor.YELLOW));
                 return;
             }
@@ -285,7 +285,7 @@ public class CrystalMainGui implements AtlasGui {
         // Count total chests across all crystals of this faction
         int available = AtlasCrystalManager.getFactionCrystals(faction.getName())
                 .stream().mapToInt(c -> c.getPurchasedChestSizes().size()).sum();
-        ItemStack item = new ItemStack(available > 0 ? Material.BARREL : Material.CHEST);
+        ItemStack item = new ItemStack(Material.CHEST);
         ItemMeta meta  = item.getItemMeta();
         meta.displayName(Component.text("Faction Chests", NamedTextColor.YELLOW)
                 .decoration(TextDecoration.ITALIC, false));

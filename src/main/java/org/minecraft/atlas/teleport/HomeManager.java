@@ -34,7 +34,7 @@ public class HomeManager {
 
     public static void loadConfig(FileConfiguration config) {
         cooldownMs = config.getLong("home_teleport.cooldown_seconds", 300L) * 1000L;
-        countdownSeconds = config.getInt("home_teleport.delay_seconds", 10);
+        countdownSeconds = config.getInt("home_teleport.teleport_delay_seconds", 10);
     }
 
     // -------------------------------------------------------------------------

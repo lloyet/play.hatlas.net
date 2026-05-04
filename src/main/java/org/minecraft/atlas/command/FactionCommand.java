@@ -38,7 +38,7 @@ import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.teleport.HomeTeleportManager;
 import org.minecraft.atlas.donjon.DonjonManager;
-import org.minecraft.atlas.listener.SpawnProtectionListener;
+import org.minecraft.atlas.listener.SafeZoneListener;
 import org.minecraft.atlas.util.TabListManager;
 
 import java.util.ArrayList;
@@ -327,7 +327,7 @@ public class FactionCommand {
                                     }
 
                                     // Reject if inside spawn protection
-                                    if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
+                                    if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
                                         player.sendMessage(error("You cannot create a faction inside the spawn protection zone."));
                                         return Command.SINGLE_SUCCESS;
                                     }
@@ -922,52 +922,6 @@ public class FactionCommand {
                             player.sendMessage(list);
                             return Command.SINGLE_SUCCESS;
                         }))
-                // ----- members -----
-                .then(Commands.literal("members")
-                        .requires(src -> src.getSender().hasPermission("atlas.faction.members"))
-                        .executes(ctx -> {
-                            Entity executor = ctx.getSource().getExecutor();
-                            if (!(executor instanceof Player player)) {
-                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                                return Command.SINGLE_SUCCESS;
-                            }
-
-                            String factionNameForMembers = FactionManager.getPlayerFaction(player.getUniqueId());
-                            if (factionNameForMembers == null) {
-                                player.sendMessage(error("You are not in any faction."));
-                                return Command.SINGLE_SUCCESS;
-                            }
-
-                            Faction grp = FactionManager.getFaction(factionNameForMembers);
-                            List<UUID> memberUUIDs = FactionManager.getFactionPlayers(factionNameForMembers);
-
-                            Component list = Component.text("--- " + factionNameForMembers + " members ---", grp.getColor());
-                            for (UUID uuid : memberUUIDs) {
-                                boolean isOwner = uuid.equals(grp.getOwner());
-                                Player member = Bukkit.getPlayer(uuid);
-                                String name = member != null ? member.getName() : uuid.toString();
-                                boolean online = member != null;
-
-                                Component roleTag;
-                                if (isOwner) {
-                                    roleTag = Component.text(" [Owner]", NamedTextColor.YELLOW);
-                                } else {
-                                    FactionRole role = grp.getRole(uuid);
-                                    roleTag = switch (role) {
-                                        case LEADER -> Component.text(" [Leader]", NamedTextColor.GOLD);
-                                        case MODERATOR -> Component.text(" [Moderator]", NamedTextColor.AQUA);
-                                        case MEMBER -> Component.empty();
-                                    };
-                                }
-
-                                list = list.append(Component.newline())
-                                        .append(Component.text(name, online ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY))
-                                        .append(roleTag)
-                                        .append(Component.text(online ? "" : " (offline)", NamedTextColor.DARK_GRAY));
-                            }
-                            player.sendMessage(list);
-                            return Command.SINGLE_SUCCESS;
-                        }))
                 // ----- home -----
                 .then(Commands.literal("home")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.home"))
@@ -1053,7 +1007,7 @@ public class FactionCommand {
                                 player.sendMessage(error("Cannot claim a chunk inside a donjon area."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
+                            if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
                                 player.sendMessage(error("Cannot claim a chunk inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }
@@ -1318,15 +1272,11 @@ public class FactionCommand {
                                 player.sendMessage(error("Cannot place an outpost crystal inside a donjon area."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
+                            if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
                                 player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            int centerX = chunk.getX() * 16 + 8;
-                            int centerZ = chunk.getZ() * 16 + 8;
-                            int highestY = player.getWorld().getHighestBlockYAt(centerX, centerZ);
-                            Location spawnLoc = new Location(player.getWorld(),
-                                    centerX + 0.5, highestY + 2.0, centerZ + 0.5);
+                            Location spawnLoc = player.getLocation();
                             EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                             crystalEntity.setShowingBottom(true);
                             AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, factionName);

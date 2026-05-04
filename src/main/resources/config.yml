@@ -12,21 +12,36 @@ protection_visits: {}
 
 # Personal home command settings for /home
 home_teleport:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds after a successful /home teleport
   cooldown_seconds: 30
 
 # Teleport-to-player settings for /tpa
 tpa:
+  # Countdown delay in seconds before the requester is teleported after acceptance. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds after a completed /tpa teleport
   cooldown_seconds: 60
 
 # Spawn command settings for /spawn
 spawn_teleport:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds after a successful teleport to spawn
   cooldown_seconds: 30
 
+# Safe zone teleport settings for /safezone tp <name>
+safezone:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
+  # Cooldown in seconds after a successful teleport before the player can use /safezone tp again. Op bypasses.
+  teleport_cooldown_seconds: 30
+
 # Random teleport settings for /air tp
 random_teleport:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds between uses
   cooldown_seconds: 30
   # Maximum distance in blocks from world spawn for the random destination

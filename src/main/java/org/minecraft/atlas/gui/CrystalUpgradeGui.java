@@ -332,7 +332,7 @@ public class CrystalUpgradeGui implements AtlasGui {
         Material mat;
         if (tier.size() > 64) mat = Material.ENDER_CHEST;
         else if (tier.size() >= 54) mat = Material.OXIDIZED_COPPER_CHEST;
-        else if (tier.size() >= 28) mat = Material.COPPER_CHEST;
+        else if (tier.size() >= 27) mat = Material.COPPER_CHEST;
         else mat = Material.CHEST;
 
         ItemStack item = new ItemStack(mat);

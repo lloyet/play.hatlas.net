@@ -22,13 +22,14 @@ public class RandomTeleportManager {
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
     private static final Random random = new Random();
 
-    private static final int COUNTDOWN_SECONDS = 5;
-    private static long cooldownMs = 30_000L;
-    private static int teleportRadius = 1024;
+    private static int  countdownSeconds = 10;
+    private static long cooldownMs       = 30_000L;
+    private static int  teleportRadius   = 1024;
 
     public static void loadConfig(FileConfiguration config) {
-        cooldownMs = config.getLong("random_teleport.cooldown_seconds", 30L) * 1000L;
-        teleportRadius = config.getInt("random_teleport.radius", 1024);
+        cooldownMs       = config.getLong("random_teleport.cooldown_seconds",      30L) * 1000L;
+        teleportRadius   = config.getInt ("random_teleport.radius",                1024);
+        countdownSeconds = config.getInt ("random_teleport.teleport_delay_seconds", 10);
     }
 
     public static boolean startTeleport(Player player) {
@@ -71,7 +72,7 @@ public class RandomTeleportManager {
         Location startLocation = player.getLocation().clone();
 
         BukkitRunnable task = new BukkitRunnable() {
-            int remaining = COUNTDOWN_SECONDS;
+            int remaining = countdownSeconds;
 
             @Override
             public void run() {

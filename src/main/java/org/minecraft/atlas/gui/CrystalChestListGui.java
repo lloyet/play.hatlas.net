@@ -43,7 +43,7 @@ public class CrystalChestListGui implements AtlasGui {
         for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
             String label = c.getName().isEmpty() ? "Unnamed Crystal" : c.getName();
             for (int i = 0; i < c.getPurchasedChestSizes().size(); i++) {
-                allChests.add(new ChestEntry(c.getEntity().getUniqueId(), i, label));
+                allChests.add(new ChestEntry(c.getEntityUUID(), i, label));
             }
         }
 
@@ -108,7 +108,12 @@ public class CrystalChestListGui implements AtlasGui {
             if (stack != null && stack.getType() != Material.AIR) itemCount++;
         }
 
-        Material mat = chestSize >= 54 ? Material.BARREL : Material.CHEST;
+        Material mat;
+        if (chestSize > 64) mat = Material.ENDER_CHEST;
+        else if (chestSize >= 54) mat = Material.OXIDIZED_COPPER_CHEST;
+        else if (chestSize >= 27) mat = Material.COPPER_CHEST;
+        else mat = Material.CHEST;
+
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("Chest #" + number, NamedTextColor.YELLOW)

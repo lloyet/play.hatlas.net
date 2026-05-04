@@ -765,11 +765,11 @@ public class DonjonCommand {
                                                                 })))))))
 
 
-                // /donjon npc spawn smuggler
+                // /donjon npc summon smuggler
                 .then(Commands.literal("npc")
-                        .executes(ctx -> usage(ctx.getSource().getSender(), "npc spawn smuggler"))
-                        .then(Commands.literal("spawn")
-                                .executes(ctx -> usage(ctx.getSource().getSender(), "npc spawn smuggler"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "npc summon smuggler"))
+                        .then(Commands.literal("summon")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "npc summon smuggler"))
                                 .then(Commands.literal("smuggler")
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();

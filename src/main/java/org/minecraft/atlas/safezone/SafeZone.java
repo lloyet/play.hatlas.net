@@ -1,17 +1,17 @@
-package org.minecraft.atlas.spawn;
+package org.minecraft.atlas.safezone;
 
 import org.bukkit.Location;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-public class Protection {
+public class SafeZone {
 
     private final String name;
     private final Set<String> chunks = new LinkedHashSet<>();
     private Location spawnPoint = null;
 
-    public Protection(String name) {
+    public SafeZone(String name) {
         this.name = name;
     }
 

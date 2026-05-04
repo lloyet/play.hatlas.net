@@ -26,11 +26,12 @@ public class TeleportAtManager {
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
     private static final long REQUEST_EXPIRY_MS = 30_000L;
-    private static final int COUNTDOWN_SECONDS = 10;
-    private static long cooldownMs = 60_000L;
+    private static int  countdownSeconds = 10;
+    private static long cooldownMs       = 60_000L;
 
     public static void loadConfig(FileConfiguration config) {
-        cooldownMs = config.getLong("tpa.cooldown_seconds", 60L) * 1000L;
+        cooldownMs       = config.getLong("tpa.cooldown_seconds",         60L) * 1000L;
+        countdownSeconds = config.getInt ("tpa.teleport_delay_seconds",   10);
     }
 
     public static boolean sendRequest(Player requester, Player target) {
@@ -121,7 +122,7 @@ public class TeleportAtManager {
             requester.sendActionBar(Component.text("Teleported to " + target.getName() + "!", NamedTextColor.GREEN));
         } else {
             requester.sendMessage(Component.text(
-                    target.getName() + " accepted. Teleporting in " + COUNTDOWN_SECONDS + "s… Don't move!",
+                    target.getName() + " accepted. Teleporting in " + countdownSeconds + "s… Don't move!",
                     NamedTextColor.YELLOW));
             startCountdown(requester, target);
         }
@@ -152,7 +153,7 @@ public class TeleportAtManager {
         Location startLocation = requester.getLocation().clone();
 
         BukkitRunnable task = new BukkitRunnable() {
-            int remaining = COUNTDOWN_SECONDS;
+            int remaining = countdownSeconds;
 
             @Override
             public void run() {

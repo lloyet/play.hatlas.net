@@ -121,12 +121,6 @@ public class AtlasCrystalManager {
     /** playerUUID → AtlasCrystal awaiting a name from the naming dialog. */
     private static final Map<UUID, AtlasCrystal> pendingNaming = new ConcurrentHashMap<>();
 
-    /**
-     * factionName → (crystalEntityUUID → home location).
-     * Persisted to data file so homes are accessible even when the entity is unloaded.
-     */
-    private static final Map<String, LinkedHashMap<UUID, Location>> factionHomes = new LinkedHashMap<>();
-
     // ── Register ──────────────────────────────────────────────────────────────
 
     /** Registers a newly spawned atlas crystal with base HP and max HP. */
@@ -142,37 +136,37 @@ public class AtlasCrystalManager {
         return crystal;
     }
 
-    /** Finalises the crystal's name after the player provides it. Auto-claims center chunk. */
+    /** Finalizes the crystal's name after the player provides it. Auto-claims center chunk. */
     public static void assignName(AtlasCrystal crystal, String name) {
         crystal.setName(name);
         factionCrystals
                 .computeIfAbsent(crystal.getFactionName(), k -> new LinkedHashMap<>())
-                .put(crystal.getEntity().getUniqueId(), crystal);
-        crystal.getEntity().getPersistentDataContainer()
-                .set(getKeyName(), PersistentDataType.STRING, name);
+                .put(crystal.getEntityUUID(), crystal);
 
-        // Auto-claim the center chunk for this crystal
-        Location loc = crystal.getEntity().getLocation();
-        String worldName = loc.getWorld().getName();
-        int cx = loc.getBlockX() >> 4;
-        int cz = loc.getBlockZ() >> 4;
-        String chunkKey = worldName + ":" + cx + ":" + cz;
-        if (!crystal.getClaimedChunks().contains(chunkKey)) {
-            crystal.getClaimedChunks().add(chunkKey);
-            FactionClaimManager.claimChunk(crystal.getFactionName(), worldName, cx, cz);
+        var entity = crystal.getEntity();
+        if (entity != null) {
+            entity.getPersistentDataContainer()
+                    .set(getKeyName(), PersistentDataType.STRING, name);
+
+            // Auto-claim the center chunk for this crystal
+            Location loc = entity.getLocation();
+            String worldName = loc.getWorld().getName();
+            int cx = loc.getBlockX() >> 4;
+            int cz = loc.getBlockZ() >> 4;
+            String chunkKey = worldName + ":" + cx + ":" + cz;
+            if (!crystal.getClaimedChunks().contains(chunkKey)) {
+                crystal.getClaimedChunks().add(chunkKey);
+                FactionClaimManager.claimChunk(crystal.getFactionName(), worldName, cx, cz);
+            }
         }
 
         crystal.updateNametag();
     }
 
-    /**
-     * Persists a crystal's home location to the in-memory map and to the data file.
-     */
+    /** Persists a crystal's home location (set on the crystal in-memory) to the data file. */
     public static void saveHome(AtlasCrystal crystal) {
         Location home = crystal.getHome();
         if (home == null || home.getWorld() == null) return;
-        factionHomes.computeIfAbsent(crystal.getFactionName(), k -> new LinkedHashMap<>())
-                .put(crystal.getEntity().getUniqueId(), home);
         saveCrystalData(Atlas.factionsDataConfig);
         Atlas.saveFactionsDataConfig();
     }
@@ -184,6 +178,7 @@ public class AtlasCrystalManager {
      * Call after any significant state change (damage, upgrade applied).
      */
     public static void persistCrystalState(AtlasCrystal crystal) {
+        if (crystal.getEntity() == null) return;
         var pdc = crystal.getEntity().getPersistentDataContainer();
         pdc.set(getKeyHp(),           PersistentDataType.DOUBLE,  crystal.getHp());
         pdc.set(getKeyMaxHp(),        PersistentDataType.DOUBLE,  crystal.getMaxHp());
@@ -201,27 +196,25 @@ public class AtlasCrystalManager {
     public static void saveCrystalData(FileConfiguration config) {
         config.set("crystal_homes", null);
         config.set("crystal_data", null);
+        config.set("crystals", null);
+        // Per-crystal claims now live under crystals.<uuid>.claimed_chunks; legacy per-faction
+        // "claims" section is no longer the source of truth and gets cleared here.
+        config.set("claims", null);
 
-        if (factionHomes.isEmpty() && crystals.isEmpty()) return;
+        if (crystals.isEmpty()) return;
 
-        // Homes
-        if (!factionHomes.isEmpty()) {
-            ConfigurationSection homeSec = config.createSection("crystal_homes");
-            for (Map.Entry<String, LinkedHashMap<UUID, Location>> fEntry : factionHomes.entrySet()) {
-                for (Map.Entry<UUID, Location> hEntry : fEntry.getValue().entrySet()) {
-                    ConfigurationSection entry = homeSec.createSection(hEntry.getKey().toString());
-                    entry.set("faction", fEntry.getKey());
-                    entry.set("home", encodeHome(hEntry.getValue()));
-                }
-            }
-        }
-
-        // Crystal data (claims, chests, chest_sizes)
-        ConfigurationSection dataSec = config.createSection("crystal_data");
+        ConfigurationSection root = config.createSection("crystals");
         for (AtlasCrystal crystal : crystals.values()) {
-            ConfigurationSection cs = dataSec.createSection(crystal.getEntity().getUniqueId().toString());
+            ConfigurationSection cs = root.createSection(crystal.getEntityUUID().toString());
             cs.set("faction", crystal.getFactionName());
+            if (!crystal.getName().isEmpty()) cs.set("name", crystal.getName());
+            cs.set("hp",     crystal.getHp());
+            cs.set("max_hp", crystal.getMaxHp());
             if (crystal.isOutpost()) cs.set("outpost", true);
+            Location home = crystal.getHome();
+            if (home != null && home.getWorld() != null) {
+                cs.set("home", encodeHome(home));
+            }
             if (!crystal.getClaimedChunks().isEmpty()) {
                 cs.set("claimed_chunks", new ArrayList<>(crystal.getClaimedChunks()));
             }
@@ -255,31 +248,128 @@ public class AtlasCrystalManager {
     }
 
     private static void loadCrystalData(FileConfiguration config) {
-        factionHomes.clear();
+        crystals.clear();
+        factionCrystals.clear();
 
-        ConfigurationSection homeSec = config.getConfigurationSection("crystal_homes");
-        if (homeSec != null) {
-            for (String uuidStr : homeSec.getKeys(false)) {
-                ConfigurationSection entry = homeSec.getConfigurationSection(uuidStr);
-                if (entry == null) continue;
-                String factionName = entry.getString("faction");
-                String homeStr     = entry.getString("home");
-                if (factionName == null || homeStr == null) continue;
+        // Read the canonical "crystals" section. Fall back to the legacy "crystal_data" key
+        // (paired with the legacy "crystal_homes" section) when migrating older data files.
+        ConfigurationSection root = config.getConfigurationSection("crystals");
+        boolean migrating = (root == null);
+        if (root == null) root = config.getConfigurationSection("crystal_data");
+
+        // Pre-load legacy crystal_homes so we can attach the home to migrated crystals.
+        Map<UUID, Location> legacyHomes = new HashMap<>();
+        Map<UUID, String>   legacyHomeFactions = new HashMap<>();
+        if (migrating) {
+            ConfigurationSection homeSec = config.getConfigurationSection("crystal_homes");
+            if (homeSec != null) {
+                for (String uuidStr : homeSec.getKeys(false)) {
+                    ConfigurationSection entry = homeSec.getConfigurationSection(uuidStr);
+                    if (entry == null) continue;
+                    String fName   = entry.getString("faction");
+                    String homeStr = entry.getString("home");
+                    if (fName == null || homeStr == null) continue;
+                    try {
+                        UUID uuid = UUID.fromString(uuidStr);
+                        Location home = decodeHome(homeStr);
+                        if (home != null) {
+                            legacyHomes.put(uuid, home);
+                            legacyHomeFactions.put(uuid, fName);
+                        }
+                    } catch (IllegalArgumentException ignored) {}
+                }
+            }
+        }
+
+        // Build a stub for every crystal in the data file so the GUI and /faction home
+        // work before chunks load. Stubs go in factionCrystals regardless of name; legacy
+        // data may lack a stored name (only kept in PDC before this version).
+        if (root != null) {
+            for (String uuidStr : root.getKeys(false)) {
+                ConfigurationSection cs = root.getConfigurationSection(uuidStr);
+                if (cs == null) continue;
+                String factionName = cs.getString("faction");
+                if (factionName == null) continue;
                 try {
-                    UUID uuid = UUID.fromString(uuidStr);
-                    Location home = decodeHome(homeStr);
-                    if (home != null)
-                        factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>()).put(uuid, home);
+                    UUID uuid    = UUID.fromString(uuidStr);
+                    double hp    = cs.getDouble("hp",     AtlasCrystal.BASE_MAX_HP);
+                    double maxHp = cs.getDouble("max_hp", AtlasCrystal.BASE_MAX_HP);
+                    AtlasCrystal stub = new AtlasCrystal(uuid, factionName, hp, maxHp);
+                    stub.setName(cs.getString("name", ""));
+                    if (cs.getBoolean("outpost", false)) stub.setOutpost(true);
+
+                    // Home: per-crystal in the new format, fall back to legacy crystal_homes.
+                    String homeStr = cs.getString("home");
+                    Location home = homeStr != null ? decodeHome(homeStr) : null;
+                    if (home == null && migrating) home = legacyHomes.get(uuid);
+                    if (home != null) stub.setHome(home);
+
+                    // Claims — populate FactionClaimManager runtime cache as we go so
+                    // territory enforcement works without a separate per-faction "claims" section.
+                    for (String chunkKey : cs.getStringList("claimed_chunks")) {
+                        stub.getClaimedChunks().add(chunkKey);
+                        String[] parts = chunkKey.split(":");
+                        if (parts.length == 3) {
+                            try {
+                                FactionClaimManager.claimChunk(factionName, parts[0],
+                                        Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                    for (int size : cs.getIntegerList("chest_sizes")) {
+                        stub.getPurchasedChestSizes().add(size);
+                    }
+                    ConfigurationSection chestsSec = cs.getConfigurationSection("chests");
+                    if (chestsSec != null) {
+                        for (String indexStr : chestsSec.getKeys(false)) {
+                            try {
+                                int chestIndex = Integer.parseInt(indexStr);
+                                ConfigurationSection chestSec = chestsSec.getConfigurationSection(indexStr);
+                                if (chestSec == null) continue;
+                                int chestSize = chestIndex < stub.getPurchasedChestSizes().size()
+                                        ? stub.getPurchasedChestSizes().get(chestIndex) : 27;
+                                ItemStack[] contents = new ItemStack[chestSize];
+                                for (String slotStr : chestSec.getKeys(false)) {
+                                    try {
+                                        int slot = Integer.parseInt(slotStr);
+                                        if (slot >= 0 && slot < chestSize) contents[slot] = chestSec.getItemStack(slotStr);
+                                    } catch (NumberFormatException ignored) {}
+                                }
+                                stub.setChestContents(chestIndex, contents);
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                    crystals.put(uuid, stub);
+                    factionCrystals.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
+                            .put(uuid, stub);
                 } catch (IllegalArgumentException ignored) {}
             }
         }
-        // crystal_data (claims, chests) is applied in restore() when entities load
+
+        // Backfill: legacy data may have a UUID present in crystal_homes but missing from
+        // crystal_data (the regen-scheduler bug used to drop crystals from crystal_data on
+        // chunk unload). Create a minimal stub so the home stays reachable.
+        if (migrating) {
+            for (Map.Entry<UUID, Location> e : legacyHomes.entrySet()) {
+                UUID uuid = e.getKey();
+                if (crystals.containsKey(uuid)) continue;
+                String factionName = legacyHomeFactions.get(uuid);
+                if (factionName == null) continue;
+                AtlasCrystal stub = new AtlasCrystal(uuid, factionName,
+                        AtlasCrystal.BASE_MAX_HP, AtlasCrystal.BASE_MAX_HP);
+                stub.setHome(e.getValue());
+                crystals.put(uuid, stub);
+                factionCrystals.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
+                        .put(uuid, stub);
+            }
+        }
     }
 
     // ── Restore (called when entity chunk loads) ──────────────────────────────
 
     /** Restores an atlas crystal from PDC when its chunk is loaded. */
     public static AtlasCrystal restore(EnderCrystal entity) {
+        UUID uuid = entity.getUniqueId();
         String factionName = entity.getPersistentDataContainer().get(getKeyFaction(), PersistentDataType.STRING);
         if (factionName == null) return null;
 
@@ -295,65 +385,31 @@ public class AtlasCrystalManager {
         crystal.setName(savedName);
         entity.setCustomNameVisible(false);
 
-        // Restore home — primary source is the in-memory/data-file factionHomes map
-        Location home = null;
-        LinkedHashMap<UUID, Location> homes = factionHomes.get(factionName);
-        if (homes != null) home = homes.get(entity.getUniqueId());
-        if (home == null) {
-            // Migration fallback: read from legacy PDC
-            String homeStr = entity.getPersistentDataContainer().get(getKeyHome(), PersistentDataType.STRING);
-            if (homeStr != null) {
-                home = decodeHome(homeStr);
-                if (home != null) {
-                    factionHomes.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
-                            .put(entity.getUniqueId(), home);
-                    saveCrystalData(Atlas.factionsDataConfig);
-                    Atlas.saveFactionsDataConfig();
-                }
+        // If a stub was created at startup from YAML, copy its bookkeeping data forward.
+        // Otherwise (entity loaded but no stub — e.g. brand-new PDC, or legacy data) read
+        // directly from the YAML "crystals" section, falling back to legacy keys.
+        AtlasCrystal stub = crystals.get(uuid);
+        if (stub != null && stub != crystal) {
+            if (stub.getHome() != null) crystal.setHome(stub.getHome());
+            if (stub.isOutpost()) crystal.setOutpost(true);
+            crystal.getClaimedChunks().addAll(stub.getClaimedChunks());
+            crystal.getPurchasedChestSizes().addAll(stub.getPurchasedChestSizes());
+            for (Map.Entry<Integer, ItemStack[]> e : stub.getChestContentsMap().entrySet()) {
+                crystal.setChestContents(e.getKey(), e.getValue());
             }
-        }
-        if (home != null) crystal.setHome(home);
-
-        // Restore scalar PDC fields (maxHp already loaded correctly, use restore methods)
-        Double hpBonus        = entity.getPersistentDataContainer().get(getKeyHpBonus(),      PersistentDataType.DOUBLE);
-        Integer savedClaimCap = entity.getPersistentDataContainer().get(getKeyClaimCapacity(),PersistentDataType.INTEGER);
-        Integer savedSpentSp  = entity.getPersistentDataContainer().get(getKeySpentSp(),      PersistentDataType.INTEGER);
-        Long savedProtMs      = entity.getPersistentDataContainer().get(getKeyProtectionMs(), PersistentDataType.LONG);
-        Long savedImmune      = entity.getPersistentDataContainer().get(getKeyImmuneUntil(),  PersistentDataType.LONG);
-        Integer savedDefeatMul    = entity.getPersistentDataContainer().get(getKeyDefeatMul(),    PersistentDataType.INTEGER);
-        Long    savedDefeatWindow = entity.getPersistentDataContainer().get(getKeyDefeatWindow(), PersistentDataType.LONG);
-
-        if (hpBonus           != null) crystal.restoreHpBonus(hpBonus);
-        if (savedClaimCap     != null) crystal.restoreClaimCapacity(savedClaimCap);
-        if (savedSpentSp      != null) crystal.restoreSpentSkillPoints(savedSpentSp);
-        if (savedProtMs       != null) crystal.restoreProtectionMs(savedProtMs);
-        if (savedImmune       != null) crystal.setImmuneUntilMillis(savedImmune);
-        if (savedDefeatMul    != null) crystal.restoreDefeatMul(savedDefeatMul);
-        if (savedDefeatWindow != null) crystal.restoreDefeatWindowEndMs(savedDefeatWindow);
-
-        // Restore nametag display UUID
-        String displayUUIDStr = entity.getPersistentDataContainer().get(getKeyNametagDisplay(), PersistentDataType.STRING);
-        if (displayUUIDStr != null) {
-            try { crystal.setTextDisplayUUID(UUID.fromString(displayUUIDStr)); }
-            catch (IllegalArgumentException ignored) {}
-        }
-
-        // Restore claims + chests from data file
-        ConfigurationSection dataSec = Atlas.factionsDataConfig.getConfigurationSection("crystal_data");
-        if (dataSec != null) {
-            ConfigurationSection cs = dataSec.getConfigurationSection(entity.getUniqueId().toString());
+        } else {
+            ConfigurationSection root = Atlas.factionsDataConfig.getConfigurationSection("crystals");
+            if (root == null) root = Atlas.factionsDataConfig.getConfigurationSection("crystal_data");
+            ConfigurationSection cs = root != null ? root.getConfigurationSection(uuid.toString()) : null;
             if (cs != null) {
                 if (cs.getBoolean("outpost", false)) crystal.setOutpost(true);
+                String homeStr = cs.getString("home");
+                if (homeStr != null) {
+                    Location home = decodeHome(homeStr);
+                    if (home != null) crystal.setHome(home);
+                }
                 for (String chunkKey : cs.getStringList("claimed_chunks")) {
                     crystal.getClaimedChunks().add(chunkKey);
-                    // Ensure FactionClaimManager is in sync
-                    String[] parts = chunkKey.split(":");
-                    if (parts.length == 3) {
-                        try {
-                            FactionClaimManager.claimChunk(factionName, parts[0],
-                                    Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
-                        } catch (NumberFormatException ignored) {}
-                    }
                 }
                 for (int size : cs.getIntegerList("chest_sizes")) {
                     crystal.getPurchasedChestSizes().add(size);
@@ -379,13 +435,57 @@ public class AtlasCrystalManager {
                     }
                 }
             }
+
+            // Migration from very old data: home stored on entity PDC.
+            if (crystal.getHome() == null) {
+                String legacyHome = entity.getPersistentDataContainer().get(getKeyHome(), PersistentDataType.STRING);
+                if (legacyHome != null) {
+                    Location home = decodeHome(legacyHome);
+                    if (home != null) crystal.setHome(home);
+                }
+            }
         }
 
-        crystals.put(entity.getUniqueId(), crystal);
-        if (!savedName.isEmpty()) {
-            factionCrystals.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
-                    .put(entity.getUniqueId(), crystal);
+        // Sync FactionClaimManager runtime cache (idempotent).
+        for (String chunkKey : crystal.getClaimedChunks()) {
+            String[] parts = chunkKey.split(":");
+            if (parts.length == 3) {
+                try {
+                    FactionClaimManager.claimChunk(factionName, parts[0],
+                            Integer.parseInt(parts[1]), Integer.parseInt(parts[2]));
+                } catch (NumberFormatException ignored) {}
+            }
         }
+
+        // Restore scalar PDC fields (maxHp already loaded correctly, use restore methods)
+        Double hpBonus        = entity.getPersistentDataContainer().get(getKeyHpBonus(),      PersistentDataType.DOUBLE);
+        Integer savedClaimCap = entity.getPersistentDataContainer().get(getKeyClaimCapacity(),PersistentDataType.INTEGER);
+        Integer savedSpentSp  = entity.getPersistentDataContainer().get(getKeySpentSp(),      PersistentDataType.INTEGER);
+        Long savedProtMs      = entity.getPersistentDataContainer().get(getKeyProtectionMs(), PersistentDataType.LONG);
+        Long savedImmune      = entity.getPersistentDataContainer().get(getKeyImmuneUntil(),  PersistentDataType.LONG);
+        Integer savedDefeatMul    = entity.getPersistentDataContainer().get(getKeyDefeatMul(),    PersistentDataType.INTEGER);
+        Long    savedDefeatWindow = entity.getPersistentDataContainer().get(getKeyDefeatWindow(), PersistentDataType.LONG);
+
+        if (hpBonus           != null) crystal.restoreHpBonus(hpBonus);
+        if (savedClaimCap     != null) crystal.restoreClaimCapacity(savedClaimCap);
+        if (savedSpentSp      != null) crystal.restoreSpentSkillPoints(savedSpentSp);
+        if (savedProtMs       != null) crystal.restoreProtectionMs(savedProtMs);
+        if (savedImmune       != null) crystal.setImmuneUntilMillis(savedImmune);
+        if (savedDefeatMul    != null) crystal.restoreDefeatMul(savedDefeatMul);
+        if (savedDefeatWindow != null) crystal.restoreDefeatWindowEndMs(savedDefeatWindow);
+
+        // Restore nametag display UUID
+        String displayUUIDStr = entity.getPersistentDataContainer().get(getKeyNametagDisplay(), PersistentDataType.STRING);
+        if (displayUUIDStr != null) {
+            try { crystal.setTextDisplayUUID(UUID.fromString(displayUUIDStr)); }
+            catch (IllegalArgumentException ignored) {}
+        }
+
+        crystals.put(uuid, crystal);
+        // Always replace any existing stub in factionCrystals so the live entity-backed
+        // crystal supersedes it.
+        factionCrystals.computeIfAbsent(factionName, k -> new LinkedHashMap<>())
+                .put(uuid, crystal);
         crystal.updateNametag();
         return crystal;
     }
@@ -458,7 +558,7 @@ public class AtlasCrystalManager {
     // ── Crystal destruction with full consequences ────────────────────────────
 
     /**
-     * Permanently destroys a crystal and applies all consequences to the faction:
+     * Permanently destroys a crystal and applies all consequences of the faction:
      * - Remove its claimed chunks
      * - Drop its chest contents at the crystal location
      * - Lower faction level proportionally to spentSkillPoints
@@ -471,17 +571,26 @@ public class AtlasCrystalManager {
         String factionName = crystal.getFactionName();
         Faction faction = FactionManager.getFaction(factionName);
 
-        // 1. Remove claims
+        // Capture the drop location BEFORE any state mutation. Prefer the entity's live
+        // location; fall back to the crystal's home (e.g. when destroying a stub).
+        Location dropLoc = null;
+        if (crystal.getEntity() != null) {
+            dropLoc = crystal.getEntity().getLocation();
+        }
+        if (dropLoc == null || dropLoc.getWorld() == null) dropLoc = crystal.getHome();
+
+        // 1. Remove ONLY this crystal's claims; other crystals of the same faction are untouched.
         FactionClaimManager.removeClaimsForCrystal(new ArrayList<>(crystal.getClaimedChunks()));
         crystal.getClaimedChunks().clear();
 
-        // 2. Drop chest contents at crystal location
-        Location dropLoc = crystal.getEntity().getLocation();
-        for (Map.Entry<Integer, ItemStack[]> entry : crystal.getChestContentsMap().entrySet()) {
-            if (entry.getValue() == null) continue;
-            for (ItemStack stack : entry.getValue()) {
-                if (stack != null && stack.getType() != Material.AIR) {
-                    dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
+        // 2. Drop this crystal's chest contents at the captured location.
+        if (dropLoc != null && dropLoc.getWorld() != null) {
+            for (Map.Entry<Integer, ItemStack[]> entry : crystal.getChestContentsMap().entrySet()) {
+                if (entry.getValue() == null) continue;
+                for (ItemStack stack : entry.getValue()) {
+                    if (stack != null && stack.getType() != Material.AIR) {
+                        dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
+                    }
                 }
             }
         }
@@ -527,6 +636,7 @@ public class AtlasCrystalManager {
         AtlasCrystal best = null;
         double bestDist = Double.MAX_VALUE;
         for (AtlasCrystal c : map.values()) {
+            if (c.getEntity() == null) continue; // can't claim around unloaded crystal
             if (!c.getEntity().getWorld().getName().equals(worldName)) continue;
             if (c.getClaimedChunks().size() >= c.getClaimCapacity()) continue;
             int ccx = c.getEntity().getLocation().getBlockX() >> 4;
@@ -614,13 +724,10 @@ public class AtlasCrystalManager {
     /** Returns the home of the first crystal with a home set for this faction, or null if none. */
     public static Location getFirstHome(String factionName) {
         Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);
-        if (map != null) {
-            for (AtlasCrystal c : map.values()) {
-                if (c.getHome() != null) return c.getHome();
-            }
+        if (map == null) return null;
+        for (AtlasCrystal c : map.values()) {
+            if (c.getHome() != null) return c.getHome();
         }
-        LinkedHashMap<UUID, Location> homes = factionHomes.get(factionName);
-        if (homes != null && !homes.isEmpty()) return homes.values().iterator().next();
         return null;
     }
 
@@ -639,15 +746,15 @@ public class AtlasCrystalManager {
         for (AtlasCrystal crystal : crystals.values()) {
             if (crystal.getFactionName().equals(oldName)) {
                 crystal.setFactionName(newName);
-                crystal.getEntity().getPersistentDataContainer()
-                        .set(getKeyFaction(), PersistentDataType.STRING, newName);
+                if (crystal.getEntity() != null) {
+                    crystal.getEntity().getPersistentDataContainer()
+                            .set(getKeyFaction(), PersistentDataType.STRING, newName);
+                }
                 crystal.updateNametag();
             }
         }
         Map<UUID, AtlasCrystal> map = factionCrystals.remove(oldName);
         if (map != null) factionCrystals.put(newName, map);
-        LinkedHashMap<UUID, Location> homes = factionHomes.remove(oldName);
-        if (homes != null) factionHomes.put(newName, homes);
     }
 
     /**
@@ -661,7 +768,8 @@ public class AtlasCrystalManager {
         for (AtlasCrystal c : map.values()) if (oldName.equals(c.getName())) { found = c; break; }
         if (found == null) return false;
         found.setName(newName);
-        found.getEntity().getPersistentDataContainer().set(getKeyName(), PersistentDataType.STRING, newName);
+        if (found.getEntity() != null)
+            found.getEntity().getPersistentDataContainer().set(getKeyName(), PersistentDataType.STRING, newName);
         found.updateNametag();
         return true;
     }
@@ -673,8 +781,6 @@ public class AtlasCrystalManager {
         removeNametagDisplay(crystal);
         Map<UUID, AtlasCrystal> map = factionCrystals.get(crystal.getFactionName());
         if (map != null) map.remove(entityUUID);
-        LinkedHashMap<UUID, Location> homes = factionHomes.get(crystal.getFactionName());
-        if (homes != null) homes.remove(entityUUID);
     }
 
     /** Removes and despawns all crystals belonging to a faction. Called when a faction is disbanded. */
@@ -682,11 +788,10 @@ public class AtlasCrystalManager {
         Map<UUID, AtlasCrystal> map = factionCrystals.remove(factionName);
         if (map == null) return;
         for (AtlasCrystal crystal : map.values()) {
-            crystals.remove(crystal.getEntity().getUniqueId());
+            crystals.remove(crystal.getEntityUUID());
             removeNametagDisplay(crystal);
-            if (!crystal.getEntity().isDead()) crystal.getEntity().remove();
+            if (crystal.getEntity() != null && !crystal.getEntity().isDead()) crystal.getEntity().remove();
         }
-        factionHomes.remove(factionName);
     }
 
     // ── Regen scheduler ───────────────────────────────────────────────────────
@@ -698,16 +803,19 @@ public class AtlasCrystalManager {
                 Iterator<Map.Entry<UUID, AtlasCrystal>> iter = crystals.entrySet().iterator();
                 while (iter.hasNext()) {
                     AtlasCrystal crystal = iter.next().getValue();
-                    if (crystal.getEntity().isDead()) {
-                        removeNametagDisplay(crystal);
-                        Map<UUID, AtlasCrystal> m = factionCrystals.get(crystal.getFactionName());
-                        if (m != null) m.remove(crystal.getEntity().getUniqueId());
-                        iter.remove();
+                    var entity = crystal.getEntity();
+                    if (entity == null) continue; // unloaded stub — skip until chunk loads
+                    if (entity.isDead()) {
+                        // Entity invalidated (chunk unloaded, or removed by some other path).
+                        // Keep the crystal in the maps as a stub so its data stays queryable
+                        // and is not wiped on next save. Genuine destruction goes through
+                        // destroyCrystal()/removeAllForFaction() which remove from maps explicitly.
+                        crystal.detachEntity();
                         continue;
                     }
                     if (crystal.canRegen() && crystal.getHp() < crystal.getMaxHp()) {
                         crystal.regen(regenPerSecond);
-                        crystal.getEntity().getPersistentDataContainer()
+                        entity.getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }
                     // Passive de-escalation: when the defeat window expires step defeatMul back down by one factor

@@ -106,11 +106,14 @@ permissions:
     description: Teleport to world spawn with a 10-second countdown
     default: true
   atlas.spawn.admin:
-    description: Teleport to any protection area with /spawn <name> regardless of visit history
+    description: Teleport to any safe zone with /spawn <name>, and set the world spawn with /spawn set
     default: op
-  atlas.protection.admin:
-    description: Create and manage protection areas via /protection
+  atlas.safezone.admin:
+    description: Create and manage safe zones via /safezone
     default: op
+  atlas.safezone.tp:
+    description: Teleport to a safe zone's spawn via /safezone tp <name>
+    default: true
   atlas.tpa:
     description: Send and respond to teleport-to-player requests
     default: true

@@ -15,16 +15,17 @@ import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.minecraft.atlas.spawn.Protection;
-import org.minecraft.atlas.spawn.ProtectionManager;
+import org.minecraft.atlas.safezone.SafeZone;
+import org.minecraft.atlas.safezone.SafeZoneManager;
+import org.minecraft.atlas.util.TitleUtil;
 
-public class SpawnProtectionListener implements Listener {
+public class SafeZoneListener implements Listener {
 
     // ── Protection check ───────────────────────────────────────────────────────
 
-    /** Returns true if the location is inside any registered protection area. */
+    /** Returns true if the location is inside any registered safe zone. */
     public static boolean isInSpawnProtection(Location location) {
-        return ProtectionManager.isProtected(location);
+        return SafeZoneManager.isProtected(location);
     }
 
     // ── Visit tracking ─────────────────────────────────────────────────────────
@@ -33,12 +34,15 @@ public class SpawnProtectionListener implements Listener {
     public void onPlayerMove(PlayerMoveEvent event) {
         Location from = event.getFrom();
         Location to   = event.getTo();
-        if (to == null) return;
         // Only process when the player enters a new chunk
         if (from.getChunk().equals(to.getChunk())) return;
-        Protection prot = ProtectionManager.getAt(to);
-        if (prot != null) {
-            ProtectionManager.recordVisit(event.getPlayer().getUniqueId(), prot.getName());
+
+        SafeZone fromZone = SafeZoneManager.getAt(from);
+        SafeZone toZone   = SafeZoneManager.getAt(to);
+        if (toZone != null && (fromZone == null || !fromZone.getName().equals(toZone.getName()))) {
+            SafeZoneManager.recordVisit(event.getPlayer().getUniqueId(), toZone.getName());
+            String label = SafeZoneManager.capitalizedName(toZone.getName());
+            TitleUtil.alert(event.getPlayer(), label + "\nYou enter Safe Zone", NamedTextColor.YELLOW);
         }
     }
 

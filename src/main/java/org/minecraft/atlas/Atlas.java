@@ -12,8 +12,7 @@ import java.io.IOException;
 import java.util.List;
 import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
-import org.minecraft.atlas.command.SetSpawnCommand;
-import org.minecraft.atlas.command.ProtectionCommand;
+import org.minecraft.atlas.command.SafeZoneCommand;
 import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
@@ -28,7 +27,8 @@ import org.minecraft.atlas.teleport.RandomTeleportManager;
 import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
 import org.minecraft.atlas.teleport.HomeManager;
 import org.minecraft.atlas.teleport.HomeTeleportManager;
-import org.minecraft.atlas.spawn.ProtectionManager;
+import org.minecraft.atlas.safezone.SafeZoneManager;
+import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
 import org.minecraft.atlas.spawn.SpawnManager;
 import org.minecraft.atlas.spawn.SpawnTeleportManager;
 import org.minecraft.atlas.teleport.TeleportAtManager;
@@ -36,13 +36,13 @@ import org.minecraft.atlas.listener.CrystalListener;
 import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionClaimBorderRenderer;
-import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.ChatListener;
 import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
-import org.minecraft.atlas.listener.SpawnProtectionListener;
+import org.minecraft.atlas.listener.SafeZoneNpcListener;
+import org.minecraft.atlas.listener.SafeZoneListener;
 import org.minecraft.atlas.listener.TagListener;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
@@ -54,6 +54,7 @@ import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
+import org.minecraft.atlas.util.NpcLookHelper;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.minecraft.atlas.listener.GolemListener;
@@ -123,7 +124,8 @@ public final class Atlas extends JavaPlugin {
 
         // Load from config.yml
         AtlasCrystalManager.loadConfig(factionsConfig);
-        ProtectionManager.loadConfig(configFile);
+        SafeZoneManager.loadConfig(configFile);
+        SafeZoneTeleportManager.loadConfig(configFile);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
         SpawnTeleportManager.loadConfig(configFile);
@@ -136,7 +138,8 @@ public final class Atlas extends JavaPlugin {
         // Load from factions.yml (config) and factions-data.yml (data)
         FactionLevelManager.loadUpgrades(factionsConfig);
         FactionManager.loadFactions(factionsDataConfig);
-        FactionClaimManager.loadClaims(factionsDataConfig);
+        // Crystals own their claims; loadCrystalHomes also rebuilds FactionClaimManager's
+        // runtime cache by calling claimChunk() for each per-crystal claim.
         AtlasCrystalManager.loadCrystalHomes(factionsDataConfig);
 
         // Load from jobs.yml (config) and jobs-data.yml (data)
@@ -167,7 +170,8 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new TagListener(), this);
         getServer().getPluginManager().registerEvents(new CrystalListener(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
-        getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
+        getServer().getPluginManager().registerEvents(new SafeZoneListener(), this);
+        getServer().getPluginManager().registerEvents(new SafeZoneNpcListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
 
@@ -179,6 +183,7 @@ public final class Atlas extends JavaPlugin {
         ItemClearManager.schedule(this);
         AfkManager.schedule(this);
         FactionClaimBorderRenderer.schedule(this);
+        NpcLookHelper.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -194,8 +199,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(TagCommand.build());
                         event.registrar().register(RandomTeleportCommand.build());
                         event.registrar().register(SpawnCommand.build());
-                        event.registrar().register(SetSpawnCommand.build());
-                        event.registrar().register(ProtectionCommand.build());
+                        event.registrar().register(SafeZoneCommand.build());
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
@@ -214,7 +218,7 @@ public final class Atlas extends JavaPlugin {
         // Save to config.yml
         HomeManager.saveHomes(configFile);
         SpawnManager.saveSpawn(configFile);
-        ProtectionManager.saveConfig(configFile);
+        SafeZoneManager.saveConfig(configFile);
         saveConfig();
 
         // Save to tags-data.yml
@@ -223,7 +227,7 @@ public final class Atlas extends JavaPlugin {
 
         // Save to factions-data.yml
         FactionManager.saveFactions(factionsDataConfig);
-        FactionClaimManager.saveClaims(factionsDataConfig);
+        // Per-crystal claims are persisted as part of saveCrystalHomes (the "crystals" section).
         AtlasCrystalManager.saveCrystalHomes(factionsDataConfig);
         saveFactionsDataConfig();
 

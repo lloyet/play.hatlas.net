@@ -25,7 +25,9 @@
       "Bash(./gradlew assemble *)",
       "Bash(./gradlew clean *)",
       "Bash(echo \"exit: $?\")",
-      "Bash(Get-ChildItem *)"
+      "Bash(Get-ChildItem *)",
+      "Bash(ls -la run/plugins/atlas/)",
+      "Bash(dir \"run\\\\plugins\\\\atlas\\\\\" 2>&1 | head -30)"
     ]
   }
 }
