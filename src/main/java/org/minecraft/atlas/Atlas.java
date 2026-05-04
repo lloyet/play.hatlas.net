@@ -13,6 +13,7 @@ import java.util.List;
 import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SetSpawnCommand;
+import org.minecraft.atlas.command.HotelCommand;
 import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
@@ -32,6 +33,9 @@ import org.minecraft.atlas.faction.SpawnTeleportManager;
 import org.minecraft.atlas.faction.TpaManager;
 import org.minecraft.atlas.faction.CrystalGui;
 import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.hotel.HotelShopManager;
+import org.minecraft.atlas.hotel.Rubis;
+import org.minecraft.atlas.listener.HotelListener;
 import org.minecraft.atlas.command.TradeCommand;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
@@ -70,6 +74,9 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration tagsConfig;
     public static File tagsFile;
 
+    public static YamlConfiguration hotelDataConfig;
+    public static File hotelDataFile;
+
     @Override
     public void onEnable() {
         instance = this;
@@ -97,6 +104,9 @@ public final class Atlas extends JavaPlugin {
         tagsFile = new File(getDataFolder(), "tags.yml");
         if (!tagsFile.exists()) saveResource("tags.yml", false);
         tagsConfig = YamlConfiguration.loadConfiguration(tagsFile);
+
+        hotelDataFile = new File(getDataFolder(), "hotel-data.yml");
+        hotelDataConfig = YamlConfiguration.loadConfiguration(hotelDataFile);
 
         // Load from config.yml
         AtlasCrystalManager.loadConfig(factionsConfig);
@@ -127,6 +137,8 @@ public final class Atlas extends JavaPlugin {
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
+        Rubis.init();
+        HotelShopManager.load(hotelDataConfig);
         TagManager.init();
         TagManager.loadTags(tagsConfig);
         HomeManager.loadHomes(configFile);
@@ -142,6 +154,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new CrystalGui(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
+        getServer().getPluginManager().registerEvents(new HotelListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
 
@@ -167,6 +180,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(RandomTeleportCommand.build());
                         event.registrar().register(SpawnCommand.build());
                         event.registrar().register(SetSpawnCommand.build());
+                        event.registrar().register(HotelCommand.build());
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
@@ -205,6 +219,9 @@ public final class Atlas extends JavaPlugin {
         // Save to donjons.yml
         DonjonManager.saveDonjonConfig(donjonsConfig);
         saveDonjonsConfig();
+        // Save to hotel-data.yml
+        HotelShopManager.save(hotelDataConfig);
+        saveHotelDataConfig();
 
         getLogger().info("Atlas disabled.");
     }
@@ -238,6 +255,14 @@ public final class Atlas extends JavaPlugin {
             jobsConfig.save(jobsFile);
         } catch (IOException e) {
             instance.getLogger().severe("Could not save jobs.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveHotelDataConfig() {
+        try {
+            hotelDataConfig.save(hotelDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save hotel-data.yml: " + e.getMessage());
         }
     }
 }
