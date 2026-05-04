@@ -12,6 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -76,10 +78,12 @@ public class CrystalUpgradeGui implements AtlasGui {
             this.inventory.setItem(SLOTS_CHEST[i], buildChestTierItem(chestTiers.get(i), i, sp));
         }
 
-        // Protection upgrades
+        // Protection upgrades — pass the crystal so already-purchased tiers render as "owned".
+        AtlasCrystal protCrystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
         List<FactionLevelManager.ProtectionTier> protTiers = FactionLevelManager.getProtectionTiers();
         for (int i = 0; i < protTiers.size() && i < SLOTS_PROTECTION.length; i++) {
-            this.inventory.setItem(SLOTS_PROTECTION[i], buildProtectionTierItem(protTiers.get(i), i, sp));
+            this.inventory.setItem(SLOTS_PROTECTION[i],
+                    buildProtectionTierItem(protTiers.get(i), i, sp, protCrystal));
         }
 
         // Outpost skill (one-time unlock)
@@ -174,6 +178,12 @@ public class CrystalUpgradeGui implements AtlasGui {
                 List<FactionLevelManager.ProtectionTier> tiers = FactionLevelManager.getProtectionTiers();
                 if (i >= tiers.size()) return;
                 FactionLevelManager.ProtectionTier tier = tiers.get(i);
+                AtlasCrystal target = AtlasCrystalManager.getCrystal(crystalEntityUUID);
+                if (target != null && target.hasPurchasedProtection(tier.durationMs())) {
+                    player.sendMessage(Component.text(
+                            "This protection tier is already purchased on this crystal.", NamedTextColor.YELLOW));
+                    return;
+                }
                 if (faction.getSkillPoints() < tier.cost()) {
                     player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
                     return;
@@ -354,12 +364,18 @@ public class CrystalUpgradeGui implements AtlasGui {
         return item;
     }
 
-    private static ItemStack buildProtectionTierItem(FactionLevelManager.ProtectionTier tier, int index, int availableSp) {
-        boolean canAfford = availableSp >= tier.cost();
-        NamedTextColor color = canAfford ? NamedTextColor.GREEN : NamedTextColor.RED;
+    private static ItemStack buildProtectionTierItem(FactionLevelManager.ProtectionTier tier, int index,
+                                                     int availableSp, AtlasCrystal crystal) {
         long ms   = tier.durationMs();
         long secs = ms / 1000L;
         String timeStr = secs >= 3600 ? (secs / 3600) + "h" : (secs / 60) + "m";
+
+        boolean owned     = crystal != null && crystal.hasPurchasedProtection(ms);
+        boolean broken    = owned && crystal.isProtectionBroken(ms);
+        boolean canAfford = availableSp >= tier.cost();
+        NamedTextColor color =
+                owned     ? NamedTextColor.AQUA  :
+                canAfford ? NamedTextColor.GREEN : NamedTextColor.RED;
 
         long mins = ms / 60_000L;
         Material mat;
@@ -381,7 +397,7 @@ public class CrystalUpgradeGui implements AtlasGui {
 
         ItemStack item = new ItemStack(mat);
         ItemMeta meta = item.getItemMeta();
-        if (enchanted) meta.setEnchantmentGlintOverride(true);
+        if (enchanted || owned) meta.setEnchantmentGlintOverride(true);
         meta.displayName(Component.text("Protection Upgrade #" + (index + 1), color)
                 .decoration(TextDecoration.ITALIC, false));
 
@@ -390,10 +406,19 @@ public class CrystalUpgradeGui implements AtlasGui {
         lore.add(GuiUtil.loreLine("Duration", timeStr + " immunity", NamedTextColor.AQUA));
         lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
         lore.add(Component.empty());
-        lore.add(Component.text("  Added to total protection pool.", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.text(canAfford ? "  Click to purchase" : "  Not enough skill points", color)
-                .decoration(TextDecoration.ITALIC, false));
+        if (owned) {
+            lore.add(Component.text("  ✔ Already purchased", NamedTextColor.AQUA)
+                    .decoration(TextDecoration.ITALIC, false));
+            if (broken) {
+                lore.add(Component.text("  Currently broken — regenerating", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
+        } else {
+            lore.add(Component.text("  Each tier can be purchased once.", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(canAfford ? "  Click to purchase" : "  Not enough skill points", color)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
 
         meta.lore(lore);
         item.setItemMeta(meta);

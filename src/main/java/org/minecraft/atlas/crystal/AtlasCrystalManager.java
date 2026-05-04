@@ -38,9 +38,10 @@ public class AtlasCrystalManager {
     private static NamespacedKey KEY_HP_BONUS;
     private static NamespacedKey KEY_CLAIM_CAPACITY;
     private static NamespacedKey KEY_SPENT_SP;
-    private static NamespacedKey KEY_PROTECTION_MS;
-    private static NamespacedKey KEY_DEFEAT_MUL;
-    private static NamespacedKey KEY_DEFEAT_WINDOW;
+    private static NamespacedKey KEY_PROTECTION_MS;          // legacy (single-sum)
+    private static NamespacedKey KEY_PROTECTIONS;            // new: long[] of owned durations
+    private static NamespacedKey KEY_BROKEN_DURATIONS;       // new: long[] of broken durations
+    private static NamespacedKey KEY_BROKEN_AT_MS;           // new: long[] parallel to BROKEN_DURATIONS
 
     public static NamespacedKey getKeyFaction() {
         if (KEY_FACTION == null) KEY_FACTION = new NamespacedKey(Atlas.instance, "atlas_crystal_faction");
@@ -86,13 +87,17 @@ public class AtlasCrystalManager {
         if (KEY_PROTECTION_MS == null) KEY_PROTECTION_MS = new NamespacedKey(Atlas.instance, "atlas_crystal_protection_ms");
         return KEY_PROTECTION_MS;
     }
-    private static NamespacedKey getKeyDefeatMul() {
-        if (KEY_DEFEAT_MUL == null) KEY_DEFEAT_MUL = new NamespacedKey(Atlas.instance, "atlas_crystal_defeat_mul");
-        return KEY_DEFEAT_MUL;
+    private static NamespacedKey getKeyProtections() {
+        if (KEY_PROTECTIONS == null) KEY_PROTECTIONS = new NamespacedKey(Atlas.instance, "atlas_crystal_protections");
+        return KEY_PROTECTIONS;
     }
-    private static NamespacedKey getKeyDefeatWindow() {
-        if (KEY_DEFEAT_WINDOW == null) KEY_DEFEAT_WINDOW = new NamespacedKey(Atlas.instance, "atlas_crystal_defeat_window");
-        return KEY_DEFEAT_WINDOW;
+    private static NamespacedKey getKeyBrokenDurations() {
+        if (KEY_BROKEN_DURATIONS == null) KEY_BROKEN_DURATIONS = new NamespacedKey(Atlas.instance, "atlas_crystal_broken_durations");
+        return KEY_BROKEN_DURATIONS;
+    }
+    private static NamespacedKey getKeyBrokenAtMs() {
+        if (KEY_BROKEN_AT_MS == null) KEY_BROKEN_AT_MS = new NamespacedKey(Atlas.instance, "atlas_crystal_broken_at_ms");
+        return KEY_BROKEN_AT_MS;
     }
 
     // ── Config ────────────────────────────────────────────────────────────────
@@ -185,10 +190,24 @@ public class AtlasCrystalManager {
         pdc.set(getKeyImmuneUntil(),  PersistentDataType.LONG,    crystal.getImmuneUntilMillis());
         pdc.set(getKeyHpBonus(),      PersistentDataType.DOUBLE,  crystal.getHpBonus());
         pdc.set(getKeyClaimCapacity(),PersistentDataType.INTEGER, crystal.getClaimCapacity());
-        pdc.set(getKeySpentSp(),       PersistentDataType.INTEGER, crystal.getSpentSkillPoints());
-        pdc.set(getKeyProtectionMs(),  PersistentDataType.LONG,    crystal.getPurchasedProtectionMs());
-        pdc.set(getKeyDefeatMul(),     PersistentDataType.INTEGER, crystal.getDefeatMul());
-        pdc.set(getKeyDefeatWindow(),  PersistentDataType.LONG,    crystal.getDefeatWindowEndMs());
+        pdc.set(getKeySpentSp(),      PersistentDataType.INTEGER, crystal.getSpentSkillPoints());
+
+        // Protection list: long[] of owned durations
+        long[] owned = crystal.getPurchasedProtections().stream().mapToLong(Long::longValue).toArray();
+        pdc.set(getKeyProtections(), PersistentDataType.LONG_ARRAY, owned);
+
+        // Broken protections: parallel long[] of durations and broken-at timestamps
+        Map<Long, Long> broken = crystal.getBrokenProtections();
+        long[] brokenDur = new long[broken.size()];
+        long[] brokenAt  = new long[broken.size()];
+        int i = 0;
+        for (Map.Entry<Long, Long> e : broken.entrySet()) {
+            brokenDur[i] = e.getKey();
+            brokenAt[i]  = e.getValue();
+            i++;
+        }
+        pdc.set(getKeyBrokenDurations(), PersistentDataType.LONG_ARRAY, brokenDur);
+        pdc.set(getKeyBrokenAtMs(),      PersistentDataType.LONG_ARRAY, brokenAt);
     }
 
     // ── Persistence — complex data in factions-data.yml ───────────────────────
@@ -220,6 +239,16 @@ public class AtlasCrystalManager {
             }
             if (!crystal.getPurchasedChestSizes().isEmpty()) {
                 cs.set("chest_sizes", crystal.getPurchasedChestSizes());
+            }
+            // Protections — list of owned durations + map of currently-broken ones with break time.
+            if (!crystal.getPurchasedProtections().isEmpty()) {
+                cs.set("purchased_protections", new ArrayList<>(crystal.getPurchasedProtections()));
+            }
+            if (!crystal.getBrokenProtections().isEmpty()) {
+                ConfigurationSection brokenSec = cs.createSection("broken_protections");
+                for (Map.Entry<Long, Long> e : crystal.getBrokenProtections().entrySet()) {
+                    brokenSec.set(e.getKey().toString(), e.getValue());
+                }
             }
             Map<Integer, ItemStack[]> chestMap = crystal.getChestContentsMap();
             if (!chestMap.isEmpty()) {
@@ -319,6 +348,20 @@ public class AtlasCrystalManager {
                     for (int size : cs.getIntegerList("chest_sizes")) {
                         stub.getPurchasedChestSizes().add(size);
                     }
+                    // Protections list + broken-state map (canonical source for owned protections).
+                    for (long d : cs.getLongList("purchased_protections")) {
+                        stub.addPurchasedProtection(d);
+                    }
+                    ConfigurationSection brokenSec = cs.getConfigurationSection("broken_protections");
+                    if (brokenSec != null) {
+                        for (String key : brokenSec.getKeys(false)) {
+                            try {
+                                long duration = Long.parseLong(key);
+                                long brokenAt = brokenSec.getLong(key, 0L);
+                                if (brokenAt > 0) stub.breakProtection(duration, brokenAt);
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
                     ConfigurationSection chestsSec = cs.getConfigurationSection("chests");
                     if (chestsSec != null) {
                         for (String indexStr : chestsSec.getKeys(false)) {
@@ -397,6 +440,10 @@ public class AtlasCrystalManager {
             for (Map.Entry<Integer, ItemStack[]> e : stub.getChestContentsMap().entrySet()) {
                 crystal.setChestContents(e.getKey(), e.getValue());
             }
+            for (Long d : stub.getPurchasedProtections()) crystal.addPurchasedProtection(d);
+            for (Map.Entry<Long, Long> e : stub.getBrokenProtections().entrySet()) {
+                crystal.breakProtection(e.getKey(), e.getValue());
+            }
         } else {
             ConfigurationSection root = Atlas.factionsDataConfig.getConfigurationSection("crystals");
             if (root == null) root = Atlas.factionsDataConfig.getConfigurationSection("crystal_data");
@@ -413,6 +460,19 @@ public class AtlasCrystalManager {
                 }
                 for (int size : cs.getIntegerList("chest_sizes")) {
                     crystal.getPurchasedChestSizes().add(size);
+                }
+                for (long d : cs.getLongList("purchased_protections")) {
+                    crystal.addPurchasedProtection(d);
+                }
+                ConfigurationSection brokenSec = cs.getConfigurationSection("broken_protections");
+                if (brokenSec != null) {
+                    for (String key : brokenSec.getKeys(false)) {
+                        try {
+                            long duration = Long.parseLong(key);
+                            long brokenAt = brokenSec.getLong(key, 0L);
+                            if (brokenAt > 0) crystal.breakProtection(duration, brokenAt);
+                        } catch (NumberFormatException ignored) {}
+                    }
                 }
                 ConfigurationSection chestsSec = cs.getConfigurationSection("chests");
                 if (chestsSec != null) {
@@ -458,21 +518,35 @@ public class AtlasCrystalManager {
         }
 
         // Restore scalar PDC fields (maxHp already loaded correctly, use restore methods)
-        Double hpBonus        = entity.getPersistentDataContainer().get(getKeyHpBonus(),      PersistentDataType.DOUBLE);
-        Integer savedClaimCap = entity.getPersistentDataContainer().get(getKeyClaimCapacity(),PersistentDataType.INTEGER);
-        Integer savedSpentSp  = entity.getPersistentDataContainer().get(getKeySpentSp(),      PersistentDataType.INTEGER);
-        Long savedProtMs      = entity.getPersistentDataContainer().get(getKeyProtectionMs(), PersistentDataType.LONG);
-        Long savedImmune      = entity.getPersistentDataContainer().get(getKeyImmuneUntil(),  PersistentDataType.LONG);
-        Integer savedDefeatMul    = entity.getPersistentDataContainer().get(getKeyDefeatMul(),    PersistentDataType.INTEGER);
-        Long    savedDefeatWindow = entity.getPersistentDataContainer().get(getKeyDefeatWindow(), PersistentDataType.LONG);
+        var pdc = entity.getPersistentDataContainer();
+        Double hpBonus        = pdc.get(getKeyHpBonus(),      PersistentDataType.DOUBLE);
+        Integer savedClaimCap = pdc.get(getKeyClaimCapacity(),PersistentDataType.INTEGER);
+        Integer savedSpentSp  = pdc.get(getKeySpentSp(),      PersistentDataType.INTEGER);
+        Long savedImmune      = pdc.get(getKeyImmuneUntil(),  PersistentDataType.LONG);
 
         if (hpBonus           != null) crystal.restoreHpBonus(hpBonus);
         if (savedClaimCap     != null) crystal.restoreClaimCapacity(savedClaimCap);
         if (savedSpentSp      != null) crystal.restoreSpentSkillPoints(savedSpentSp);
-        if (savedProtMs       != null) crystal.restoreProtectionMs(savedProtMs);
         if (savedImmune       != null) crystal.setImmuneUntilMillis(savedImmune);
-        if (savedDefeatMul    != null) crystal.restoreDefeatMul(savedDefeatMul);
-        if (savedDefeatWindow != null) crystal.restoreDefeatWindowEndMs(savedDefeatWindow);
+
+        // Protections: prefer the new long-array PDC; fall back to legacy single-sum (one entry).
+        long[] pdcProtections = pdc.get(getKeyProtections(), PersistentDataType.LONG_ARRAY);
+        if (pdcProtections != null && pdcProtections.length > 0) {
+            for (long d : pdcProtections) crystal.addPurchasedProtection(d);
+        } else {
+            Long legacyProtMs = pdc.get(getKeyProtectionMs(), PersistentDataType.LONG);
+            if (legacyProtMs != null && legacyProtMs > 0 && crystal.getPurchasedProtections().isEmpty()) {
+                // One-time migration: treat the old summed value as a single bonus tier.
+                crystal.addPurchasedProtection(legacyProtMs);
+            }
+        }
+        long[] brokenDur = pdc.get(getKeyBrokenDurations(), PersistentDataType.LONG_ARRAY);
+        long[] brokenAt  = pdc.get(getKeyBrokenAtMs(),      PersistentDataType.LONG_ARRAY);
+        if (brokenDur != null && brokenAt != null && brokenDur.length == brokenAt.length) {
+            for (int idx = 0; idx < brokenDur.length; idx++) {
+                crystal.breakProtection(brokenDur[idx], brokenAt[idx]);
+            }
+        }
 
         // Restore nametag display UUID
         String displayUUIDStr = entity.getPersistentDataContainer().get(getKeyNametagDisplay(), PersistentDataType.STRING);
@@ -537,8 +611,14 @@ public class AtlasCrystalManager {
         Faction faction = FactionManager.getFaction(factionName);
         AtlasCrystal crystal = crystals.get(crystalUUID);
         if (faction == null || crystal == null) return false;
+        // Each protection tier can only be purchased once per crystal.
+        if (crystal.hasPurchasedProtection(tier.durationMs())) return false;
         if (!faction.spendSkillPoints(tier.cost())) return false;
-        crystal.addProtectionMs(tier.durationMs());
+        if (!crystal.addPurchasedProtection(tier.durationMs())) {
+            // Race-safety: refund if the duplicate guard above missed.
+            faction.addSkillPoints(tier.cost());
+            return false;
+        }
         crystal.addSpentSkillPoints(tier.cost());
         persistCrystalState(crystal);
         saveCrystalData(Atlas.factionsDataConfig);
@@ -800,16 +880,44 @@ public class AtlasCrystalManager {
     public static void schedule(Plugin plugin) {
         new BukkitRunnable() {
             @Override public void run() {
+                long nowMs = System.currentTimeMillis();
                 Iterator<Map.Entry<UUID, AtlasCrystal>> iter = crystals.entrySet().iterator();
                 while (iter.hasNext()) {
                     AtlasCrystal crystal = iter.next().getValue();
+
+                    // Protection regen check — runs for stubs too (no entity needed). Each broken
+                    // protection regenerates after a watch window of 2 × duration if no damage was
+                    // dealt to the crystal since it broke; otherwise it is permanently lost.
+                    boolean protectionsChanged = false;
+                    if (!crystal.getBrokenProtections().isEmpty()) {
+                        Iterator<Map.Entry<Long, Long>> brokenIter =
+                                crystal.getBrokenProtections().entrySet().iterator();
+                        while (brokenIter.hasNext()) {
+                            Map.Entry<Long, Long> e = brokenIter.next();
+                            long duration = e.getKey();
+                            long brokenAt = e.getValue();
+                            long regenAt  = brokenAt + 2 * duration;
+                            if (nowMs < regenAt) continue;
+                            if (crystal.getLastAttackMillis() > brokenAt) {
+                                // Damage occurred during the post-immunity watch — protection lost.
+                                brokenIter.remove();
+                                crystal.getPurchasedProtections().remove((Long) duration);
+                            } else {
+                                // No damage since the break — restore the protection.
+                                brokenIter.remove();
+                            }
+                            protectionsChanged = true;
+                        }
+                    }
+
                     var entity = crystal.getEntity();
-                    if (entity == null) continue; // unloaded stub — skip until chunk loads
+                    if (entity == null) {
+                        // Stub: persist protection changes only via the next saveCrystalData cycle.
+                        continue;
+                    }
                     if (entity.isDead()) {
                         // Entity invalidated (chunk unloaded, or removed by some other path).
-                        // Keep the crystal in the maps as a stub so its data stays queryable
-                        // and is not wiped on next save. Genuine destruction goes through
-                        // destroyCrystal()/removeAllForFaction() which remove from maps explicitly.
+                        // Keep the crystal in the maps as a stub so its data stays queryable.
                         crystal.detachEntity();
                         continue;
                     }
@@ -818,19 +926,7 @@ public class AtlasCrystalManager {
                         entity.getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }
-                    // Passive de-escalation: when the defeat window expires step defeatMul back down by one factor
-                    long tickNow = System.currentTimeMillis();
-                    if (crystal.getDefeatWindowEndMs() > 0 && tickNow > crystal.getDefeatWindowEndMs()) {
-                        if (crystal.getDefeatMul() > 1) {
-                            int newMul = Math.max(1, crystal.getDefeatMul() / immunityMultiplierBase);
-                            crystal.setDefeatMul(newMul);
-                            // Set next window so de-escalation continues step-by-step
-                            long nextWindow = crystal.getPurchasedProtectionMs() > 0
-                                    ? crystal.getPurchasedProtectionMs() * (long) newMul * 2 : 0;
-                            crystal.setDefeatWindowEndMs(nextWindow > 0 ? tickNow + nextWindow : 0);
-                        } else {
-                            crystal.setDefeatWindowEndMs(0);
-                        }
+                    if (protectionsChanged) {
                         persistCrystalState(crystal);
                     }
                 }

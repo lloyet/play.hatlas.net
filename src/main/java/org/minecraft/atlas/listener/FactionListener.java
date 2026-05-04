@@ -305,27 +305,14 @@ public class FactionListener implements Listener {
         // ── Crystal HP reached 0 ──────────────────────────────────────────────
         Faction faction = FactionManager.getFaction(crystalFaction);
 
-        long purchasedProtMs = atlasCrystal.getPurchasedProtectionMs();
-        if (purchasedProtMs > 0) {
-            // Has purchased protection — grant scaled immunity, reset HP
+        Long shortestAvailable = atlasCrystal.getShortestAvailableProtection();
+        if (shortestAvailable != null) {
+            // Consume the shortest available protection — each subsequent defeat activates a
+            // longer one. The broken protection regenerates after its watch window if the
+            // crystal takes no damage in the meantime; otherwise it is permanently lost.
+            long immunityMs = shortestAvailable;
             long nowMs2 = System.currentTimeMillis();
-            // Per-crystal escalation: use crystal's own defeatMul + defeatWindowEndMs
-            int curMul = atlasCrystal.getDefeatMul();
-            long windowEnd = atlasCrystal.getDefeatWindowEndMs();
-            if (windowEnd > 0 && nowMs2 < windowEnd) {
-                // Defeat within the window — escalate one step
-                curMul = Math.min(curMul * AtlasCrystalManager.immunityMultiplierBase, 64);
-            } else if (curMul > 1) {
-                // Window expired while at curMul > 1 — the passive ticker should have already
-                // stepped it down, but apply one step here too for safety
-                curMul = Math.max(1, curMul / AtlasCrystalManager.immunityMultiplierBase);
-            } else {
-                curMul = 1;
-            }
-            long immunityMs = purchasedProtMs * curMul;
-            atlasCrystal.setDefeatMul(curMul);
-            atlasCrystal.setDefeatWindowEndMs(nowMs2 + immunityMs * 2);
-
+            atlasCrystal.breakProtection(shortestAvailable, nowMs2);
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
             atlasCrystal.setImmuneFor(immunityMs);
             atlasCrystal.updateNametag();

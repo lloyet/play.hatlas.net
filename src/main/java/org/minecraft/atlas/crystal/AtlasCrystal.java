@@ -40,11 +40,17 @@ public class AtlasCrystal {
     private final List<Integer>          purchasedChestSizes = new ArrayList<>();
     private final Map<Integer, ItemStack[]> chestContents    = new HashMap<>();
     private int spentSkillPoints      = 0;
-    private long purchasedProtectionMs = 0;
-    /** Escalation multiplier for immunity duration — starts at 1, doubles on each defeat within the window. */
-    private int defeatMul             = 1;
-    /** Epoch-ms timestamp when the current defeat window ends. 0 = no active window. */
-    private long defeatWindowEndMs     = 0L;
+    /**
+     * Durations (ms) of every protection upgrade the crystal owns.
+     * Each entry is a unique tier — a tier with the same duration cannot be purchased twice.
+     */
+    private final List<Long> purchasedProtections = new ArrayList<>();
+    /**
+     * Protections that have been consumed (broken) but are not yet permanently lost.
+     * Maps duration → epoch-ms when the protection broke. They regenerate after their
+     * own duration if no damage occurs in the watch window, otherwise they are lost.
+     */
+    private final Map<Long, Long> brokenProtections = new HashMap<>();
     /** True when this crystal was placed as an outpost (not the faction's founding crystal). */
     private boolean outpost = false;
 
@@ -99,11 +105,46 @@ public class AtlasCrystal {
     public List<Integer> getPurchasedChestSizes()         { return purchasedChestSizes; }
     public Map<Integer, ItemStack[]> getChestContentsMap(){ return chestContents; }
     public int  getSpentSkillPoints()                     { return spentSkillPoints; }
-    public long getPurchasedProtectionMs()                { return purchasedProtectionMs; }
-    public int  getDefeatMul()                            { return defeatMul; }
-    public void setDefeatMul(int mul)                     { this.defeatMul = Math.max(1, mul); }
-    public long getDefeatWindowEndMs()                    { return defeatWindowEndMs; }
-    public void setDefeatWindowEndMs(long ts)             { this.defeatWindowEndMs = ts; }
+    public long getLastAttackMillis()                     { return lastAttackMillis; }
+
+    /** All purchased protection durations (in ms), regardless of broken/available state. */
+    public List<Long> getPurchasedProtections()           { return purchasedProtections; }
+    /** Map of duration → broken-at timestamp for protections currently consumed. */
+    public Map<Long, Long> getBrokenProtections()         { return brokenProtections; }
+    /** Returns true if this crystal already owns a protection of exactly this duration. */
+    public boolean hasPurchasedProtection(long durationMs) { return purchasedProtections.contains(durationMs); }
+    /** Returns true if the protection of {@code durationMs} is currently broken (not available). */
+    public boolean isProtectionBroken(long durationMs)    { return brokenProtections.containsKey(durationMs); }
+
+    /**
+     * Returns the SHORTEST currently-available protection duration, or {@code null}
+     * if every owned protection is currently broken (or none are owned).
+     * Shortest is consumed first so each subsequent defeat activates a longer protection.
+     */
+    public Long getShortestAvailableProtection() {
+        Long best = null;
+        for (Long d : purchasedProtections) {
+            if (brokenProtections.containsKey(d)) continue;
+            if (best == null || d < best) best = d;
+        }
+        return best;
+    }
+
+    /** Marks the given protection as broken at {@code nowMs}. */
+    public void breakProtection(long durationMs, long nowMs) {
+        brokenProtections.put(durationMs, nowMs);
+    }
+
+    /** Restores a broken protection to the available pool. */
+    public void regenerateProtection(long durationMs) {
+        brokenProtections.remove(durationMs);
+    }
+
+    /** Permanently removes a protection (it neither defends nor is owned anymore). */
+    public void loseProtection(long durationMs) {
+        brokenProtections.remove(durationMs);
+        purchasedProtections.remove((Long) durationMs);
+    }
 
     public void addHpBonus(double bonus) {
         this.hpBonus += bonus;
@@ -111,16 +152,22 @@ public class AtlasCrystal {
     }
     public void addClaimCapacity(int amount) { this.claimCapacity = Math.max(1, claimCapacity + amount); }
     public void addPurchasedChest(int size)  { purchasedChestSizes.add(size); }
-    public void addProtectionMs(long durationMs) { this.purchasedProtectionMs += durationMs; }
+
+    /**
+     * Adds a protection tier the crystal didn't already own.
+     * Returns false if a protection with the same duration is already owned.
+     */
+    public boolean addPurchasedProtection(long durationMs) {
+        if (purchasedProtections.contains(durationMs)) return false;
+        purchasedProtections.add(durationMs);
+        return true;
+    }
     public void addSpentSkillPoints(int cost)    { this.spentSkillPoints += cost; }
 
     // Restore-only setters — do NOT modify maxHp (it was already persisted correctly)
     void restoreHpBonus(double bonus)          { this.hpBonus = bonus; }
     void restoreClaimCapacity(int cap)         { this.claimCapacity = cap; }
     void restoreSpentSkillPoints(int sp)       { this.spentSkillPoints = sp; }
-    void restoreProtectionMs(long ms)          { this.purchasedProtectionMs = ms; }
-    void restoreDefeatMul(int mul)             { this.defeatMul = Math.max(1, mul); }
-    void restoreDefeatWindowEndMs(long ts)     { this.defeatWindowEndMs = ts; }
 
     /** Returns the contents of crystal chest at {@code index}, or an empty array of the right size. */
     public ItemStack[] getChestContents(int index) {
