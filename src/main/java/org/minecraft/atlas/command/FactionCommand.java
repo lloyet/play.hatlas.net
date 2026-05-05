@@ -327,7 +327,7 @@ public class FactionCommand {
                                     }
 
                                     // Reject if inside spawn protection
-                                    if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
+                                    if (SafeZoneListener.isInSafeZone(player.getLocation())) {
                                         player.sendMessage(error("You cannot create a faction inside the spawn protection zone."));
                                         return Command.SINGLE_SUCCESS;
                                     }
@@ -1007,7 +1007,7 @@ public class FactionCommand {
                                 player.sendMessage(error("Cannot claim a chunk inside a donjon area."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
+                            if (SafeZoneListener.isInSafeZone(player.getLocation())) {
                                 player.sendMessage(error("Cannot claim a chunk inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }
@@ -1104,6 +1104,13 @@ public class FactionCommand {
                                     boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
                                     if (!isOwner && !isLeader) {
                                         player.sendMessage(error("Only the Owner or a Leader can set a crystal home."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    Chunk hereChunk = player.getLocation().getChunk();
+                                    String hereOwner = FactionClaimManager.getClaimingFaction(
+                                            hereChunk.getWorld().getName(), hereChunk.getX(), hereChunk.getZ());
+                                    if (!factionName.equals(hereOwner)) {
+                                        player.sendMessage(error("You can only set a faction home inside your own claimed territory."));
                                         return Command.SINGLE_SUCCESS;
                                     }
                                     String crystalName = StringArgumentType.getString(ctx, "crystal");
@@ -1272,7 +1279,7 @@ public class FactionCommand {
                                 player.sendMessage(error("Cannot place an outpost crystal inside a donjon area."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (SafeZoneListener.isInSpawnProtection(player.getLocation())) {
+                            if (SafeZoneListener.isInSafeZone(player.getLocation())) {
                                 player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }

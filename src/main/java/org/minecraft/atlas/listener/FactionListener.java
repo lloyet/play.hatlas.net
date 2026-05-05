@@ -357,8 +357,8 @@ public class FactionListener implements Listener {
         boolean chunkChanged = fromCX != toCX || fromCZ != toCZ;
         if (!chunkChanged) return;
 
-        boolean wasInSpawn = SafeZoneListener.isInSpawnProtection(from);
-        boolean nowInSpawn = SafeZoneListener.isInSpawnProtection(to);
+        boolean wasInSpawn = SafeZoneListener.isInSafeZone(from);
+        boolean nowInSpawn = SafeZoneListener.isInSafeZone(to);
         boolean leavingSpawn = wasInSpawn && !nowInSpawn;
 
         String worldName = player.getWorld().getName();

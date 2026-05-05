@@ -4,9 +4,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.minecraft.atlas.gui.ExplorerGui;
+import org.minecraft.atlas.donjon.SmugglerManager;
+import org.minecraft.atlas.gui.SafeZoneGui;
 import org.minecraft.atlas.safezone.SafeZoneNpcManager;
 
 public class SafeZoneNpcListener implements Listener {
@@ -18,7 +20,13 @@ public class SafeZoneNpcListener implements Listener {
 
         event.setCancelled(true);
         Player player = event.getPlayer();
-        if (JobListener.denyIfNoFaction(player)) return;
-        new ExplorerGui(player).open(player);
+        new SafeZoneGui(player).open(player);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onEntityDamage(EntityDamageByEntityEvent event) {
+        if (SafeZoneNpcManager.isExplorer(event.getEntity())) {
+            event.setCancelled(true);
+        }
     }
 }

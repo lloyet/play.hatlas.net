@@ -21,16 +21,16 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class ExplorerGui implements AtlasGui {
+public class SafeZoneGui implements AtlasGui {
 
     private final Inventory inventory;
     private final List<SafeZone> entries = new ArrayList<>();
+    private final UUID viewer;
 
-    public ExplorerGui(Player player) {
-        UUID uuid = player.getUniqueId();
+    public SafeZoneGui(Player player) {
+        this.viewer = player.getUniqueId();
         for (SafeZone z : SafeZoneManager.getAll()) {
             if (z.getSpawnPoint() == null) continue;
-            if (!SafeZoneManager.hasVisited(uuid, z.getName())) continue;
             entries.add(z);
         }
 
@@ -39,7 +39,9 @@ public class ExplorerGui implements AtlasGui {
 
         int[] slots = GuiUtil.contentSlots54();
         for (int i = 0; i < entries.size() && i < slots.length; i++) {
-            this.inventory.setItem(slots[i], buildZoneItem(entries.get(i)));
+            SafeZone zone = entries.get(i);
+            boolean visited = SafeZoneManager.hasVisited(viewer, zone.getName());
+            this.inventory.setItem(slots[i], buildZoneItem(zone, visited));
         }
 
         finishGui();
@@ -75,6 +77,13 @@ public class ExplorerGui implements AtlasGui {
         if (idx < 0 || idx >= entries.size()) return;
 
         SafeZone zone = entries.get(idx);
+        if (!SafeZoneManager.hasVisited(viewer, zone.getName())) {
+            player.sendMessage(Component.text("You must visit ", NamedTextColor.RED)
+                    .append(Component.text(SafeZoneManager.capitalizedName(zone.getName()), NamedTextColor.AQUA))
+                    .append(Component.text(" at least once before you can teleport there.", NamedTextColor.RED)));
+            return;
+        }
+
         Location dest = zone.getSpawnPoint();
         if (dest == null) {
             player.sendMessage(Component.text("This safe zone has no teleport point.", NamedTextColor.RED));
@@ -91,28 +100,53 @@ public class ExplorerGui implements AtlasGui {
 
     // ── Item builder ──────────────────────────────────────────────────────────
 
-    private static ItemStack buildZoneItem(SafeZone zone) {
-        ItemStack item = new ItemStack(Material.COMPASS);
+    private static ItemStack buildZoneItem(SafeZone zone, boolean visited) {
+        ItemStack item = new ItemStack(visited ? Material.COMPASS : Material.MAP);
         ItemMeta meta  = item.getItemMeta();
 
-        meta.displayName(Component.text(SafeZoneManager.capitalizedName(zone.getName()), NamedTextColor.AQUA)
+        meta.displayName(Component.text(SafeZoneManager.capitalizedName(zone.getName()),
+                        visited ? NamedTextColor.AQUA : NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
-        Location dest = zone.getSpawnPoint();
         List<Component> lore = new ArrayList<>();
-        lore.add(Component.empty());
-        if (dest != null && dest.getWorld() != null) {
-            lore.add(GuiUtil.loreLine("World", dest.getWorld().getName(), NamedTextColor.WHITE));
-            lore.add(GuiUtil.loreLine("Location",
-                    dest.getBlockX() + ", " + dest.getBlockY() + ", " + dest.getBlockZ(),
-                    NamedTextColor.GRAY));
+        String description = zone.getDescription();
+        if (description != null && !description.isEmpty()) {
+            lore.add(Component.empty());
+            for (String line : wrap(description, 36)) {
+                lore.add(Component.text("  " + line, NamedTextColor.WHITE)
+                        .decoration(TextDecoration.ITALIC, false));
+            }
         }
+
         lore.add(Component.empty());
-        lore.add(Component.text("  Click to teleport", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
+        if (visited) {
+            lore.add(Component.text("  Click to teleport", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("  Undiscovered", NamedTextColor.DARK_GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text("  Visit this zone to unlock teleport", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
 
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
+    }
+
+    private static List<String> wrap(String text, int width) {
+        List<String> lines = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        for (String word : text.split("\\s+")) {
+            if (word.isEmpty()) continue;
+            if (current.length() + 1 + word.length() > width && !current.isEmpty()) {
+                lines.add(current.toString());
+                current.setLength(0);
+            }
+            if (!current.isEmpty()) current.append(' ');
+            current.append(word);
+        }
+        if (!current.isEmpty()) lines.add(current.toString());
+        return lines;
     }
 }

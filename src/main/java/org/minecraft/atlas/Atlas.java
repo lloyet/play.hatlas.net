@@ -85,11 +85,14 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsDataConfig;
     public static File jobsDataFile;
 
+    public static YamlConfiguration safezoneDataConfig;
+    public static File safezoneDataFile;
+
     @Override
     public void onEnable() {
         instance = this;
 
-        // config.yml — homes, teleport cooldowns, crystal, spawn protection, tags
+        // config.yml — homes, teleport cooldowns, crystal, safe area, tags
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
 
@@ -122,9 +125,12 @@ public final class Atlas extends JavaPlugin {
         jobsDataFile = new File(getDataFolder(), "jobs-data.yml");
         jobsDataConfig = YamlConfiguration.loadConfiguration(jobsDataFile);
 
+        safezoneDataFile = new File(getDataFolder(), "safezone-data.yml");
+        safezoneDataConfig = YamlConfiguration.loadConfiguration(safezoneDataFile);
+
         // Load from config.yml
         AtlasCrystalManager.loadConfig(factionsConfig);
-        SafeZoneManager.loadConfig(configFile);
+        SafeZoneManager.loadConfig(safezoneDataConfig, configFile);
         SafeZoneTeleportManager.loadConfig(configFile);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
@@ -218,8 +224,9 @@ public final class Atlas extends JavaPlugin {
         // Save to config.yml
         HomeManager.saveHomes(configFile);
         SpawnManager.saveSpawn(configFile);
-        SafeZoneManager.saveConfig(configFile);
+        SafeZoneManager.saveConfig(safezoneDataConfig, configFile);
         saveConfig();
+        saveSafezoneDataConfig();
 
         // Save to tags-data.yml
         TagManager.saveTags(tagsDataConfig);
@@ -272,6 +279,14 @@ public final class Atlas extends JavaPlugin {
             jobsDataConfig.save(jobsDataFile);
         } catch (IOException e) {
             instance.getLogger().severe("Could not save jobs-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveSafezoneDataConfig() {
+        try {
+            safezoneDataConfig.save(safezoneDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save safezone-data.yml: " + e.getMessage());
         }
     }
 }

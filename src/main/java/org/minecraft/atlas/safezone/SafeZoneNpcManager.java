@@ -35,14 +35,16 @@ public final class SafeZoneNpcManager {
         Camel camel = loc.getWorld().spawn(loc, Camel.class, c -> {
             c.setAI(false);
             c.setInvulnerable(true);
+            c.setGravity(true);
             c.setRemoveWhenFarAway(false);
             c.setPersistent(true);
             c.setBreed(false);
             c.getPersistentDataContainer().set(getKeyNpc(), PersistentDataType.STRING, EXPLORER_TAG);
         });
 
-        Illusioner illu = loc.getWorld().spawn(loc, Illusioner.class, i -> {
+        Illusioner ill = loc.getWorld().spawn(loc, Illusioner.class, i -> {
             i.setAI(false);
+            i.setGravity(true);
             i.setInvulnerable(true);
             i.setRemoveWhenFarAway(false);
             i.setPersistent(true);
@@ -52,7 +54,7 @@ public final class SafeZoneNpcManager {
             i.getPersistentDataContainer().set(getKeyNpc(), PersistentDataType.STRING, EXPLORER_TAG);
         });
 
-        camel.addPassenger(illu);
+        camel.addPassenger(ill);
     }
 
     /** Returns true if the entity is part of an Explorer NPC (camel or illusioner). */

@@ -43,6 +43,7 @@ public class SafeZoneCommand {
                                 .append(Component.newline()).append(entry("unclaim",  "<name>", "Remove current chunk from a safe zone"))
                                 .append(Component.newline()).append(entry("list",     "",       "List all safe zones with chunk counts"))
                                 .append(Component.newline()).append(entry("setspawn", "<name>", "Set the teleport location for a safe zone"))
+                                .append(Component.newline()).append(entry("describe", "<name> <description>", "Set the description shown in the Explorer GUI"))
                                 .append(Component.newline()).append(entry("npc summon", "", "Summon the Explorer NPC at your location"));
                     }
                     ctx.getSource().getSender().sendMessage(msg);
@@ -246,12 +247,36 @@ public class SafeZoneCommand {
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
+                // /safezone describe <name> <description...>
+                .then(Commands.literal("describe")
+                        .requires(src -> src.getSender().hasPermission(PERM))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "describe <name> <description>"))
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests((ctx, b) -> { SafeZoneManager.getAll().forEach(p -> b.suggest(p.getName())); return b.buildFuture(); })
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "describe <name> <description>"))
+                                .then(Commands.argument("description", StringArgumentType.greedyString())
+                                        .executes(ctx -> {
+                                            var sender = ctx.getSource().getSender();
+                                            String name = StringArgumentType.getString(ctx, "name").toLowerCase();
+                                            SafeZone zone = SafeZoneManager.get(name);
+                                            if (zone == null) {
+                                                sender.sendMessage(error("No safe zone named '" + name + "'."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String desc = StringArgumentType.getString(ctx, "description").trim();
+                                            zone.setDescription(desc);
+                                            save();
+                                            sender.sendMessage(success("Description set for '" + name + "'."));
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
+
                 .build();
     }
 
     private static void save() {
-        SafeZoneManager.saveConfig(Atlas.instance.getConfig());
+        SafeZoneManager.saveConfig(Atlas.safezoneDataConfig, Atlas.instance.getConfig());
         Atlas.instance.saveConfig();
+        Atlas.saveSafezoneDataConfig();
     }
 
     private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {

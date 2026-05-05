@@ -95,25 +95,31 @@ public class SafeZoneManager {
 
     // ── Persistence ────────────────────────────────────────────────────────────
 
-    public static void saveConfig(FileConfiguration config) {
-        config.set("safezones",       null);
-        config.set("safezone_visits", null);
-        // Clear legacy keys so old data doesn't leak forward.
-        config.set("protections",       null);
-        config.set("protection_visits", null);
+    public static void saveConfig(FileConfiguration safezoneDataConfig, FileConfiguration legacyConfig) {
+        safezoneDataConfig.set("safezones",       null);
+        safezoneDataConfig.set("safezone_visits", null);
+        // Clear legacy keys (old location and old names) so stale data doesn't leak forward.
+        if (legacyConfig != null) {
+            legacyConfig.set("safezones",         null);
+            legacyConfig.set("safezone_visits",   null);
+            legacyConfig.set("protections",       null);
+            legacyConfig.set("protection_visits", null);
+        }
 
         if (!safeZones.isEmpty()) {
-            ConfigurationSection root = config.createSection("safezones");
+            ConfigurationSection root = safezoneDataConfig.createSection("safezones");
             for (SafeZone p : safeZones.values()) {
                 ConfigurationSection sec = root.createSection(p.getName());
                 sec.set("chunks", new ArrayList<>(p.getChunks()));
                 if (p.getSpawnPoint() != null)
                     sec.set("spawn_point", encodeLocation(p.getSpawnPoint()));
+                if (!p.getDescription().isEmpty())
+                    sec.set("description", p.getDescription());
             }
         }
 
         if (!playerVisits.isEmpty()) {
-            ConfigurationSection visits = config.createSection("safezone_visits");
+            ConfigurationSection visits = safezoneDataConfig.createSection("safezone_visits");
             for (Map.Entry<UUID, Set<String>> e : playerVisits.entrySet()) {
                 if (!e.getValue().isEmpty())
                     visits.set(e.getKey().toString(), new ArrayList<>(e.getValue()));
@@ -121,13 +127,16 @@ public class SafeZoneManager {
         }
     }
 
-    public static void loadConfig(FileConfiguration config) {
+    public static void loadConfig(FileConfiguration safezoneDataConfig, FileConfiguration legacyConfig) {
         safeZones.clear();
         playerVisits.clear();
 
-        // Read from new key first; fall back to legacy "protections" key for migration.
-        ConfigurationSection root = config.getConfigurationSection("safezones");
-        if (root == null) root = config.getConfigurationSection("protections");
+        // Prefer new dedicated file; fall back to legacy locations/names for migration.
+        ConfigurationSection root = safezoneDataConfig.getConfigurationSection("safezones");
+        if (root == null && legacyConfig != null) {
+            root = legacyConfig.getConfigurationSection("safezones");
+            if (root == null) root = legacyConfig.getConfigurationSection("protections");
+        }
         if (root != null) {
             for (String name : root.getKeys(false)) {
                 SafeZone p = new SafeZone(name.toLowerCase());
@@ -139,13 +148,17 @@ public class SafeZoneManager {
                         Location loc = decodeLocation(sp);
                         if (loc != null) p.setSpawnPoint(loc);
                     }
+                    p.setDescription(sec.getString("description", ""));
                 }
                 safeZones.put(p.getName(), p);
             }
         }
 
-        ConfigurationSection visits = config.getConfigurationSection("safezone_visits");
-        if (visits == null) visits = config.getConfigurationSection("protection_visits");
+        ConfigurationSection visits = safezoneDataConfig.getConfigurationSection("safezone_visits");
+        if (visits == null && legacyConfig != null) {
+            visits = legacyConfig.getConfigurationSection("safezone_visits");
+            if (visits == null) visits = legacyConfig.getConfigurationSection("protection_visits");
+        }
         if (visits != null) {
             for (String uuidStr : visits.getKeys(false)) {
                 try {

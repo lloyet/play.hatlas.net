@@ -24,7 +24,7 @@ public class SafeZoneListener implements Listener {
     // ── Protection check ───────────────────────────────────────────────────────
 
     /** Returns true if the location is inside any registered safe zone. */
-    public static boolean isInSpawnProtection(Location location) {
+    public static boolean isInSafeZone(Location location) {
         return SafeZoneManager.isProtected(location);
     }
 
@@ -51,7 +51,7 @@ public class SafeZoneListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityDamage(EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
-        if (!isInSpawnProtection(player.getLocation())) return;
+        if (!isInSafeZone(player.getLocation())) return;
         event.setCancelled(true);
         if (event instanceof EntityDamageByEntityEvent byEntity
                 && byEntity.getDamager() instanceof Player attacker) {
@@ -63,15 +63,15 @@ public class SafeZoneListener implements Listener {
     public void onEntityDamageByEntity(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player attacker)) return;
         if (!(event.getEntity() instanceof Player)) return;
-        if (isInSpawnProtection(event.getEntity().getLocation())) return;
-        if (!isInSpawnProtection(attacker.getLocation())) return;
+        if (isInSafeZone(event.getEntity().getLocation())) return;
+        if (!isInSafeZone(attacker.getLocation())) return;
         event.setCancelled(true);
         attacker.sendActionBar(Component.text("PvP is disabled in spawn protection!", NamedTextColor.RED));
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
-        if (!isInSpawnProtection(event.getBlock().getLocation())) return;
+        if (!isInSafeZone(event.getBlock().getLocation())) return;
         event.setCancelled(true);
         event.getPlayer().sendActionBar(Component.text(
                 "Block breaking is disabled in spawn protection.", NamedTextColor.RED));
@@ -82,7 +82,7 @@ public class SafeZoneListener implements Listener {
         Action action = event.getAction();
         if (action != Action.RIGHT_CLICK_BLOCK && action != Action.PHYSICAL) return;
         if (event.getClickedBlock() == null) return;
-        if (!isInSpawnProtection(event.getClickedBlock().getLocation())) return;
+        if (!isInSafeZone(event.getClickedBlock().getLocation())) return;
         event.setCancelled(true);
         if (action == Action.RIGHT_CLICK_BLOCK) {
             event.getPlayer().sendActionBar(Component.text(
@@ -92,11 +92,11 @@ public class SafeZoneListener implements Listener {
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
-        event.blockList().removeIf(block -> isInSpawnProtection(block.getLocation()));
+        event.blockList().removeIf(block -> isInSafeZone(block.getLocation()));
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
-        event.blockList().removeIf(block -> isInSpawnProtection(block.getLocation()));
+        event.blockList().removeIf(block -> isInSafeZone(block.getLocation()));
     }
 }

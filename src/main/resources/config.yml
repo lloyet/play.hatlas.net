@@ -5,11 +5,6 @@
 # spawn: set via /setspawn in-game
 player_homes: { }
 
-# Protection areas: managed via /protection create|claim|unclaim|setspawn.
-# Managed at runtime — do not edit manually.
-protections: {}
-protection_visits: {}
-
 # Personal home command settings for /home
 home_teleport:
   # Countdown delay in seconds before the player is teleported. Op bypasses.

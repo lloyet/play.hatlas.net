@@ -122,7 +122,7 @@ public class CrystalChestListGui implements AtlasGui {
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
         lore.add(GuiUtil.loreLine("Crystal", entry.crystalLabel(), NamedTextColor.AQUA));
-        lore.add(GuiUtil.loreLine("Items", itemCount + " / " + chestSize, NamedTextColor.WHITE));
+        lore.add(GuiUtil.loreLine("Slots", itemCount + " / " + chestSize, NamedTextColor.WHITE));
         lore.add(Component.empty());
         lore.add(Component.text("  Click to open", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
