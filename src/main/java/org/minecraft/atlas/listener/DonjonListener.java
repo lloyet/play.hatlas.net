@@ -167,6 +167,7 @@ public class DonjonListener implements Listener {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (!SmugglerManager.isSmugglerNpc(event.getRightClicked())) return;
         event.setCancelled(true);
+        if (JobListener.denyIfNoFaction(event.getPlayer())) return;
         new DonjonListGui(event.getPlayer()).open(event.getPlayer());
     }
 

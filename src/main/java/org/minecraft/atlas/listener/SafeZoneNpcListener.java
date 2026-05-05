@@ -18,6 +18,7 @@ public class SafeZoneNpcListener implements Listener {
 
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (JobListener.denyIfNoFaction(player)) return;
         new ExplorerGui(player).open(player);
     }
 }

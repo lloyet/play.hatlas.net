@@ -28,6 +28,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.UUID;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.gui.JobMainGui;
 import org.minecraft.atlas.gui.JokeyriniQuestGui;
 import org.minecraft.atlas.gui.NpcJobSwitchGui;
@@ -91,6 +92,7 @@ public class JobListener implements Listener {
                     .get(JokeyriniManager.getKeyNpc(), PersistentDataType.STRING);
             if ("JOKEYRINI".equals(tag)) {
                 event.setCancelled(true);
+                if (denyIfNoFaction(player)) return;
                 new JokeyriniQuestGui(player).open(player);
             }
             return;
@@ -103,6 +105,7 @@ public class JobListener implements Listener {
         if (jobName == null) return;
 
         event.setCancelled(true);
+        if (denyIfNoFaction(player)) return;
 
         Job npcJob;
         try { npcJob = Job.valueOf(jobName); }
@@ -130,6 +133,17 @@ public class JobListener implements Listener {
         }
 
         new NpcJobSwitchGui(player, npcJob, true).open(player);
+    }
+
+    /**
+     * Sends a "must be in a faction" message and returns true if the player has no faction.
+     * Caller is responsible for cancelling the event before invoking this.
+     */
+    static boolean denyIfNoFaction(Player player) {
+        if (FactionManager.getPlayerFaction(player.getUniqueId()) != null) return false;
+        player.sendMessage(Component.text(
+                "You must join a faction before talking to NPCs.", NamedTextColor.RED));
+        return true;
     }
 
     // ── Last-player-damager tracking (handles reflected projectiles) ──────────
