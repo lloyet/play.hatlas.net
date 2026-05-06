@@ -153,6 +153,44 @@ public class FactionCommand {
             msg = msg.append(Component.newline())
                     .append(Component.text("Claims: ", NamedTextColor.GRAY))
                     .append(Component.text(totalClaims + " / " + totalCapacity + " chunk(s)", NamedTextColor.GREEN));
+
+            // Crystal protections — duration + status (ready / active / regenerate).
+            // Regeneration is sequential: only the SHORTEST broken protection ("head")
+            // is currently regenerating; longer broken ones are queued behind it.
+            long now = System.currentTimeMillis();
+            for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(faction.getName())) {
+                if (crystal.getPurchasedProtections().isEmpty()) continue;
+                String label = crystal.getName().isEmpty() ? "Crystal" : "'" + crystal.getName() + "'";
+                msg = msg.append(Component.newline())
+                        .append(Component.text(label + " Protections:", NamedTextColor.GRAY));
+
+                Long regenHead = null;
+                for (Long d : crystal.getBrokenProtections().keySet()) {
+                    if (regenHead == null || d < regenHead) regenHead = d;
+                }
+
+                for (Long d : crystal.getPurchasedProtections()) {
+                    Long brokenAt = crystal.getBrokenProtections().get(d);
+                    Component statusTag;
+                    if (brokenAt == null) {
+                        statusTag = Component.text(" [READY]", NamedTextColor.GREEN);
+                    } else if (now < brokenAt + d) {
+                        long remaining = (brokenAt + d) - now;
+                        statusTag = Component.text(" [ACTIVE — " + formatDuration(remaining) + " left]",
+                                NamedTextColor.AQUA);
+                    } else if (d.equals(regenHead)) {
+                        long regenAt = brokenAt + 2 * d;
+                        long remaining = Math.max(0, regenAt - now);
+                        statusTag = Component.text(" [REGENERATING — " + formatDuration(remaining) + " left]",
+                                NamedTextColor.YELLOW);
+                    } else {
+                        statusTag = Component.text(" [REGENERATING — queued]", NamedTextColor.YELLOW);
+                    }
+                    msg = msg.append(Component.newline())
+                            .append(Component.text("  " + formatDuration(d), NamedTextColor.WHITE))
+                            .append(statusTag);
+                }
+            }
         } else {
             msg = msg.append(Component.newline())
                     .append(Component.text("Members: ", NamedTextColor.GRAY))
@@ -174,6 +212,16 @@ public class FactionCommand {
     private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {
         audience.sendMessage(Component.text("Usage: /faction " + syntax, NamedTextColor.RED));
         return Command.SINGLE_SUCCESS;
+    }
+
+    private static String formatDuration(long ms) {
+        long secs = Math.max(0, ms) / 1000L;
+        long h = secs / 3600;
+        long m = (secs % 3600) / 60;
+        long s = secs % 60;
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
     }
 
     // -------------------------------------------------------------------------
@@ -348,10 +396,10 @@ public class FactionCommand {
 
                                     int playerX = player.getLocation().getBlockX();
                                     int playerZ = player.getLocation().getBlockZ();
-                                    int highestY = player.getWorld().getHighestBlockYAt(playerX, playerZ);
+                                    int playerY = player.getLocation().getBlockY();
 
                                     Location spawnLoc = new Location(player.getWorld(),
-                                            playerX + 0.5, highestY + 2.0, playerZ + 0.5);
+                                            playerX + 0.5, playerY + 2.0, playerZ + 0.5);
 
                                     EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                                     crystalEntity.setShowingBottom(true);
@@ -1060,6 +1108,19 @@ public class FactionCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
                             String unclaimKey = worldName + ":" + cx + ":" + cz;
+                            // Block unclaiming the chunk that hosts an atlas crystal entity —
+                            // the crystal anchors that chunk and must be destroyed (not unclaimed) to free it.
+                            for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
+                                EnderCrystal ce = c.getEntity();
+                                if (ce == null) continue;
+                                Location cloc = ce.getLocation();
+                                if (cloc.getWorld() == null || !cloc.getWorld().getName().equals(worldName)) continue;
+                                if ((cloc.getBlockX() >> 4) == cx && (cloc.getBlockZ() >> 4) == cz) {
+                                    String label = c.getName().isEmpty() ? "atlas crystal" : "'" + c.getName() + "' crystal";
+                                    player.sendMessage(error("This chunk hosts the " + label + " — destroy the crystal to release it."));
+                                    return Command.SINGLE_SUCCESS;
+                                }
+                            }
                             // Remove from the crystal that owns this chunk
                             for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
                                 c.getClaimedChunks().remove(unclaimKey);
@@ -1283,7 +1344,12 @@ public class FactionCommand {
                                 player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            Location spawnLoc = player.getLocation();
+                            Location playerLoc = player.getLocation();
+                            Location spawnLoc = new Location(player.getWorld(),
+                                    playerLoc.getBlockX() + 0.5,
+                                    playerLoc.getBlockY() + 2.0,
+                                    playerLoc.getBlockZ() + 0.5);
+
                             EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                             crystalEntity.setShowingBottom(true);
                             AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, factionName);

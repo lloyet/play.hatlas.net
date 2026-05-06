@@ -117,15 +117,15 @@ public class AtlasCrystal {
     public boolean isProtectionBroken(long durationMs)    { return brokenProtections.containsKey(durationMs); }
 
     /**
-     * Returns the SHORTEST currently-available protection duration, or {@code null}
+     * Returns the LONGEST currently-available protection duration, or {@code null}
      * if every owned protection is currently broken (or none are owned).
-     * Shortest is consumed first so each subsequent defeat activates a longer protection.
+     * Longest is consumed first so the strongest shield absorbs the first defeat.
      */
-    public Long getShortestAvailableProtection() {
+    public Long getLongestAvailableProtection() {
         Long best = null;
         for (Long d : purchasedProtections) {
             if (brokenProtections.containsKey(d)) continue;
-            if (best == null || d < best) best = d;
+            if (best == null || d > best) best = d;
         }
         return best;
     }
@@ -213,6 +213,10 @@ public class AtlasCrystal {
         updateNametag();
     }
 
+    /** Clears the last-attack timestamp. Used when a queued protection takes over the
+     * sequential regen slot, so that pre-handoff damage doesn't count against it. */
+    public void clearLastAttack() { this.lastAttackMillis = 0; }
+
     /** Returns true if enough time has elapsed since the last outside-player attack. */
     public boolean canRegen() {
         if (lastAttackMillis == 0) return true;
@@ -243,7 +247,7 @@ public class AtlasCrystal {
                 .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW));
 
         Component immuneTag = isImmune()
-                ? Component.text(" [IMMUNE " + formatImmunityRemaining() + "]", NamedTextColor.AQUA)
+                ? Component.text(" [IMMUNITY ACTIVE]", NamedTextColor.AQUA)
                 : Component.empty();
         Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
                 .append(immuneTag);
@@ -251,11 +255,6 @@ public class AtlasCrystal {
         return line1.append(Component.newline())
                 .append(line2).append(Component.newline())
                 .append(line3);
-    }
-
-    private String formatImmunityRemaining() {
-        long secs = Math.max(0, immuneUntilMillis - System.currentTimeMillis()) / 1000L;
-        return secs >= 60 ? (secs / 60) + "m " + (secs % 60) + "s" : secs + "s";
     }
 
     /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */

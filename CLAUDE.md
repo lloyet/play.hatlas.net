@@ -94,7 +94,7 @@ All player-facing messages use the **Adventure Component API** (never legacy col
 
 | File | Purpose |
 |---|---|
-| `config.yml` | Runtime tuning: cooldowns, AFK timeout, spawn protection radius |
+| `config.yml` | Runtime tuning: cooldowns, AFK timeout, teleport delays, random-teleport radius |
 | `factions.yml` | Persisted faction data (members, XP, claims, upgrades, chest contents) |
 | `jobs.yml` | Persisted job data + 100+ task templates + Jokeyrini NPC location |
 | `donjons.yml` | Persisted dungeon state + activation config |

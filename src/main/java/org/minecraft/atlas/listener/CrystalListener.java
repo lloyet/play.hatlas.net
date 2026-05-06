@@ -16,7 +16,7 @@ import org.minecraft.atlas.gui.CrystalMainGui;
 public class CrystalListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGH)
-    public void onInteractCrystal(PlayerInteractAtEntityEvent event) {
+    public void onInteractAtlasCrystal(PlayerInteractAtEntityEvent event) {
         if (event.getHand() != EquipmentSlot.HAND) return;
         if (!(event.getRightClicked() instanceof EnderCrystal entity)) return;
 

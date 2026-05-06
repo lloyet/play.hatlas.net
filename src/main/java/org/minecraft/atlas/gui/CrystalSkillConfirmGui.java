@@ -20,7 +20,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public class CrystalUpgradeConfirmGui implements AtlasGui {
+public class CrystalSkillConfirmGui implements AtlasGui {
 
     public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST }
 
@@ -30,8 +30,8 @@ public class CrystalUpgradeConfirmGui implements AtlasGui {
     private final int tierIndex;
     private final Inventory inventory;
 
-    public CrystalUpgradeConfirmGui(Player player, String factionName, UUID crystalEntityUUID,
-                                    SkillPurchaseType type, int tierIndex) {
+    public CrystalSkillConfirmGui(Player player, String factionName, UUID crystalEntityUUID,
+                                  SkillPurchaseType type, int tierIndex) {
         this.factionName       = factionName;
         this.crystalEntityUUID = crystalEntityUUID;
         this.type              = type;

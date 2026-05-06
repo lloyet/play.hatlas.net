@@ -305,14 +305,15 @@ public class FactionListener implements Listener {
         // ── Crystal HP reached 0 ──────────────────────────────────────────────
         Faction faction = FactionManager.getFaction(crystalFaction);
 
-        Long shortestAvailable = atlasCrystal.getShortestAvailableProtection();
-        if (shortestAvailable != null) {
-            // Consume the shortest available protection — each subsequent defeat activates a
-            // longer one. The broken protection regenerates after its watch window if the
-            // crystal takes no damage in the meantime; otherwise it is permanently lost.
-            long immunityMs = shortestAvailable;
+        Long longestAvailable = atlasCrystal.getLongestAvailableProtection();
+        if (longestAvailable != null) {
+            // Consume the longest available protection — strongest shield absorbs the first
+            // defeat. The broken protection regenerates after its watch window (equal to the
+            // immunity duration) if the crystal takes no damage in the meantime; otherwise
+            // it is permanently lost.
+            long immunityMs = longestAvailable;
             long nowMs2 = System.currentTimeMillis();
-            atlasCrystal.breakProtection(shortestAvailable, nowMs2);
+            atlasCrystal.breakProtection(longestAvailable, nowMs2);
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
             atlasCrystal.setImmuneFor(immunityMs);
             atlasCrystal.updateNametag();
@@ -320,11 +321,11 @@ public class FactionListener implements Listener {
 
             crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 0.5f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 3.0f, false, false);
-            long immunSecs = immunityMs / 1000L;
-            String immunStr = immunSecs >= 60 ? (immunSecs / 60) + "m " + (immunSecs % 60) + "s" : immunSecs + "s";
+            long immuneSecs = immunityMs / 1000L;
+            String immuneStr = immuneSecs >= 60 ? (immuneSecs / 60) + "m " + (immuneSecs % 60) + "s" : immuneSecs + "s";
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                    "⚠ Crystal defeated! Immune for " + immunStr + "!", NamedTextColor.RED);
-            TitleUtil.notify(attacker, "Crystal defeated! Immune " + immunStr + ".", NamedTextColor.YELLOW);
+                    "⚠ Crystal protected! Immune for " + immuneStr + "!", NamedTextColor.RED);
+            TitleUtil.notify(attacker, "Crystal protected! Immune " + immuneStr + ".", NamedTextColor.YELLOW);
         } else {
             // No protection — crystal is permanently destroyed.
             crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);

@@ -129,6 +129,7 @@ public class CrystalChestListGui implements AtlasGui {
 
         meta.lore(lore);
         item.setItemMeta(meta);
+
         return item;
     }
 }

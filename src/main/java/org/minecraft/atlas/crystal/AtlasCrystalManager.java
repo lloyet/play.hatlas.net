@@ -642,7 +642,10 @@ public class AtlasCrystalManager {
      * - Remove its claimed chunks
      * - Drop its chest contents at the crystal location
      * - Lower faction level proportionally to spentSkillPoints
-     * - If all crystals gone, disband the faction
+     * - If the main crystal died and an outpost remains, promote the outpost to main
+     *   (the surviving crystal's home becomes the faction's first home automatically
+     *   via {@link #getFirstHome(String)})
+     * - If no crystals remain, disband the faction
      */
     public static void destroyCrystal(UUID crystalUUID) {
         AtlasCrystal crystal = crystals.get(crystalUUID);
@@ -677,26 +680,43 @@ public class AtlasCrystalManager {
         crystal.getChestContentsMap().clear();
         crystal.getPurchasedChestSizes().clear();
 
-        // 3. Lower faction level by spentSkillPoints / skillPointsPerLevel
-        if (faction != null && crystal.getSpentSkillPoints() > 0) {
-            int sp = FactionLevelManager.getSkillPointsPerLevel();
-            int levelsToLose = (sp > 0) ? crystal.getSpentSkillPoints() / sp : 0;
-            if (levelsToLose > 0) {
-                int newLevel = Math.max(0, faction.getLevel() - levelsToLose);
-                faction.setLevel(newLevel);
-                faction.setExp(0);
+        // 3. Lower faction level by spent skill points / skillPointsPerLevel.
+        //    Main crystal: only its own per-crystal upgrades count.
+        //    Outpost crystal: its own per-crystal upgrades + the faction-level outpost
+        //    skill cost are charged here, since destroying the outpost crystal forfeits
+        //    the outpost unlock attribution.
+        if (faction != null) {
+            int totalSpent = crystal.getSpentSkillPoints();
+            if (crystal.isOutpost()) {
+                totalSpent += FactionLevelManager.getOutpostTier().cost();
+            }
+            if (totalSpent > 0) {
+                int sp = FactionLevelManager.getSkillPointsPerLevel();
+                int levelsToLose = (sp > 0) ? totalSpent / sp : 0;
+                if (levelsToLose > 0) {
+                    int newLevel = Math.max(0, faction.getLevel() - levelsToLose);
+                    faction.setLevel(newLevel);
+                    faction.setExp(0);
+                }
             }
         }
 
         // 4. Remove crystal from tracking
+        boolean wasMain = !crystal.isOutpost();
         remove(crystalUUID);
 
-        // 5. Disband faction if no crystals remain — outpost destruction never triggers disbandment
-        if (!crystal.isOutpost()) {
-            Map<UUID, AtlasCrystal> remaining = factionCrystals.get(factionName);
-            if (remaining == null || remaining.isEmpty()) {
-                FactionManager.disbandFaction(factionName);
-            }
+        // 5. Disband if no crystals remain; otherwise, if the main died, promote the
+        //    surviving outpost to main so the faction keeps its disband-on-loss anchor
+        //    and getFirstHome() returns the outpost's home as the new faction home.
+        //    Promotion also re-locks the outpost skill so the faction can re-purchase
+        //    it from the skill GUI and place a fresh outpost crystal.
+        Map<UUID, AtlasCrystal> remaining = factionCrystals.get(factionName);
+        if (remaining == null || remaining.isEmpty()) {
+            FactionManager.disbandFaction(factionName);
+        } else if (wasMain) {
+            AtlasCrystal successor = remaining.values().iterator().next();
+            successor.setOutpost(false);
+            if (faction != null) faction.setOutpostUnlocked(false);
         }
 
         // 6. Persist
@@ -885,28 +905,41 @@ public class AtlasCrystalManager {
                 while (iter.hasNext()) {
                     AtlasCrystal crystal = iter.next().getValue();
 
-                    // Protection regen check — runs for stubs too (no entity needed). Each broken
-                    // protection regenerates after a watch window of 2 × duration if no damage was
-                    // dealt to the crystal since it broke; otherwise it is permanently lost.
+                    // Protection regen check — sequential. Only the SHORTEST broken protection
+                    // is currently regenerating at any moment; longer ones queue behind it.
+                    // Each head protection has a watch window of 2 × duration after its
+                    // brokenAt (immunity duration + regen duration). If the crystal takes
+                    // damage during the regen portion, the head is permanently lost; otherwise
+                    // it regenerates. When the head resolves, the next-shortest broken
+                    // protection takes over: its brokenAt is shifted to (now − itsDuration)
+                    // so its own regen window starts immediately (no second immunity period),
+                    // and the crystal's last-attack timestamp is cleared so prior damage
+                    // doesn't count against the new head.
                     boolean protectionsChanged = false;
-                    if (!crystal.getBrokenProtections().isEmpty()) {
-                        Iterator<Map.Entry<Long, Long>> brokenIter =
-                                crystal.getBrokenProtections().entrySet().iterator();
-                        while (brokenIter.hasNext()) {
-                            Map.Entry<Long, Long> e = brokenIter.next();
-                            long duration = e.getKey();
-                            long brokenAt = e.getValue();
-                            long regenAt  = brokenAt + 2 * duration;
-                            if (nowMs < regenAt) continue;
+                    Map<Long, Long> broken = crystal.getBrokenProtections();
+                    if (!broken.isEmpty()) {
+                        Long head = null;
+                        for (Long d : broken.keySet()) {
+                            if (head == null || d < head) head = d;
+                        }
+                        long brokenAt = broken.get(head);
+                        long regenAt  = brokenAt + 2 * head;
+                        if (nowMs >= regenAt) {
                             if (crystal.getLastAttackMillis() > brokenAt) {
-                                // Damage occurred during the post-immunity watch — protection lost.
-                                brokenIter.remove();
-                                crystal.getPurchasedProtections().remove((Long) duration);
+                                broken.remove(head);
+                                crystal.getPurchasedProtections().remove(head);
                             } else {
-                                // No damage since the break — restore the protection.
-                                brokenIter.remove();
+                                broken.remove(head);
                             }
                             protectionsChanged = true;
+                            Long next = null;
+                            for (Long d : broken.keySet()) {
+                                if (next == null || d < next) next = d;
+                            }
+                            if (next != null) {
+                                broken.put(next, nowMs - next);
+                                crystal.clearLastAttack();
+                            }
                         }
                     }
 

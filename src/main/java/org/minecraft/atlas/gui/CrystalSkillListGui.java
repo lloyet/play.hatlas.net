@@ -34,7 +34,7 @@ import java.util.UUID;
  *   Row 5 (slots 46-48 | 50-53):      Chest tiers | Protection tiers
  *   Row 6 (slots 54-62):              empty  |  62: back
  */
-public class CrystalUpgradeGui implements AtlasGui {
+public class CrystalSkillListGui implements AtlasGui {
 
     private final String factionName;
     private final UUID crystalEntityUUID;
@@ -48,7 +48,7 @@ public class CrystalUpgradeGui implements AtlasGui {
     private static final int[] SLOTS_CHEST      = {28, 29, 30};        // row 5, cols 1-3
     private static final int[] SLOTS_PROTECTION = {37, 38, 39, 40};   // row 5, cols 5-8
 
-    public CrystalUpgradeGui(Player player, Faction faction, UUID crystalEntityUUID) {
+    public CrystalSkillListGui(Player player, Faction faction, UUID crystalEntityUUID) {
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
@@ -130,8 +130,8 @@ public class CrystalUpgradeGui implements AtlasGui {
                 }
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalUpgradeConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalUpgradeConfirmGui.SkillPurchaseType.HP, i).open(player);
+                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
+                        CrystalSkillConfirmGui.SkillPurchaseType.HP, i).open(player);
                 return;
             }
         }
@@ -148,8 +148,8 @@ public class CrystalUpgradeGui implements AtlasGui {
                 }
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalUpgradeConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalUpgradeConfirmGui.SkillPurchaseType.CLAIMS, i).open(player);
+                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
+                        CrystalSkillConfirmGui.SkillPurchaseType.CLAIMS, i).open(player);
                 return;
             }
         }
@@ -166,8 +166,8 @@ public class CrystalUpgradeGui implements AtlasGui {
                 }
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalUpgradeConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalUpgradeConfirmGui.SkillPurchaseType.CHEST, i).open(player);
+                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
+                        CrystalSkillConfirmGui.SkillPurchaseType.CHEST, i).open(player);
                 return;
             }
         }
@@ -190,8 +190,8 @@ public class CrystalUpgradeGui implements AtlasGui {
                 }
                 player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
                 GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalUpgradeConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalUpgradeConfirmGui.SkillPurchaseType.PROTECTION, i).open(player);
+                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
+                        CrystalSkillConfirmGui.SkillPurchaseType.PROTECTION, i).open(player);
                 return;
             }
         }
@@ -209,8 +209,8 @@ public class CrystalUpgradeGui implements AtlasGui {
             }
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
             GuiNavigator.push(player.getUniqueId(), this);
-            new CrystalUpgradeConfirmGui(player, fn, crystalEntityUUID,
-                    CrystalUpgradeConfirmGui.SkillPurchaseType.OUTPOST, 0).open(player);
+            new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
+                    CrystalSkillConfirmGui.SkillPurchaseType.OUTPOST, 0).open(player);
         }
     }
 

@@ -136,7 +136,7 @@ public class CrystalMainGui implements AtlasGui {
             }
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
             GuiNavigator.push(player.getUniqueId(), this);
-            new CrystalUpgradeGui(player, faction, crystalEntityUUID).open(player);
+            new CrystalSkillListGui(player, faction, crystalEntityUUID).open(player);
         }
 
         if (slot == SLOT_QUESTS_BTN) {
