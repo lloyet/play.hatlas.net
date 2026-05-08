@@ -13,6 +13,7 @@ import org.minecraft.atlas.Atlas;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class RaiderPickaxe {
 
@@ -56,7 +57,7 @@ public class RaiderPickaxe {
         if (item == null || item.getType() == Material.AIR) return;
         ItemMeta meta = item.getItemMeta();
         if (meta == null) return;
-        List<Component> existing = meta.lore() != null ? new ArrayList<>(meta.lore()) : new ArrayList<>();
+        List<Component> existing = meta.lore() != null ? new ArrayList<>(Objects.requireNonNull(meta.lore())) : new ArrayList<>();
         writeRaiderMeta(meta, clamp(level), existing);
         if (meta instanceof Damageable damageable) damageable.setDamage(0);
         item.setItemMeta(meta);
@@ -159,5 +160,5 @@ public class RaiderPickaxe {
         return switch (level) { case 1 -> "I"; case 2 -> "II"; default -> "III"; };
     }
 
-    private static int clamp(int level) { return Math.max(1, Math.min(3, level)); }
+    private static int clamp(int level) { return Math.clamp(level, 1, 3); }
 }

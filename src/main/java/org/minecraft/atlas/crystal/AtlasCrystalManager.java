@@ -626,12 +626,23 @@ public class AtlasCrystalManager {
         return true;
     }
 
-    /** Purchases the outpost skill for a faction (one-time, faction-level unlock). */
-    public static boolean purchaseOutpostUpgrade(String factionName) {
+    /**
+     * Purchases the outpost skill for a faction (one-time, faction-level unlock).
+     * The cost is attributed to the crystal that performed the purchase so it counts
+     * toward {@link AtlasCrystal#getSpentSkillPoints()} — destroying that crystal will
+     * therefore refund the cost as a level downgrade in {@link #destroyCrystal(UUID)}.
+     */
+    public static boolean purchaseOutpostUpgrade(String factionName, UUID crystalUUID, FactionLevelManager.OutpostTier tier) {
         Faction faction = FactionManager.getFaction(factionName);
-        if (faction == null || faction.isOutpostUnlocked()) return false;
-        if (!faction.spendSkillPoints(FactionLevelManager.getOutpostTier().cost())) return false;
+        AtlasCrystal crystal = crystals.get(crystalUUID);
+        if (faction == null || crystal == null || faction.isOutpostUnlocked()) return false;
+        int cost = tier.cost();
+        if (!faction.spendSkillPoints(cost)) return false;
+        crystal.addSpentSkillPoints(cost);
         faction.setOutpostUnlocked(true);
+        persistCrystalState(crystal);
+        saveCrystalData(Atlas.factionsDataConfig);
+        Atlas.saveFactionsDataConfig();
         return true;
     }
 
@@ -681,10 +692,13 @@ public class AtlasCrystalManager {
         crystal.getPurchasedChestSizes().clear();
 
         // 3. Lower faction level by spent skill points / skillPointsPerLevel.
-        //    Main crystal: only its own per-crystal upgrades count.
-        //    Outpost crystal: its own per-crystal upgrades + the faction-level outpost
-        //    skill cost are charged here, since destroying the outpost crystal forfeits
-        //    the outpost unlock attribution.
+        //    Main crystal: its spentSkillPoints already includes the outpost-unlock cost
+        //    (see {@link #purchaseOutpostUpgrade}, which attributes the cost to the
+        //    purchasing crystal — typically the main).
+        //    Outpost crystal: its spentSkillPoints contains only its own per-crystal
+        //    upgrades, so the outpost-unlock cost is added on top so destroying the
+        //    outpost crystal also refunds that faction-level cost as level loss.
+        boolean levelChanged = false;
         if (faction != null) {
             int totalSpent = crystal.getSpentSkillPoints();
             if (crystal.isOutpost()) {
@@ -697,6 +711,7 @@ public class AtlasCrystalManager {
                     int newLevel = Math.max(0, faction.getLevel() - levelsToLose);
                     faction.setLevel(newLevel);
                     faction.setExp(0);
+                    levelChanged = true;
                 }
             }
         }
@@ -705,21 +720,30 @@ public class AtlasCrystalManager {
         boolean wasMain = !crystal.isOutpost();
         remove(crystalUUID);
 
-        // 5. Disband if no crystals remain; otherwise, if the main died, promote the
-        //    surviving outpost to main so the faction keeps its disband-on-loss anchor
-        //    and getFirstHome() returns the outpost's home as the new faction home.
-        //    Promotion also re-locks the outpost skill so the faction can re-purchase
-        //    it from the skill GUI and place a fresh outpost crystal.
+        // 5. Disband if no crystals remain. Otherwise, the outpost-unlock is re-locked
+        //    so the faction can re-purchase it from the skill GUI:
+        //    - Main died: the surviving outpost is promoted to main (it becomes the new
+        //      disband-on-loss anchor and getFirstHome() picks its home as faction home).
+        //    - Outpost died: the main remains, but the unlock is reset so the player can
+        //      buy the outpost skill again and place a fresh outpost crystal.
         Map<UUID, AtlasCrystal> remaining = factionCrystals.get(factionName);
         if (remaining == null || remaining.isEmpty()) {
             FactionManager.disbandFaction(factionName);
-        } else if (wasMain) {
-            AtlasCrystal successor = remaining.values().iterator().next();
-            successor.setOutpost(false);
+        } else {
+            if (wasMain) {
+                AtlasCrystal successor = remaining.values().iterator().next();
+                successor.setOutpost(false);
+            }
             if (faction != null) faction.setOutpostUnlocked(false);
         }
 
-        // 6. Persist
+        // 6. Refresh surviving crystals' nametags — the level text reflects the faction
+        //    level, which may have just been downgraded by the spent-skills refund.
+        if (levelChanged && remaining != null) {
+            for (AtlasCrystal c : remaining.values()) c.updateNametag();
+        }
+
+        // 7. Persist
         saveCrystalData(Atlas.factionsDataConfig);
         Atlas.saveFactionsDataConfig();
     }
@@ -943,7 +967,15 @@ public class AtlasCrystalManager {
                         }
                     }
 
-                    var entity = crystal.getEntity();
+                    // Detect immunity expiry so the nametag can flip from ACTIVE to RELOADING
+                    // (or clear) without waiting for an HP-regen tick to refresh it.
+                    boolean immunityJustExpired = false;
+                    if (crystal.getImmuneUntilMillis() > 0 && nowMs >= crystal.getImmuneUntilMillis()) {
+                        crystal.setImmuneUntilMillis(0);
+                        immunityJustExpired = true;
+                    }
+
+                    EnderCrystal entity = crystal.getEntity();
                     if (entity == null) {
                         // Stub: persist protection changes only via the next saveCrystalData cycle.
                         continue;
@@ -959,7 +991,8 @@ public class AtlasCrystalManager {
                         entity.getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }
-                    if (protectionsChanged) {
+                    if (protectionsChanged || immunityJustExpired) {
+                        crystal.updateNametag();
                         persistCrystalState(crystal);
                     }
                 }

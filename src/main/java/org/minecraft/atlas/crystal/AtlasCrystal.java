@@ -246,15 +246,26 @@ public class AtlasCrystal {
         Component line2 = Component.text("LvL.", NamedTextColor.GRAY)
                 .append(Component.text(String.valueOf(level), NamedTextColor.YELLOW));
 
-        Component immuneTag = isImmune()
-                ? Component.text(" [IMMUNITY ACTIVE]", NamedTextColor.AQUA)
-                : Component.empty();
-        Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED)
-                .append(immuneTag);
+        Component line3 = Component.text((int) hp + "/" + (int) maxHp + " ♥", NamedTextColor.RED);
 
-        return line1.append(Component.newline())
+        Component result = line1.append(Component.newline())
                 .append(line2).append(Component.newline())
                 .append(line3);
+
+        // Immunity state shown on its own line below the HP heart while at least one
+        // protection is broken. Format is "[IMMUNITY - <ready>/<total>]" — ready is the
+        // number of protections still available, total is the count owned. Color signals
+        // the phase: aqua during the active immunity window, yellow while reloading.
+        // The line disappears once every queued reload has completed.
+        if (!brokenProtections.isEmpty()) {
+            int total = purchasedProtections.size();
+            int ready = total - brokenProtections.size();
+            NamedTextColor immunityColor = isImmune() ? NamedTextColor.AQUA : NamedTextColor.YELLOW;
+            result = result.append(Component.newline())
+                    .append(Component.text("[IMMUNITY - " + ready + "/" + total + "]", immunityColor));
+        }
+
+        return result;
     }
 
     /** Refreshes the overhead TextDisplay nametag. Creates it if it doesn't exist yet. */

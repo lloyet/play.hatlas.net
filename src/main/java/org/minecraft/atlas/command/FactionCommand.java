@@ -42,6 +42,7 @@ import org.minecraft.atlas.listener.SafeZoneListener;
 import org.minecraft.atlas.util.TabListManager;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -154,22 +155,35 @@ public class FactionCommand {
                     .append(Component.text("Claims: ", NamedTextColor.GRAY))
                     .append(Component.text(totalClaims + " / " + totalCapacity + " chunk(s)", NamedTextColor.GREEN));
 
-            // Crystal protections — duration + status (ready / active / regenerate).
-            // Regeneration is sequential: only the SHORTEST broken protection ("head")
-            // is currently regenerating; longer broken ones are queued behind it.
+            // Crystal protections — header + per-crystal lists.
+            // Each crystal's protections are listed greatest-to-lowest duration with their
+            // current status (ready / active / regenerate). Regeneration is sequential:
+            // only the SHORTEST broken protection ("head") is currently regenerating;
+            // longer broken ones are queued behind it.
             long now = System.currentTimeMillis();
+            boolean printedProtectionHeader = false;
             for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(faction.getName())) {
                 if (crystal.getPurchasedProtections().isEmpty()) continue;
+
+                if (!printedProtectionHeader) {
+                    msg = msg.append(Component.newline())
+                            .append(Component.text("Protection", NamedTextColor.GRAY));
+                    printedProtectionHeader = true;
+                }
+
                 String label = crystal.getName().isEmpty() ? "Crystal" : "'" + crystal.getName() + "'";
                 msg = msg.append(Component.newline())
-                        .append(Component.text(label + " Protections:", NamedTextColor.GRAY));
+                        .append(Component.text(label + ":", NamedTextColor.GRAY));
 
                 Long regenHead = null;
                 for (Long d : crystal.getBrokenProtections().keySet()) {
                     if (regenHead == null || d < regenHead) regenHead = d;
                 }
 
-                for (Long d : crystal.getPurchasedProtections()) {
+                List<Long> sortedProtections = new ArrayList<>(crystal.getPurchasedProtections());
+                sortedProtections.sort(Comparator.reverseOrder());
+
+                for (Long d : sortedProtections) {
                     Long brokenAt = crystal.getBrokenProtections().get(d);
                     Component statusTag;
                     if (brokenAt == null) {
@@ -399,7 +413,7 @@ public class FactionCommand {
                                     int playerY = player.getLocation().getBlockY();
 
                                     Location spawnLoc = new Location(player.getWorld(),
-                                            playerX + 0.5, playerY + 2.0, playerZ + 0.5);
+                                            playerX + 0.5, playerY + 1.0, playerZ + 0.5);
 
                                     EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                                     crystalEntity.setShowingBottom(true);
@@ -1347,7 +1361,7 @@ public class FactionCommand {
                             Location playerLoc = player.getLocation();
                             Location spawnLoc = new Location(player.getWorld(),
                                     playerLoc.getBlockX() + 0.5,
-                                    playerLoc.getBlockY() + 2.0,
+                                    playerLoc.getBlockY() + 1.0,
                                     playerLoc.getBlockZ() + 0.5);
 
                             EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);

@@ -366,12 +366,12 @@ public class CrystalSkillListGui implements AtlasGui {
 
     private static ItemStack buildProtectionTierItem(FactionLevelManager.ProtectionTier tier, int index,
                                                      int availableSp, AtlasCrystal crystal) {
-        long ms   = tier.durationMs();
+        long ms = tier.durationMs();
         long secs = ms / 1000L;
         String timeStr = secs >= 3600 ? (secs / 3600) + "h" : (secs / 60) + "m";
 
-        boolean owned     = crystal != null && crystal.hasPurchasedProtection(ms);
-        boolean broken    = owned && crystal.isProtectionBroken(ms);
+        boolean owned = crystal != null && crystal.hasPurchasedProtection(ms);
+        boolean broken = owned && crystal.isProtectionBroken(ms);
         boolean canAfford = availableSp >= tier.cost();
         NamedTextColor color =
                 owned     ? NamedTextColor.AQUA  :

@@ -32,23 +32,23 @@ public class CrystalSkillConfirmGui implements AtlasGui {
 
     public CrystalSkillConfirmGui(Player player, String factionName, UUID crystalEntityUUID,
                                   SkillPurchaseType type, int tierIndex) {
-        this.factionName       = factionName;
+        this.factionName = factionName;
         this.crystalEntityUUID = crystalEntityUUID;
-        this.type              = type;
-        this.tierIndex         = tierIndex;
+        this.type = type;
+        this.tierIndex = tierIndex;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
                 Component.text("Confirm Upgrade? - " + GuiUtil.truncateFactionName(factionName), NamedTextColor.GOLD));
 
         ItemStack green = GuiUtil.labeledPane(Material.GREEN_STAINED_GLASS_PANE,
                 Component.text("✔ Confirm", NamedTextColor.GREEN));
-        ItemStack red   = GuiUtil.labeledPane(Material.RED_STAINED_GLASS_PANE,
+        ItemStack red = GuiUtil.labeledPane(Material.RED_STAINED_GLASS_PANE,
                 Component.text("✘ Cancel", NamedTextColor.RED));
-        ItemStack gray  = GuiUtil.emptyPane();
+        ItemStack gray = GuiUtil.emptyPane();
 
         for (int slot : GuiUtil.CONFIRM_GREEN) this.inventory.setItem(slot, green);
         for (int slot : GuiUtil.CONFIRM_RED)   this.inventory.setItem(slot, red);
-        this.inventory.setItem(4,  gray);
+        this.inventory.setItem(4, gray);
         this.inventory.setItem(22, gray);
         this.inventory.setItem(GuiUtil.SLOT_CONFIRM_INFO, buildConfirmInfoItem(type, tierIndex));
     }
@@ -89,7 +89,10 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                     if (tierIndex >= tiers.size()) yield false;
                     yield AtlasCrystalManager.purchaseProtectionUpgrade(factionName, crystalEntityUUID, tiers.get(tierIndex));
                 }
-                case OUTPOST -> AtlasCrystalManager.purchaseOutpostUpgrade(factionName);
+                case OUTPOST -> {
+                    FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
+                    yield AtlasCrystalManager.purchaseOutpostUpgrade(factionName, crystalEntityUUID, tier);
+                }
             };
 
             if (success) {

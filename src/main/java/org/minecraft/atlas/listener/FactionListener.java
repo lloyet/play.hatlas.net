@@ -338,7 +338,7 @@ public class FactionListener implements Listener {
             // Drop this crystal's chests + remove its claims while the entity is still valid;
             // other crystals of the same faction keep their own claims and chests.
             AtlasCrystalManager.destroyCrystal(atlasCrystal.getEntityUUID());
-            crystal.remove(); // despawn the entity afterwards
+            crystal.remove(); // despawn the entity afterward
         }
     }
 
