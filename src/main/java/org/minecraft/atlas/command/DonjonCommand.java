@@ -81,6 +81,8 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("tp", "<id>", "Teleport to a donjon"))
                                     .append(Component.newline()).append(helpEntry("delete", "<id>", "Delete a donjon"))
                                     .append(Component.newline()).append(helpEntry("claim", "<id>", "Add current chunk to donjon protected area"))
+                                    .append(Component.newline()).append(helpEntry("unclaim", "<id>", "Remove current chunk from donjon protected area"))
+                                    .append(Component.newline()).append(helpEntry("unclaimall", "<id>", "Remove all claimed chunks from a donjon"))
                                     .append(Component.newline()).append(Component.text("  -- /donjon set --", NamedTextColor.DARK_AQUA))
                                     .append(Component.newline()).append(helpEntry("set difficulty", "<id> <0-99>", "Set donjon difficulty level"))
                                     .append(Component.newline()).append(helpEntry("set rarity", "<id> <rarity>", "Set donjon rarity"))
@@ -91,6 +93,7 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("wavespawn add", "<id>", "Add current location as wave spawn point"))
                                     .append(Component.newline()).append(helpEntry("wavespawn list", "<id>", "List all wave spawn points with IDs"))
                                     .append(Component.newline()).append(helpEntry("wavespawn delete", "<id> <spawnid>", "Delete a wave spawn point by ID"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn clear", "<id>", "Delete all wave spawn points of a donjon"))
                                     .append(Component.newline()).append(helpEntry("give", "<player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe [...]", "Give a donjon item to a player"))
                     );
                     return Command.SINGLE_SUCCESS;
@@ -329,12 +332,20 @@ public class DonjonCommand {
                                         return Command.SINGLE_SUCCESS;
                                     }
 
-                                    player.teleport(d.getCenter());
+                                    org.bukkit.Location dest = d.getTeleportSpawn();
+                                    if (dest == null) {
+                                        player.sendMessage(Component.text(
+                                                "Donjon " + d.getName() + " has no teleport spawn set. "
+                                                        + "Use /donjon set spawn " + id + " first.",
+                                                NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    player.teleport(dest);
                                     player.sendMessage(Component.text(
                                             "Teleported to donjon: " + d.getName()
-                                                    + " (" + d.getCenter().getBlockX()
-                                                    + "," + d.getCenter().getBlockY()
-                                                    + "," + d.getCenter().getBlockZ() + ")",
+                                                    + " (" + dest.getBlockX()
+                                                    + "," + dest.getBlockY()
+                                                    + "," + dest.getBlockZ() + ")",
                                             NamedTextColor.GREEN));
 
                                     return Command.SINGLE_SUCCESS;
@@ -446,6 +457,13 @@ public class DonjonCommand {
                                                 player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
                                                 return Command.SINGLE_SUCCESS;
                                             }
+                                            if (!playerStandingInDonjonClaim(player, d)) {
+                                                player.sendMessage(Component.text(
+                                                        "Your current location is not inside a claim of donjon " + d.getName()
+                                                                + ". Use /donjon claim first.",
+                                                        NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
                                             d.setTeleportSpawn(player.getLocation());
                                             DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
                                             Atlas.saveDonjonsDataConfig();
@@ -549,7 +567,66 @@ public class DonjonCommand {
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
-                // /donjon wavespawn add|list|delete
+                // /donjon unclaim <id>  — remove player's current chunk from the donjon's protected area
+                .then(Commands.literal("unclaim")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "unclaim <id>"))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(DONJON_IDS)
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(Component.text("Only players can use this.", NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    Donjon d = DonjonManager.getDonjon(id);
+                                    if (d == null) {
+                                        player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    int cx = player.getLocation().getChunk().getX();
+                                    int cz = player.getLocation().getChunk().getZ();
+                                    if (!DonjonManager.removeProtectedChunk(id, player.getWorld(), cx, cz)) {
+                                        player.sendMessage(Component.text(
+                                                "Chunk [" + cx + ", " + cz + "] is not claimed by donjon " + d.getName() + ".",
+                                                NamedTextColor.YELLOW));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
+                                    player.sendMessage(Component.text(
+                                            "Chunk [" + cx + ", " + cz + "] removed from donjon " + d.getName() + " protected area.",
+                                            NamedTextColor.GREEN));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
+                // /donjon unclaimall <id>  — remove every claimed chunk from the donjon
+                .then(Commands.literal("unclaimall")
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "unclaimall <id>"))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(DONJON_IDS)
+                                .executes(ctx -> {
+                                    String id = StringArgumentType.getString(ctx, "id");
+                                    Donjon d = DonjonManager.getDonjon(id);
+                                    if (d == null) {
+                                        ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    int removed = DonjonManager.clearProtectedChunks(id);
+                                    if (removed <= 0) {
+                                        ctx.getSource().getSender().sendMessage(Component.text(
+                                                "Donjon " + d.getName() + " has no claimed chunks.", NamedTextColor.YELLOW));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                    Atlas.saveDonjonsDataConfig();
+                                    ctx.getSource().getSender().sendMessage(Component.text(
+                                            "Removed " + removed + " claimed chunk(s) from donjon " + d.getName() + ".",
+                                            NamedTextColor.GREEN));
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+
+                // /donjon wavespawn add|list|delete|clear
                 .then(Commands.literal("wavespawn")
                         .executes(ctx -> {
                             ctx.getSource().getSender().sendMessage(
@@ -557,6 +634,7 @@ public class DonjonCommand {
                                     .append(Component.newline()).append(helpEntry("wavespawn add", "<id>", "Add current location as wave spawn point"))
                                     .append(Component.newline()).append(helpEntry("wavespawn list", "<id>", "List all wave spawn points with IDs"))
                                     .append(Component.newline()).append(helpEntry("wavespawn delete", "<id> <spawnid>", "Delete a wave spawn point by ID"))
+                                    .append(Component.newline()).append(helpEntry("wavespawn clear", "<id>", "Delete all wave spawn points of a donjon"))
                             );
                             return Command.SINGLE_SUCCESS;
                         })
@@ -577,11 +655,12 @@ public class DonjonCommand {
                                                 player.sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
                                                 return Command.SINGLE_SUCCESS;
                                             }
-                                            int px = player.getLocation().getChunk().getX();
-                                            int pz = player.getLocation().getChunk().getZ();
-                                            if (!d.getProtectedChunkKeys().contains(org.bukkit.Chunk.getChunkKey(px, pz))) {
+                                            if (!playerStandingInDonjonClaim(player, d)) {
+                                                int px = player.getLocation().getChunk().getX();
+                                                int pz = player.getLocation().getChunk().getZ();
                                                 player.sendMessage(Component.text(
-                                                        "Your current chunk [" + px + ", " + pz + "] is not inside the donjon's protected area. Use /donjon claim first.",
+                                                        "Your current chunk [" + px + ", " + pz + "] is not inside a claim of donjon "
+                                                                + d.getName() + ". Use /donjon claim first.",
                                                         NamedTextColor.RED));
                                                 return Command.SINGLE_SUCCESS;
                                             }
@@ -647,7 +726,33 @@ public class DonjonCommand {
                                                     ctx.getSource().getSender().sendMessage(Component.text(
                                                             "Spawn point #" + spawnId + " removed from donjon " + d.getName() + ".", NamedTextColor.GREEN));
                                                     return Command.SINGLE_SUCCESS;
-                                                })))))
+                                                })))
+                        // /donjon wavespawn clear <id>
+                        .then(Commands.literal("clear")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "wavespawn clear <id>"))
+                                .then(Commands.argument("id", StringArgumentType.word())
+                                        .suggests(DONJON_IDS)
+                                        .executes(ctx -> {
+                                            String id = StringArgumentType.getString(ctx, "id");
+                                            Donjon d = DonjonManager.getDonjon(id);
+                                            if (d == null) {
+                                                ctx.getSource().getSender().sendMessage(Component.text("Donjon not found: " + id, NamedTextColor.RED));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            int removed = d.getSpawnPointsById().size();
+                                            if (removed == 0) {
+                                                ctx.getSource().getSender().sendMessage(Component.text(
+                                                        "No wave spawn points to clear for " + d.getName() + ".", NamedTextColor.YELLOW));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            d.setSpawnPoints(java.util.Collections.emptyList());
+                                            DonjonManager.saveDonjonData(Atlas.donjonsDataConfig);
+                                            Atlas.saveDonjonsDataConfig();
+                                            ctx.getSource().getSender().sendMessage(Component.text(
+                                                    "Cleared " + removed + " wave spawn point(s) from donjon " + d.getName() + ".",
+                                                    NamedTextColor.GREEN));
+                                            return Command.SINGLE_SUCCESS;
+                                        })))))
 
                 // /donjon give <player> key|ominouskey|creeper_egg|powered_creeper_egg|raider_diamond_pickaxe
                 .then(Commands.literal("give")
@@ -818,6 +923,13 @@ public class DonjonCommand {
         src.getSender().sendMessage(success("Gave " + amount + "x " + label + " to " + target.getName() + "."));
         target.sendMessage(Component.text("You received " + amount + "x " + label + ".", NamedTextColor.GOLD));
         return Command.SINGLE_SUCCESS;
+    }
+
+    private static boolean playerStandingInDonjonClaim(Player player, Donjon d) {
+        org.bukkit.Location loc = player.getLocation();
+        if (!loc.getWorld().equals(d.getWorld())) return false;
+        long key = org.bukkit.Chunk.getChunkKey(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+        return d.getProtectedChunkKeys().contains(key);
     }
 
     private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {

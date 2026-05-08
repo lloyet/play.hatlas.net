@@ -428,7 +428,7 @@ public class DonjonListener implements Listener {
         Player player = event.getPlayer();
 
         for (Donjon donjon : DonjonManager.getDonjons().values()) {
-            if (!player.getWorld().equals(donjon.getCenter().getWorld())) continue;
+            if (!player.getWorld().equals(donjon.getWorld())) continue;
 
             boolean wasIn = donjon.getProtectedChunkKeys().contains(fromKey);
             boolean isIn = donjon.getProtectedChunkKeys().contains(toKey);

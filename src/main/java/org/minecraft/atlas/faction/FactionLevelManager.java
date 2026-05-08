@@ -14,17 +14,19 @@ public class FactionLevelManager {
     private static final int[] expForLevel = new int[MAX_LEVEL + 1];
     private static int skillPointsPerLevel = 1;
 
-    public record HpTier(double bonus, int cost) {}
+    public record HpTier(double bonus, double regen, int cost) {}
     public record ClaimTier(int amount, int cost) {}
     public record ChestTier(int size, int cost) {}
     public record ProtectionTier(long durationMs, int cost) {}
     public record OutpostTier(int cost) {}
+    public record HomeTier(int amount, int cost) {}
 
     private static List<HpTier>         hpTiers         = new ArrayList<>();
     private static List<ClaimTier>      claimTiers      = new ArrayList<>();
     private static List<ChestTier>      chestTiers      = new ArrayList<>();
     private static List<ProtectionTier> protectionTiers = new ArrayList<>();
-    private static OutpostTier          outpostTier     = new OutpostTier(15);
+    private static OutpostTier          outpostTier     = null;
+    private static List<HomeTier>       homeTiers       = new ArrayList<>();
 
     static {
         expForLevel[0] = 0;
@@ -48,49 +50,46 @@ public class FactionLevelManager {
     public static List<ChestTier>      getChestTiers()      { return Collections.unmodifiableList(chestTiers); }
     public static List<ProtectionTier> getProtectionTiers() { return Collections.unmodifiableList(protectionTiers); }
     public static OutpostTier          getOutpostTier()     { return outpostTier; }
+    public static List<HomeTier>       getHomeTiers()       { return Collections.unmodifiableList(homeTiers); }
 
-    /** Loads skill-point upgrade tiers from factions.yml. Call once from Atlas.onEnable. */
+    /**
+     * Loads skill-point upgrade tiers from factions.yml. Call once from Atlas.onEnable.
+     * Tiers are populated <em>only</em> from the file — a skill section that is missing
+     * or empty results in an empty tier list, so the skill GUI hides that row entirely.
+     */
     public static void loadUpgrades(FileConfiguration config) {
         skillPointsPerLevel = config.getInt("skill_points_per_level", 1);
-        hpTiers.clear(); claimTiers.clear(); chestTiers.clear(); protectionTiers.clear();
+        hpTiers.clear(); claimTiers.clear(); chestTiers.clear(); protectionTiers.clear(); homeTiers.clear();
+        outpostTier = null;
 
         ConfigurationSection skills = config.getConfigurationSection("skills");
-        if (skills != null) {
-            for (Map<?, ?> m : skills.getMapList("hp")) {
-                if (m.get("bonus") instanceof Number b && m.get("cost") instanceof Number c)
-                    hpTiers.add(new HpTier(b.doubleValue(), c.intValue()));
-            }
-            for (Map<?, ?> m : skills.getMapList("claims")) {
-                if (m.get("amount") instanceof Number a && m.get("cost") instanceof Number c)
-                    claimTiers.add(new ClaimTier(a.intValue(), c.intValue()));
-            }
-            for (Map<?, ?> m : skills.getMapList("chest")) {
-                if (m.get("size") instanceof Number s && m.get("cost") instanceof Number c)
-                    chestTiers.add(new ChestTier(s.intValue(), c.intValue()));
-            }
-            for (Map<?, ?> m : skills.getMapList("protection")) {
-                if (m.get("minutes") instanceof Number min && m.get("cost") instanceof Number c)
-                    protectionTiers.add(new ProtectionTier(min.longValue() * 60_000L, c.intValue()));
-            }
-            ConfigurationSection outpostSection = skills.getConfigurationSection("outpost");
-            if (outpostSection != null) {
-                outpostTier = new OutpostTier(outpostSection.getInt("cost", 15));
+        if (skills == null) return;
+
+        for (Map<?, ?> m : skills.getMapList("hp")) {
+            if (m.get("bonus") instanceof Number b && m.get("cost") instanceof Number c) {
+                double regen = m.get("regen") instanceof Number r ? r.doubleValue() : 0d;
+                hpTiers.add(new HpTier(b.doubleValue(), regen, c.intValue()));
             }
         }
-
-        // Defaults if empty
-        if (hpTiers.isEmpty())
-            hpTiers = new ArrayList<>(List.of(
-                    new HpTier(30, 1), new HpTier(50, 2), new HpTier(100, 3), new HpTier(200, 5)));
-        if (claimTiers.isEmpty())
-            claimTiers = new ArrayList<>(List.of(
-                    new ClaimTier(3, 3), new ClaimTier(5, 4), new ClaimTier(10, 6)));
-        if (chestTiers.isEmpty())
-            chestTiers = new ArrayList<>(List.of(
-                    new ChestTier(9, 1), new ChestTier(27, 2), new ChestTier(54, 3)));
-        if (protectionTiers.isEmpty())
-            protectionTiers = new ArrayList<>(List.of(
-                    new ProtectionTier(30 * 60_000L, 1), new ProtectionTier(60 * 60_000L, 2),
-                    new ProtectionTier(120 * 60_000L, 4), new ProtectionTier(240 * 60_000L, 6)));
+        for (Map<?, ?> m : skills.getMapList("claims")) {
+            if (m.get("amount") instanceof Number a && m.get("cost") instanceof Number c)
+                claimTiers.add(new ClaimTier(a.intValue(), c.intValue()));
+        }
+        for (Map<?, ?> m : skills.getMapList("chest")) {
+            if (m.get("size") instanceof Number s && m.get("cost") instanceof Number c)
+                chestTiers.add(new ChestTier(s.intValue(), c.intValue()));
+        }
+        for (Map<?, ?> m : skills.getMapList("protection")) {
+            if (m.get("minutes") instanceof Number min && m.get("cost") instanceof Number c)
+                protectionTiers.add(new ProtectionTier(min.longValue() * 60_000L, c.intValue()));
+        }
+        for (Map<?, ?> m : skills.getMapList("homes")) {
+            if (m.get("amount") instanceof Number a && m.get("cost") instanceof Number c)
+                homeTiers.add(new HomeTier(a.intValue(), c.intValue()));
+        }
+        ConfigurationSection outpostSection = skills.getConfigurationSection("outpost");
+        if (outpostSection != null && outpostSection.contains("cost")) {
+            outpostTier = new OutpostTier(outpostSection.getInt("cost"));
+        }
     }
 }

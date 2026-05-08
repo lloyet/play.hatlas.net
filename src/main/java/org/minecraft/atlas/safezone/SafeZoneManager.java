@@ -1,6 +1,7 @@
 package org.minecraft.atlas.safezone;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
@@ -95,22 +96,21 @@ public class SafeZoneManager {
 
     // ── Persistence ────────────────────────────────────────────────────────────
 
-    public static void saveConfig(FileConfiguration safezoneDataConfig, FileConfiguration legacyConfig) {
-        safezoneDataConfig.set("safezones",       null);
-        safezoneDataConfig.set("safezone_visits", null);
-        // Clear legacy keys (old location and old names) so stale data doesn't leak forward.
-        if (legacyConfig != null) {
-            legacyConfig.set("safezones",         null);
-            legacyConfig.set("safezone_visits",   null);
-            legacyConfig.set("protections",       null);
-            legacyConfig.set("protection_visits", null);
-        }
+    public static void saveConfig(FileConfiguration safezonesDataConfig) {
+        safezonesDataConfig.set("safezones",       null);
+        safezonesDataConfig.set("safezone_visits", null);
 
         if (!safeZones.isEmpty()) {
-            ConfigurationSection root = safezoneDataConfig.createSection("safezones");
+            ConfigurationSection root = safezonesDataConfig.createSection("safezones");
             for (SafeZone p : safeZones.values()) {
                 ConfigurationSection sec = root.createSection(p.getName());
-                sec.set("chunks", new ArrayList<>(p.getChunks()));
+                Map<String, List<String>> byWorld = groupChunkKeysByWorld(p.getChunks());
+                if (!byWorld.isEmpty()) {
+                    ConfigurationSection chunksSec = sec.createSection("chunks");
+                    for (Map.Entry<String, List<String>> e : byWorld.entrySet()) {
+                        chunksSec.set(e.getKey(), e.getValue());
+                    }
+                }
                 if (p.getSpawnPoint() != null)
                     sec.set("spawn_point", encodeLocation(p.getSpawnPoint()));
                 if (!p.getDescription().isEmpty())
@@ -119,7 +119,7 @@ public class SafeZoneManager {
         }
 
         if (!playerVisits.isEmpty()) {
-            ConfigurationSection visits = safezoneDataConfig.createSection("safezone_visits");
+            ConfigurationSection visits = safezonesDataConfig.createSection("safezone_visits");
             for (Map.Entry<UUID, Set<String>> e : playerVisits.entrySet()) {
                 if (!e.getValue().isEmpty())
                     visits.set(e.getKey().toString(), new ArrayList<>(e.getValue()));
@@ -127,22 +127,17 @@ public class SafeZoneManager {
         }
     }
 
-    public static void loadConfig(FileConfiguration safezoneDataConfig, FileConfiguration legacyConfig) {
+    public static void loadConfig(FileConfiguration safezonesDataConfig) {
         safeZones.clear();
         playerVisits.clear();
 
-        // Prefer new dedicated file; fall back to legacy locations/names for migration.
-        ConfigurationSection root = safezoneDataConfig.getConfigurationSection("safezones");
-        if (root == null && legacyConfig != null) {
-            root = legacyConfig.getConfigurationSection("safezones");
-            if (root == null) root = legacyConfig.getConfigurationSection("protections");
-        }
+        ConfigurationSection root = safezonesDataConfig.getConfigurationSection("safezones");
         if (root != null) {
             for (String name : root.getKeys(false)) {
                 SafeZone p = new SafeZone(name.toLowerCase());
                 ConfigurationSection sec = root.getConfigurationSection(name);
                 if (sec != null) {
-                    p.getChunks().addAll(sec.getStringList("chunks"));
+                    p.getChunks().addAll(readChunks(sec));
                     String sp = sec.getString("spawn_point");
                     if (sp != null) {
                         Location loc = decodeLocation(sp);
@@ -154,11 +149,7 @@ public class SafeZoneManager {
             }
         }
 
-        ConfigurationSection visits = safezoneDataConfig.getConfigurationSection("safezone_visits");
-        if (visits == null && legacyConfig != null) {
-            visits = legacyConfig.getConfigurationSection("safezone_visits");
-            if (visits == null) visits = legacyConfig.getConfigurationSection("protection_visits");
-        }
+        ConfigurationSection visits = safezonesDataConfig.getConfigurationSection("safezone_visits");
         if (visits != null) {
             for (String uuidStr : visits.getKeys(false)) {
                 try {
@@ -172,6 +163,50 @@ public class SafeZoneManager {
     }
 
     // ── Encoding helpers ───────────────────────────────────────────────────────
+
+    /**
+     * Splits the runtime "world:cx:cz" chunk-key strings into a map of
+     * {@code worldName → list of stringified chunk-key longs}, mirroring the donjon
+     * protected_chunks layout but nested per world.
+     */
+    private static Map<String, List<String>> groupChunkKeysByWorld(Set<String> runtimeKeys) {
+        Map<String, List<String>> byWorld = new LinkedHashMap<>();
+        for (String chunkKey : runtimeKeys) {
+            String[] parts = chunkKey.split(":");
+            if (parts.length != 3) continue;
+            try {
+                int cx = Integer.parseInt(parts[1]);
+                int cz = Integer.parseInt(parts[2]);
+                byWorld.computeIfAbsent(parts[0], w -> new ArrayList<>())
+                        .add(String.valueOf(Chunk.getChunkKey(cx, cz)));
+            } catch (NumberFormatException ignored) {}
+        }
+        return byWorld;
+    }
+
+    /**
+     * Reads the {@code chunks} entry from {@code sec}. Accepts both the new format
+     * (section keyed by world, list of stringified chunk-key longs under each) and
+     * the legacy format (flat list of {@code "world:cx:cz"} strings).
+     */
+    private static List<String> readChunks(ConfigurationSection sec) {
+        if (sec.isConfigurationSection("chunks")) {
+            ConfigurationSection chunksSec = sec.getConfigurationSection("chunks");
+            List<String> out = new ArrayList<>();
+            for (String worldName : chunksSec.getKeys(false)) {
+                for (String keyStr : chunksSec.getStringList(worldName)) {
+                    try {
+                        long key = Long.parseLong(keyStr);
+                        int cx = (int) key;
+                        int cz = (int) (key >> 32);
+                        out.add(worldName + ":" + cx + ":" + cz);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            return out;
+        }
+        return sec.getStringList("chunks");
+    }
 
     private static String encodeLocation(Location loc) {
         return loc.getWorld().getName() + ":" + loc.getX() + ":" + loc.getY() + ":" + loc.getZ()

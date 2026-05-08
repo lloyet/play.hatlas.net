@@ -30,7 +30,8 @@
       "Bash(dir \"run\\\\plugins\\\\atlas\\\\\" 2>&1 | head -30)",
       "Bash(git *)",
       "Bash(./gradlew compileJava --quiet)",
-      "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")"
+      "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")",
+      "Bash(./gradlew dependencies *)"
     ]
   }
 }

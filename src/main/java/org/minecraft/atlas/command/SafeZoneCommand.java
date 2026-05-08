@@ -274,9 +274,8 @@ public class SafeZoneCommand {
     }
 
     private static void save() {
-        SafeZoneManager.saveConfig(Atlas.safezoneDataConfig, Atlas.instance.getConfig());
-        Atlas.instance.saveConfig();
-        Atlas.saveSafezoneDataConfig();
+        SafeZoneManager.saveConfig(Atlas.safezonesDataConfig);
+        Atlas.saveSafezonesDataConfig();
     }
 
     private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {

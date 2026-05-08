@@ -10,6 +10,8 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.util.TitleUtil;
 
 import java.util.Collections;
@@ -20,6 +22,9 @@ import java.util.Set;
 import java.util.UUID;
 
 public class HomeManager {
+
+    /** Reserved name for the player's primary home — set/used by /sethome and /home with no args. */
+    public static final String MAIN_HOME = "main";
 
     /**
      * UUID → (home name → location), insertion-ordered so "first home" is deterministic.
@@ -156,28 +161,55 @@ public class HomeManager {
         return removed;
     }
 
+    /**
+     * Returns the maximum number of homes (main + secondaries) the player is allowed,
+     * computed as 1 + the bonus from their faction's homes-skill purchases.
+     */
+    public static int getHomeLimit(UUID playerUUID) {
+        String factionName = FactionManager.getPlayerFaction(playerUUID);
+        if (factionName == null) return 1;
+        Faction faction = FactionManager.getFaction(factionName);
+        return 1 + (faction != null ? faction.getBonusHomes() : 0);
+    }
+
+    /**
+     * Removes every home except the reserved {@link #MAIN_HOME}.
+     * Used when a player loses faction membership and forfeits the bonus slots.
+     */
+    public static void removeSecondaryHomes(UUID playerUUID) {
+        LinkedHashMap<String, Location> m = homes.get(playerUUID);
+        if (m == null) return;
+        m.keySet().removeIf(name -> !MAIN_HOME.equals(name));
+        if (m.isEmpty()) homes.remove(playerUUID);
+    }
+
     // -------------------------------------------------------------------------
     // Teleport
     // -------------------------------------------------------------------------
 
     /**
      * Starts the teleport countdown.
-     * Pass {@code null} for {@code homeName} to use the first (oldest) home.
+     * Pass {@code null} for {@code homeName} to teleport to the {@link #MAIN_HOME}.
      */
     public static boolean startTeleport(Player player, String homeName) {
         UUID uuid = player.getUniqueId();
 
         if (!hasAnyHome(uuid)) {
             player.sendMessage(Component.text(
-                    "You have no home set. Use /sethome <name> first.", NamedTextColor.RED));
+                    "You have no home set. Use /sethome first.", NamedTextColor.RED));
             return false;
         }
 
-        String resolvedName = (homeName == null) ? getFirstHomeName(uuid) : homeName;
+        String resolvedName = (homeName == null) ? MAIN_HOME : homeName;
         Location dest = getHomeLocation(uuid, resolvedName);
         if (dest == null) {
-            player.sendMessage(Component.text(
-                    "Home '" + resolvedName + "' not found.", NamedTextColor.RED));
+            if (homeName == null) {
+                player.sendMessage(Component.text(
+                        "You have no main home set. Use /sethome to set one.", NamedTextColor.RED));
+            } else {
+                player.sendMessage(Component.text(
+                        "Home '" + resolvedName + "' not found.", NamedTextColor.RED));
+            }
             return false;
         }
 

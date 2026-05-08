@@ -22,7 +22,7 @@ import java.util.UUID;
 
 public class CrystalSkillConfirmGui implements AtlasGui {
 
-    public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST }
+    public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST, HOMES }
 
     private final String factionName;
     private final UUID crystalEntityUUID;
@@ -91,7 +91,14 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                 }
                 case OUTPOST -> {
                     FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
+                    if (tier == null) yield false;
                     yield AtlasCrystalManager.purchaseOutpostUpgrade(factionName, crystalEntityUUID, tier);
+                }
+                case HOMES -> {
+                    List<FactionLevelManager.HomeTier> tiers = FactionLevelManager.getHomeTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseHomeUpgrade(factionName, crystalEntityUUID,
+                            tiers.get(tierIndex), tierIndex);
                 }
             };
 
@@ -127,6 +134,10 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                     meta.displayName(Component.text("Purchase HP Upgrade?", NamedTextColor.GOLD)
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(GuiUtil.loreLine("Bonus HP", "+" + (int) tier.bonus() + " ♥", NamedTextColor.RED));
+                    if (tier.regen() > 0) {
+                        lore.add(GuiUtil.loreLine("Regen", "+" + formatRegen(tier.regen()) + " ♥/s",
+                                NamedTextColor.GREEN));
+                    }
                     lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
                 }
             }
@@ -167,7 +178,19 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                 meta.displayName(Component.text("Purchase Outpost Skill?", NamedTextColor.GOLD)
                         .decoration(TextDecoration.ITALIC, false));
                 lore.add(GuiUtil.loreLine("Unlocks", "Outpost crystal placement", NamedTextColor.AQUA));
-                lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                if (tier != null)
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+            }
+            case HOMES -> {
+                List<FactionLevelManager.HomeTier> tiers = FactionLevelManager.getHomeTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.HomeTier tier = tiers.get(tierIndex);
+                    meta.displayName(Component.text("Purchase Homes Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Bonus Homes",
+                            "+" + tier.amount() + " per member", NamedTextColor.AQUA));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
             }
             default -> meta.displayName(Component.text("Purchase Upgrade?", NamedTextColor.GOLD)
                     .decoration(TextDecoration.ITALIC, false));
@@ -180,5 +203,10 @@ public class CrystalSkillConfirmGui implements AtlasGui {
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
+    }
+
+    /** Drops the trailing ".0" on whole numbers (e.g. 3.0 → "3", 1.5 → "1.5"). */
+    private static String formatRegen(double v) {
+        return v == Math.floor(v) ? String.valueOf((int) v) : String.valueOf(v);
     }
 }

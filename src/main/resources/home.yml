@@ -1,0 +1,9 @@
+# Atlas plugin home configuration
+# /home and /sethome teleport settings.
+# Persisted player homes live in homes-data.yml.
+
+home_teleport:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
+  # Cooldown in seconds after a successful /home teleport
+  cooldown_seconds: 30

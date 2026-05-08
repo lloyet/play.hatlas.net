@@ -15,40 +15,58 @@ skill_points_per_level: 1
 # chest     — unlocks a faction chest on the crystal     (size: 27 or 54, cost: SP)
 # protection — adds to the crystal's immunity duration on defeat (minutes, cost: SP)
 skills:
+  homes:
+    - amount: 1
+      cost: 2
+    - amount: 1
+      cost: 3
+    - amount: 1
+      cost: 5
   hp:
     - bonus: 20
-      cost: 1
-    - bonus: 50
+      regen: 1
       cost: 2
-    - bonus: 100
+    - bonus: 50
+      regen: 3
       cost: 3
-    - bonus: 200
+    - bonus: 150
+      regen: 5
       cost: 5
+    - bonus: 300
+      regen: 9
+      cost: 9
+    - bonus: 800
+      regen: 15
+      cost: 15
   claims:
-    - amount: 3
-      cost: 3
-    - amount: 5
+    - amount: 4
       cost: 4
-    - amount: 10
+    - amount: 8
       cost: 6
+    - amount: 16
+      cost: 10
+    - amount: 32
+      cost: 15
   chest:
     - size: 9
       cost: 1
-    - size: 27
-      cost: 2
-    - size: 54
+    - size: 18
       cost: 3
+    - size: 27
+      cost: 5
+    - size: 54
+      cost: 9
   protection:
     - minutes: 30
-      cost: 1
-    - minutes: 60
       cost: 2
+    - minutes: 60
+      cost: 3
     - minutes: 120
-      cost: 4
+      cost: 5
     - minutes: 240
-      cost: 6
+      cost: 9
     - minutes: 480
-      cost: 10
+      cost: 15
   outpost:
     cost: 15
 
@@ -62,4 +80,4 @@ crystal:
   # Escalation multiplier applied each time the crystal is defeated within the active window.
   immunity_multiplier: 2
   # Seconds of inactivity (no damage received) before a crystal starts regenerating HP.
-  regen_timeout_seconds: 30
+  regen_timeout_seconds: 20

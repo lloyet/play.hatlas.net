@@ -25,69 +25,63 @@ import java.util.UUID;
 
 /**
  * Skill-point upgrade GUI for an atlas crystal.
- * Layout (54 slots, 7 rows):
- *   Row 0 center (slot 4):            faction skill points info
- *   Row 1 (slots 9-17):               empty separator
- *   Row 2 (slots 20-23):              HP tiers
- *   Row 3 (slots 28-30 | 32):         Claim tiers (left) | Outpost (right)
- *   Row 4 (slots 36-44):              empty separator
- *   Row 5 (slots 46-48 | 50-53):      Chest tiers | Protection tiers
- *   Row 6 (slots 54-62):              empty  |  62: back
+ *
+ * <p>Paged layout (54 slots, 6 rows):
+ * <pre>
+ *   Row 0:                col 4 = SP info, col 8 = next-page arrow (when >1 page)
+ *   Row 1..4:             one skill kind per row, tiers laid out inline starting at col 1
+ *   Row 5 (slot 53):      back button (placed by finishGui)
+ * </pre>
+ *
+ * Skills are paginated through {@link SkillKind#values()} in declaration order, 4 per page.
+ * A skill with no tiers defined in factions.yml is skipped — empty rows do not appear.
  */
 public class CrystalSkillListGui implements AtlasGui {
+
+    /** Skill kinds in canonical display order. The GUI shows up to {@link #ROWS_PER_PAGE} per page. */
+    private enum SkillKind { HP, CLAIMS, CHEST, PROTECTION, HOMES, OUTPOST }
+
+    private static final int ROWS_PER_PAGE   = 4;
+    private static final int SLOT_SP_INFO    = 4;
+    private static final int SLOT_NEXT_ARROW = 8;
 
     private final String factionName;
     private final UUID crystalEntityUUID;
     private final Inventory inventory;
-
-    // Slot assignments
-    private static final int   SLOT_SP_INFO     = 4;
-    private static final int[] SLOTS_HP         = {10, 11, 12, 13};   // row 2, cols 2-5
-    private static final int[] SLOTS_CLAIMS     = {19, 20, 21};        // row 3, cols 1-3
-    private static final int   SLOT_OUTPOST     = 46;                  // row 3, col 5
-    private static final int[] SLOTS_CHEST      = {28, 29, 30};        // row 5, cols 1-3
-    private static final int[] SLOTS_PROTECTION = {37, 38, 39, 40};   // row 5, cols 5-8
+    private final int page;
 
     public CrystalSkillListGui(Player player, Faction faction, UUID crystalEntityUUID) {
+        this(player, faction, crystalEntityUUID, 0);
+    }
+
+    public CrystalSkillListGui(Player player, Faction faction, UUID crystalEntityUUID, int page) {
         this.factionName       = faction.getName();
         this.crystalEntityUUID = crystalEntityUUID;
 
+        List<SkillKind> defined = definedSkills();
+        int totalPages = Math.max(1, (defined.size() + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
+        // Wrap into [0, totalPages) so a click on the last page cycles back to page 1.
+        this.page = ((page % totalPages) + totalPages) % totalPages;
+
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text("Skills - " + GuiUtil.truncateFactionName(faction.getName()), NamedTextColor.LIGHT_PURPLE));
+                Component.text("Skills - " + GuiUtil.truncateFactionName(faction.getName())
+                        + " [Page " + (this.page + 1) + "/" + totalPages + "]",
+                        NamedTextColor.LIGHT_PURPLE));
 
         int sp = faction.getSkillPoints();
-
-        // Skill points info item
-        this.inventory.setItem(SLOT_SP_INFO, buildSpInfoItem(faction));
-
-        // HP upgrades
-        List<FactionLevelManager.HpTier> hpTiers = FactionLevelManager.getHpTiers();
-        for (int i = 0; i < hpTiers.size() && i < SLOTS_HP.length; i++) {
-            this.inventory.setItem(SLOTS_HP[i], buildHpTierItem(hpTiers.get(i), i, sp));
-        }
-
-        // Claim upgrades
-        List<FactionLevelManager.ClaimTier> claimTiers = FactionLevelManager.getClaimTiers();
-        for (int i = 0; i < claimTiers.size() && i < SLOTS_CLAIMS.length; i++) {
-            this.inventory.setItem(SLOTS_CLAIMS[i], buildClaimTierItem(claimTiers.get(i), i, sp));
-        }
-
-        // Chest upgrades
-        List<FactionLevelManager.ChestTier> chestTiers = FactionLevelManager.getChestTiers();
-        for (int i = 0; i < chestTiers.size() && i < SLOTS_CHEST.length; i++) {
-            this.inventory.setItem(SLOTS_CHEST[i], buildChestTierItem(chestTiers.get(i), i, sp));
-        }
-
-        // Protection upgrades — pass the crystal so already-purchased tiers render as "owned".
         AtlasCrystal protCrystal = AtlasCrystalManager.getCrystal(crystalEntityUUID);
-        List<FactionLevelManager.ProtectionTier> protTiers = FactionLevelManager.getProtectionTiers();
-        for (int i = 0; i < protTiers.size() && i < SLOTS_PROTECTION.length; i++) {
-            this.inventory.setItem(SLOTS_PROTECTION[i],
-                    buildProtectionTierItem(protTiers.get(i), i, sp, protCrystal));
+
+        this.inventory.setItem(SLOT_SP_INFO, buildSpInfoItem(faction));
+        if (totalPages > 1) {
+            this.inventory.setItem(SLOT_NEXT_ARROW, buildNextArrowItem(this.page, totalPages));
         }
 
-        // Outpost skill (one-time unlock)
-        this.inventory.setItem(SLOT_OUTPOST, buildOutpostItem(FactionLevelManager.getOutpostTier(), sp, faction.isOutpostUnlocked()));
+        int pageStart = this.page * ROWS_PER_PAGE;
+        for (int rowOffset = 0; rowOffset < ROWS_PER_PAGE; rowOffset++) {
+            int kindIdx = pageStart + rowOffset;
+            if (kindIdx >= defined.size()) break;
+            renderSkillRow(defined.get(kindIdx), rowOffset + 1, sp, faction, protCrystal);
+        }
 
         finishGui();
     }
@@ -118,100 +112,172 @@ public class CrystalSkillListGui implements AtlasGui {
         if (fn == null) { player.closeInventory(); return; }
         Faction faction = FactionManager.getFaction(fn);
 
-        // HP upgrade slots
-        for (int i = 0; i < SLOTS_HP.length; i++) {
-            if (slot == SLOTS_HP[i]) {
+        // Page-cycle arrow (slot 8 of row 0). Always advances; wraps from last to first.
+        if (slot == SLOT_NEXT_ARROW) {
+            List<SkillKind> defined = definedSkills();
+            int totalPages = Math.max(1, (defined.size() + ROWS_PER_PAGE - 1) / ROWS_PER_PAGE);
+            if (totalPages <= 1) return;
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            new CrystalSkillListGui(player, faction, crystalEntityUUID, page + 1).open(player);
+            return;
+        }
+
+        // Skill rows occupy inv rows 1..ROWS_PER_PAGE. Each row is one skill kind whose tiers
+        // are placed at cols 1, 2, 3, ... (col 0 is reserved as gutter / future use).
+        int row = slot / 9;
+        int col = slot % 9;
+        if (row < 1 || row > ROWS_PER_PAGE || col < 1) return;
+
+        List<SkillKind> defined = definedSkills();
+        int kindIdx = page * ROWS_PER_PAGE + (row - 1);
+        if (kindIdx >= defined.size()) return;
+        SkillKind kind = defined.get(kindIdx);
+        int tierIdx = col - 1;
+
+        handleSkillClick(player, faction, fn, kind, tierIdx);
+    }
+
+    private void handleSkillClick(Player player, Faction faction, String fn,
+                                  SkillKind kind, int tierIdx) {
+        switch (kind) {
+            case HP -> {
                 List<FactionLevelManager.HpTier> tiers = FactionLevelManager.getHpTiers();
-                if (i >= tiers.size()) return;
-                FactionLevelManager.HpTier tier = tiers.get(i);
-                if (faction.getSkillPoints() < tier.cost()) {
-                    player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
-                    return;
-                }
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-                GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalSkillConfirmGui.SkillPurchaseType.HP, i).open(player);
-                return;
+                if (tierIdx >= tiers.size()) return;
+                FactionLevelManager.HpTier tier = tiers.get(tierIdx);
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.HP, tierIdx);
             }
-        }
-
-        // Claim upgrade slots
-        for (int i = 0; i < SLOTS_CLAIMS.length; i++) {
-            if (slot == SLOTS_CLAIMS[i]) {
+            case CLAIMS -> {
                 List<FactionLevelManager.ClaimTier> tiers = FactionLevelManager.getClaimTiers();
-                if (i >= tiers.size()) return;
-                FactionLevelManager.ClaimTier tier = tiers.get(i);
-                if (faction.getSkillPoints() < tier.cost()) {
-                    player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
-                    return;
-                }
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-                GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalSkillConfirmGui.SkillPurchaseType.CLAIMS, i).open(player);
-                return;
+                if (tierIdx >= tiers.size()) return;
+                FactionLevelManager.ClaimTier tier = tiers.get(tierIdx);
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.CLAIMS, tierIdx);
             }
-        }
-
-        // Chest upgrade slots
-        for (int i = 0; i < SLOTS_CHEST.length; i++) {
-            if (slot == SLOTS_CHEST[i]) {
+            case CHEST -> {
                 List<FactionLevelManager.ChestTier> tiers = FactionLevelManager.getChestTiers();
-                if (i >= tiers.size()) return;
-                FactionLevelManager.ChestTier tier = tiers.get(i);
-                if (faction.getSkillPoints() < tier.cost()) {
-                    player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
-                    return;
-                }
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-                GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalSkillConfirmGui.SkillPurchaseType.CHEST, i).open(player);
-                return;
+                if (tierIdx >= tiers.size()) return;
+                FactionLevelManager.ChestTier tier = tiers.get(tierIdx);
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.CHEST, tierIdx);
             }
-        }
-
-        // Protection upgrade slots
-        for (int i = 0; i < SLOTS_PROTECTION.length; i++) {
-            if (slot == SLOTS_PROTECTION[i]) {
+            case PROTECTION -> {
                 List<FactionLevelManager.ProtectionTier> tiers = FactionLevelManager.getProtectionTiers();
-                if (i >= tiers.size()) return;
-                FactionLevelManager.ProtectionTier tier = tiers.get(i);
+                if (tierIdx >= tiers.size()) return;
+                FactionLevelManager.ProtectionTier tier = tiers.get(tierIdx);
                 AtlasCrystal target = AtlasCrystalManager.getCrystal(crystalEntityUUID);
                 if (target != null && target.hasPurchasedProtection(tier.durationMs())) {
                     player.sendMessage(Component.text(
                             "This protection tier is already purchased on this crystal.", NamedTextColor.YELLOW));
                     return;
                 }
-                if (faction.getSkillPoints() < tier.cost()) {
-                    player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.PROTECTION, tierIdx);
+            }
+            case HOMES -> {
+                List<FactionLevelManager.HomeTier> tiers = FactionLevelManager.getHomeTiers();
+                if (tierIdx >= tiers.size()) return;
+                if (faction.hasPurchasedHomeTier(tierIdx)) {
+                    player.sendMessage(Component.text(
+                            "This homes tier is already purchased.", NamedTextColor.YELLOW));
                     return;
                 }
-                player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-                GuiNavigator.push(player.getUniqueId(), this);
-                new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
-                        CrystalSkillConfirmGui.SkillPurchaseType.PROTECTION, i).open(player);
-                return;
+                FactionLevelManager.HomeTier tier = tiers.get(tierIdx);
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.HOMES, tierIdx);
+            }
+            case OUTPOST -> {
+                if (tierIdx != 0) return;
+                FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
+                if (tier == null) return;
+                if (faction.isOutpostUnlocked()) {
+                    player.sendMessage(Component.text("Outpost skill is already unlocked!", NamedTextColor.GOLD));
+                    return;
+                }
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.OUTPOST, 0);
             }
         }
+    }
 
-        // Outpost skill slot
-        if (slot == SLOT_OUTPOST) {
-            if (faction.isOutpostUnlocked()) {
-                player.sendMessage(Component.text("Outpost skill is already unlocked!", NamedTextColor.GOLD));
-                return;
+    /** Returns true (and messages the player) when the faction can't afford the cost. */
+    private static boolean denyForCost(Player player, Faction faction, int cost) {
+        if (faction.getSkillPoints() >= cost) return false;
+        player.sendMessage(Component.text(
+                "Not enough skill points (need " + cost + " SP).", NamedTextColor.RED));
+        return true;
+    }
+
+    private void openConfirm(Player player, String fn,
+                             CrystalSkillConfirmGui.SkillPurchaseType type, int tierIndex) {
+        player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+        GuiNavigator.push(player.getUniqueId(), this);
+        new CrystalSkillConfirmGui(player, fn, crystalEntityUUID, type, tierIndex).open(player);
+    }
+
+    /** Lays the tier items for {@code kind} along inv-row {@code row} starting at col 1. */
+    private void renderSkillRow(SkillKind kind, int row, int sp, Faction faction, AtlasCrystal crystal) {
+        int rowStart = row * 9 + 1;
+        switch (kind) {
+            case HP -> {
+                List<FactionLevelManager.HpTier> tiers = FactionLevelManager.getHpTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildHpTierItem(tiers.get(i), i, sp));
             }
-            FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
-            if (faction.getSkillPoints() < tier.cost()) {
-                player.sendMessage(Component.text("Not enough skill points (need " + tier.cost() + " SP).", NamedTextColor.RED));
-                return;
+            case CLAIMS -> {
+                List<FactionLevelManager.ClaimTier> tiers = FactionLevelManager.getClaimTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildClaimTierItem(tiers.get(i), i, sp));
             }
-            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            GuiNavigator.push(player.getUniqueId(), this);
-            new CrystalSkillConfirmGui(player, fn, crystalEntityUUID,
-                    CrystalSkillConfirmGui.SkillPurchaseType.OUTPOST, 0).open(player);
+            case CHEST -> {
+                List<FactionLevelManager.ChestTier> tiers = FactionLevelManager.getChestTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildChestTierItem(tiers.get(i), i, sp));
+            }
+            case PROTECTION -> {
+                List<FactionLevelManager.ProtectionTier> tiers = FactionLevelManager.getProtectionTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildProtectionTierItem(tiers.get(i), i, sp, crystal));
+            }
+            case HOMES -> {
+                List<FactionLevelManager.HomeTier> tiers = FactionLevelManager.getHomeTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildHomeTierItem(tiers.get(i), i, sp, faction));
+            }
+            case OUTPOST -> {
+                FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
+                if (tier != null) {
+                    inventory.setItem(rowStart, buildOutpostItem(tier, sp, faction.isOutpostUnlocked()));
+                }
+            }
         }
+    }
+
+    /** Returns the skill kinds that have at least one tier defined in factions.yml, in display order. */
+    private static List<SkillKind> definedSkills() {
+        List<SkillKind> defined = new ArrayList<>();
+        if (!FactionLevelManager.getHpTiers().isEmpty())         defined.add(SkillKind.HP);
+        if (!FactionLevelManager.getClaimTiers().isEmpty())      defined.add(SkillKind.CLAIMS);
+        if (!FactionLevelManager.getChestTiers().isEmpty())      defined.add(SkillKind.CHEST);
+        if (!FactionLevelManager.getProtectionTiers().isEmpty()) defined.add(SkillKind.PROTECTION);
+        if (!FactionLevelManager.getHomeTiers().isEmpty())       defined.add(SkillKind.HOMES);
+        if (FactionLevelManager.getOutpostTier() != null)        defined.add(SkillKind.OUTPOST);
+        return defined;
+    }
+
+    private static ItemStack buildNextArrowItem(int currentPage, int totalPages) {
+        int nextPage = ((currentPage + 1) % totalPages) + 1;
+        ItemStack item = new ItemStack(Material.ARROW);
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("Next Page →", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false));
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(Component.text("  Click to view page " + nextPage + "/" + totalPages,
+                NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
     }
 
     // ── Item builders ─────────────────────────────────────────────────────────
@@ -304,6 +370,10 @@ public class CrystalSkillListGui implements AtlasGui {
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
         lore.add(GuiUtil.loreLine("Bonus HP",   "+" + (int) tier.bonus() + " ♥", NamedTextColor.RED));
+        if (tier.regen() > 0) {
+            lore.add(GuiUtil.loreLine("Regen",  "+" + formatRegen(tier.regen()) + " ♥/s",
+                    NamedTextColor.GREEN));
+        }
         lore.add(GuiUtil.loreLine("Cost",       tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
         lore.add(Component.empty());
         lore.add(Component.text(canAfford ? "  Click to purchase" : "  Not enough skill points", color)
@@ -312,6 +382,45 @@ public class CrystalSkillListGui implements AtlasGui {
         meta.lore(lore);
         item.setItemMeta(meta);
         return item;
+    }
+
+    private static ItemStack buildHomeTierItem(FactionLevelManager.HomeTier tier, int index,
+                                               int availableSp, Faction faction) {
+        boolean owned = faction.hasPurchasedHomeTier(index);
+        boolean canAfford = availableSp >= tier.cost();
+        NamedTextColor color =
+                owned     ? NamedTextColor.AQUA  :
+                canAfford ? NamedTextColor.GREEN : NamedTextColor.RED;
+
+        ItemStack item = new ItemStack(Material.RED_BED);
+        ItemMeta meta = item.getItemMeta();
+        if (owned) meta.setEnchantmentGlintOverride(true);
+        meta.displayName(Component.text("Homes Upgrade #" + (index + 1), color)
+                .decoration(TextDecoration.ITALIC, false));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(GuiUtil.loreLine("Bonus Homes", "+" + tier.amount() + " per member", NamedTextColor.AQUA));
+        lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+        lore.add(Component.empty());
+        if (owned) {
+            lore.add(Component.text("  ✔ Already purchased", NamedTextColor.AQUA)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("  Each tier can be purchased once.", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(canAfford ? "  Click to purchase" : "  Not enough skill points", color)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    /** Drops the trailing ".0" on whole numbers (e.g. 3.0 → "3", 1.5 → "1.5"). */
+    private static String formatRegen(double v) {
+        return v == Math.floor(v) ? String.valueOf((int) v) : String.valueOf(v);
     }
 
     private static ItemStack buildClaimTierItem(FactionLevelManager.ClaimTier tier, int index, int availableSp) {

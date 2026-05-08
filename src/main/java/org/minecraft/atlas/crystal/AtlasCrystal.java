@@ -35,6 +35,7 @@ public class AtlasCrystal {
 
     // ── Skill-point-driven upgrades ───────────────────────────────────────────
     private double hpBonus            = 0;
+    private double regenBonus         = 0;
     private int claimCapacity      = 1;
     private final LinkedHashSet<String>  claimedChunks       = new LinkedHashSet<>();
     private final List<Integer>          purchasedChestSizes = new ArrayList<>();
@@ -100,6 +101,7 @@ public class AtlasCrystal {
 
     // ── Skill upgrade fields ──────────────────────────────────────────────────
     public double getHpBonus()                            { return hpBonus; }
+    public double getRegenBonus()                         { return regenBonus; }
     public int    getClaimCapacity()                      { return claimCapacity; }
     public LinkedHashSet<String> getClaimedChunks()       { return claimedChunks; }
     public List<Integer> getPurchasedChestSizes()         { return purchasedChestSizes; }
@@ -150,6 +152,7 @@ public class AtlasCrystal {
         this.hpBonus += bonus;
         this.maxHp   += bonus;
     }
+    public void addRegenBonus(double regen)  { this.regenBonus += regen; }
     public void addClaimCapacity(int amount) { this.claimCapacity = Math.max(1, claimCapacity + amount); }
     public void addPurchasedChest(int size)  { purchasedChestSizes.add(size); }
 
@@ -166,6 +169,7 @@ public class AtlasCrystal {
 
     // Restore-only setters — do NOT modify maxHp (it was already persisted correctly)
     void restoreHpBonus(double bonus)          { this.hpBonus = bonus; }
+    void restoreRegenBonus(double regen)       { this.regenBonus = regen; }
     void restoreClaimCapacity(int cap)         { this.claimCapacity = cap; }
     void restoreSpentSkillPoints(int sp)       { this.spentSkillPoints = sp; }
 

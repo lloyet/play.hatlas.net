@@ -211,11 +211,7 @@ public class DonjonManager {
             s.set("activation_time",  d.getActivationTime());
             s.set("timeout_warned",   d.isTimeoutWarned());
 
-            Location c = d.getCenter();
-            s.set("world",    c.getWorld().getName());
-            s.set("center_x", c.getBlockX());
-            s.set("center_y", c.getBlockY());
-            s.set("center_z", c.getBlockZ());
+            s.set("world", d.getWorld().getName());
 
             Location nt = d.getNametagLocation();
             if (nt != null) {
@@ -232,7 +228,6 @@ public class DonjonManager {
                     encoded.add(e.getKey() + "," + pt.getBlockX() + "," + pt.getBlockY() + "," + pt.getBlockZ());
                 }
                 s.set("spawn_points", encoded);
-                s.set("next_spawn_id", d.getNextSpawnId());
             }
 
             Set<Long> protectedKeys = d.getProtectedChunkKeys();
@@ -297,22 +292,39 @@ public class DonjonManager {
             World world = Bukkit.getWorld(worldName);
             if (world == null) continue;
 
-            Location center = new Location(world,
-                    s.getInt("center_x"), s.getInt("center_y"), s.getInt("center_z"));
+            Location nametagLoc = s.contains("nametag_x")
+                    ? new Location(world,
+                            s.getInt("nametag_x"), s.getInt("nametag_y"), s.getInt("nametag_z"))
+                    : null;
+
+            Location vaultLoc = s.contains("vault_x")
+                    ? new Location(world,
+                            s.getInt("vault_x"), s.getInt("vault_y"), s.getInt("vault_z"))
+                    : null;
+
+            Location teleportSpawnLoc = s.contains("teleport_spawn_x")
+                    ? new Location(world,
+                            s.getDouble("teleport_spawn_x"),
+                            s.getDouble("teleport_spawn_y"),
+                            s.getDouble("teleport_spawn_z"),
+                            (float) s.getDouble("teleport_spawn_yaw"),
+                            (float) s.getDouble("teleport_spawn_pitch"))
+                    : null;
+
+            List<String> protectedChunkStrs = s.getStringList("protected_chunks");
 
             String name = s.getString("name", "Unknown");
             int level = s.getInt("level", 0);
             DonjonRarity rarity = parseEnum(DonjonRarity.class, s.getString("rarity"), DonjonRarity.COMMON);
 
-            Donjon donjon = new Donjon(id, name, type, center, level, rarity);
+            Donjon donjon = new Donjon(id, name, type, world, level, rarity);
             donjon.setStatus(parseEnum(DonjonStatus.class, s.getString("status"), DonjonStatus.IDLE));
             donjon.setActivationTime(s.getLong("activation_time", 0));
             donjon.setTimeoutWarned(s.getBoolean("timeout_warned", false));
 
-            if (s.contains("nametag_x")) {
-                donjon.setNametagLocation(new Location(world,
-                        s.getInt("nametag_x"), s.getInt("nametag_y"), s.getInt("nametag_z")));
-            }
+            if (nametagLoc != null) donjon.setNametagLocation(nametagLoc);
+            if (vaultLoc != null)   donjon.setVaultLocation(vaultLoc);
+            if (teleportSpawnLoc != null) donjon.setTeleportSpawn(teleportSpawnLoc);
 
             List<String> spawnPtsRaw = s.getStringList("spawn_points");
             for (String enc : spawnPtsRaw) {
@@ -334,7 +346,6 @@ public class DonjonManager {
                     }
                 } catch (NumberFormatException ignored) {}
             }
-            if (s.contains("next_spawn_id")) donjon.setNextSpawnId(s.getInt("next_spawn_id"));
 
             String displayUUIDStr = s.getString("text_display_uuid");
             if (displayUUIDStr != null) {
@@ -342,31 +353,9 @@ public class DonjonManager {
                 catch (IllegalArgumentException ignored) {}
             }
 
-            if (s.contains("vault_x")) {
-                donjon.setVaultLocation(new Location(world,
-                        s.getInt("vault_x"), s.getInt("vault_y"), s.getInt("vault_z")));
-            }
-
-            if (s.contains("teleport_spawn_x")) {
-                Location ts = new Location(world,
-                        s.getDouble("teleport_spawn_x"),
-                        s.getDouble("teleport_spawn_y"),
-                        s.getDouble("teleport_spawn_z"),
-                        (float) s.getDouble("teleport_spawn_yaw"),
-                        (float) s.getDouble("teleport_spawn_pitch"));
-                donjon.setTeleportSpawn(ts);
-            }
-
-            List<String> protectedChunkStrs = s.getStringList("protected_chunks");
-            if (!protectedChunkStrs.isEmpty()) {
-                for (String keyStr : protectedChunkStrs) {
-                    try { donjon.getProtectedChunkKeys().add(Long.parseLong(keyStr)); }
-                    catch (NumberFormatException ignored) {}
-                }
-            } else {
-                // Fallback for data saved before manual claim support — protect center chunk only
-                Location c = donjon.getCenter();
-                donjon.getProtectedChunkKeys().add(Chunk.getChunkKey(c.getBlockX() >> 4, c.getBlockZ() >> 4));
+            for (String keyStr : protectedChunkStrs) {
+                try { donjon.getProtectedChunkKeys().add(Long.parseLong(keyStr)); }
+                catch (NumberFormatException ignored) {}
             }
             donjons.put(id, donjon);
         }
@@ -426,7 +415,7 @@ public class DonjonManager {
     }
 
     private static void checkPlayerPresence(Donjon donjon) {
-        World world = donjon.getCenter().getWorld();
+        World world = donjon.getWorld();
         Set<UUID> inside = new HashSet<>();
 
         for (Player p : Atlas.instance.getServer().getOnlinePlayers()) {
@@ -714,6 +703,7 @@ public class DonjonManager {
             Location spawnLoc = spawnCount > 0
                     ? spawnPoints.get(i % spawnCount).clone()
                     : randomSpawnLocation(donjon);
+            if (spawnLoc == null) continue;
             List<UUID> uuids = spawnMobEntity(mobsToSpawn.get(i), spawnLoc, finalHpMult, finalAtkMult,
                     wave.isBossWave(), wave.isBossWave() ? bossSpeedMult : 1.0,
                     donjonId, waveIndex);
@@ -863,9 +853,8 @@ public class DonjonManager {
             p.playSound(p.getLocation(), Sound.ENTITY_WITHER_DEATH, SoundCategory.MASTER, 1.0f, 1.0f);
         }
 
-        Location dropLoc = donjon.getNametagLocation() != null
-                ? donjon.getNametagLocation() : donjon.getCenter();
-        World dropWorld = dropLoc.getWorld();
+        Location dropLoc = donjonAnchor(donjon);
+        World dropWorld = dropLoc != null ? dropLoc.getWorld() : null;
 
         // Drop an enchanted Ominous Trial Key when EPIC+ donjon is completed
         if (donjon.getRarity().ordinal() >= DonjonRarity.EPIC.ordinal()) {
@@ -960,7 +949,7 @@ public class DonjonManager {
         donjon.getAuxiliaryEntities().clear();
 
         // Sweep loaded chunks for any surviving tagged mobs not in tracking sets (e.g. slime splits)
-        World world = donjon.getCenter().getWorld();
+        World world = donjon.getWorld();
         if (world != null) {
             Set<Long> protectedKeys = donjon.getProtectedChunkKeys();
             for (Chunk chunk : world.getLoadedChunks()) {
@@ -1045,6 +1034,7 @@ public class DonjonManager {
             if (!donjon.isInProgress()) return;
             if (donjon.getCurrentWave() != wave) return;
             Location spawnLoc = randomSpawnLocation(donjon);
+            if (spawnLoc == null) return;
             List<UUID> newUuids = spawnMobEntity(finalMobType, spawnLoc, finalHpMult, finalAtkMult,
                     isBoss, speedMult, donjonId, waveIndex);
             for (UUID newUuid : newUuids) {
@@ -1097,11 +1087,9 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     public static void spawnOrUpdateNametag(Donjon donjon) {
-        // Prefer vault block location, fall back to nametagLocation, then center
-        Location vaultLoc = donjon.getVaultLocation();
-        Location base = vaultLoc != null ? vaultLoc.clone()
-                : donjon.getNametagLocation() != null ? donjon.getNametagLocation()
-                : donjon.getCenter();
+        // Prefer vault block, then existing nametag, then teleport spawn — bail if none set
+        Location base = donjonAnchor(donjon);
+        if (base == null) return;
         Location displayLoc = base.clone().add(0.5, 3.5, 0.5);
 
         TextDisplay display = null;
@@ -1337,7 +1325,7 @@ public class DonjonManager {
 
         // Reject if the center chunk is already inside another donjon
         for (Donjon existing : donjons.values()) {
-            if (existing.getCenter().getWorld().equals(origin.getWorld())
+            if (existing.getWorld().equals(origin.getWorld())
                     && existing.getProtectedChunkKeys().contains(centerKey)) {
                 return null;
             }
@@ -1347,9 +1335,8 @@ public class DonjonManager {
         int level    = randomLevel();
         DonjonRarity rarity = randomRarity();
 
-        Donjon donjon = new Donjon(id, name, type, origin.toBlockLocation(), level, rarity);
+        Donjon donjon = new Donjon(id, name, type, origin.getWorld(), level, rarity);
         donjon.setStatus(DonjonStatus.IDLE);
-        donjon.getProtectedChunkKeys().add(centerKey);
 
         donjons.put(id, donjon);
 
@@ -1368,21 +1355,32 @@ public class DonjonManager {
      */
     public static boolean addProtectedChunk(String donjonId, World world, int chunkX, int chunkZ) {
         Donjon d = donjons.get(donjonId);
-        if (d == null || !d.getCenter().getWorld().equals(world)) return false;
+        if (d == null || !d.getWorld().equals(world)) return false;
         d.getProtectedChunkKeys().add(Chunk.getChunkKey(chunkX, chunkZ));
         return true;
     }
 
-    /** Returns {@code true} if any existing donjon's center is within {@code radiusBlocks} of {@code loc}. */
-    public static boolean donjonExistsNear(Location loc, double radiusBlocks) {
-        double sq = radiusBlocks * radiusBlocks;
+    /**
+     * Removes the chunk at ({@code chunkX}, {@code chunkZ}) in {@code world} from the
+     * protected area of the specified donjon. Returns false if the donjon does not
+     * exist, belongs to a different world, or did not claim that chunk.
+     */
+    public static boolean removeProtectedChunk(String donjonId, World world, int chunkX, int chunkZ) {
+        Donjon d = donjons.get(donjonId);
+        if (d == null || !d.getWorld().equals(world)) return false;
+        return d.getProtectedChunkKeys().remove(Chunk.getChunkKey(chunkX, chunkZ));
+    }
 
-        for (Donjon d : donjons.values()) {
-            if (!d.getCenter().getWorld().equals(loc.getWorld())) continue;
-            if (d.getCenter().distanceSquared(loc) <= sq) return true;
-        }
-
-        return false;
+    /**
+     * Clears every claimed chunk for the specified donjon. Returns the number of
+     * chunks that were unclaimed, or -1 if no donjon with that id exists.
+     */
+    public static int clearProtectedChunks(String donjonId) {
+        Donjon d = donjons.get(donjonId);
+        if (d == null) return -1;
+        int count = d.getProtectedChunkKeys().size();
+        d.getProtectedChunkKeys().clear();
+        return count;
     }
 
     // -------------------------------------------------------------------------
@@ -1438,7 +1436,7 @@ public class DonjonManager {
     }
 
     public static boolean isInDonjon(Location loc, Donjon donjon) {
-        if (!loc.getWorld().equals(donjon.getCenter().getWorld())) return false;
+        if (!loc.getWorld().equals(donjon.getWorld())) return false;
         long key = Chunk.getChunkKey(loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
 
         return donjon.getProtectedChunkKeys().contains(key);
@@ -1458,7 +1456,7 @@ public class DonjonManager {
         long key = Chunk.getChunkKey(chunkX, chunkZ);
 
         for (Donjon d : donjons.values()) {
-            if (d.getCenter().getWorld().getName().equals(worldName)
+            if (d.getWorld().getName().equals(worldName)
                     && d.getProtectedChunkKeys().contains(key)) {
                 return true;
             }
@@ -1469,7 +1467,7 @@ public class DonjonManager {
 
     public static Donjon getDonjonAtChunk(World world, long chunkKey) {
         for (Donjon d : donjons.values()) {
-            if (d.getCenter().getWorld().equals(world) && d.getProtectedChunkKeys().contains(chunkKey)) {
+            if (d.getWorld().equals(world) && d.getProtectedChunkKeys().contains(chunkKey)) {
                 return d;
             }
         }
@@ -1535,11 +1533,23 @@ public class DonjonManager {
         if (!spawnPoints.isEmpty()) {
             return spawnPoints.get(ThreadLocalRandom.current().nextInt(spawnPoints.size())).clone();
         }
-        // Fallback: random offset from center when no spawn points are stored
+        // Fallback when no wave spawns are configured: jitter around the donjon's anchor.
+        // /donjon activate refuses to start without spawn points, so this should only be hit
+        // by edge-case admin tooling.
+        Location anchor = donjonAnchor(donjon);
+        if (anchor == null) return null;
         ThreadLocalRandom rand = ThreadLocalRandom.current();
-        Location c = donjon.getCenter();
         int range = 8;
-        return c.clone().add(rand.nextInt(-range, range + 1), 0, rand.nextInt(-range, range + 1));
+        return anchor.clone().add(rand.nextInt(-range, range + 1), 0, rand.nextInt(-range, range + 1));
+    }
+
+    /** Returns a representative position for the donjon, or null if none of the
+     *  positional fields ({@code vault}, {@code nametag}, {@code teleport_spawn}) are set. */
+    private static Location donjonAnchor(Donjon donjon) {
+        if (donjon.getVaultLocation() != null)   return donjon.getVaultLocation();
+        if (donjon.getNametagLocation() != null) return donjon.getNametagLocation();
+        if (donjon.getTeleportSpawn() != null)   return donjon.getTeleportSpawn();
+        return null;
     }
 
     private static void broadcastGlobal(Component chatMsg, String shortTitle, NamedTextColor color) {
@@ -1549,7 +1559,7 @@ public class DonjonManager {
     }
 
     private static void alertDonjonPlayers(Donjon donjon, String text, NamedTextColor color) {
-        World world = donjon.getCenter().getWorld();
+        World world = donjon.getWorld();
         List<Player> players = Bukkit.getOnlinePlayers().stream()
                 .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
                 .collect(Collectors.toList());
@@ -1569,11 +1579,10 @@ public class DonjonManager {
     );
 
     private static void soundToDonjonPlayers(Donjon donjon, Sound sound, float volume, float pitch) {
-        World world = donjon.getCenter().getWorld();
-        Location loc = donjon.getCenter();
+        World world = donjon.getWorld();
         Bukkit.getOnlinePlayers().stream()
                 .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
-                .forEach(p -> p.playSound(loc, sound, SoundCategory.MASTER, volume, pitch));
+                .forEach(p -> p.playSound(p.getLocation(), sound, SoundCategory.MASTER, volume, pitch));
     }
 
     private static void randomSoundToDonjonPlayers(Donjon donjon, List<Sound> sounds, float volume, float pitch) {
@@ -1609,7 +1618,7 @@ public class DonjonManager {
     // -------------------------------------------------------------------------
 
     private static void alertDonjonPlayersSubtitle(Donjon donjon, String text, NamedTextColor color) {
-        World world = donjon.getCenter().getWorld();
+        World world = donjon.getWorld();
         List<Player> players = Bukkit.getOnlinePlayers().stream()
                 .filter(p -> p.getWorld().equals(world) && isInDonjon(p.getLocation(), donjon))
                 .collect(Collectors.toList());

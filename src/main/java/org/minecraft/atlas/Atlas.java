@@ -73,6 +73,12 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsConfig;
     public static File jobsFile;
 
+    public static YamlConfiguration homeConfig;
+    public static File homeFile;
+
+    public static YamlConfiguration safezonesConfig;
+    public static File safezonesFile;
+
     public static YamlConfiguration tagsDataConfig;
     public static File tagsDataFile;
 
@@ -85,14 +91,17 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsDataConfig;
     public static File jobsDataFile;
 
-    public static YamlConfiguration safezoneDataConfig;
-    public static File safezoneDataFile;
+    public static YamlConfiguration homesDataConfig;
+    public static File homesDataFile;
+
+    public static YamlConfiguration safezonesDataConfig;
+    public static File safezonesDataFile;
 
     @Override
     public void onEnable() {
         instance = this;
 
-        // config.yml — homes, teleport cooldowns, crystal, safe area, tags
+        // config.yml — tpa, spawn/random teleport, AFK, death-teleport cooldown
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
 
@@ -111,6 +120,16 @@ public final class Atlas extends JavaPlugin {
         if (!jobsFile.exists()) saveResource("jobs.yml", false);
         jobsConfig = YamlConfiguration.loadConfiguration(jobsFile);
 
+        // home.yml — /home and /sethome teleport settings
+        homeFile = new File(getDataFolder(), "home.yml");
+        if (!homeFile.exists()) saveResource("home.yml", false);
+        homeConfig = YamlConfiguration.loadConfiguration(homeFile);
+
+        // safezones.yml — safe-zone teleport settings
+        safezonesFile = new File(getDataFolder(), "safezones.yml");
+        if (!safezonesFile.exists()) saveResource("safezones.yml", false);
+        safezonesConfig = YamlConfiguration.loadConfiguration(safezonesFile);
+
         // tags-data.yml — in-world text display tags (runtime-only, not in resources)
         tagsDataFile = new File(getDataFolder(), "tags-data.yml");
         tagsDataConfig = YamlConfiguration.loadConfiguration(tagsDataFile);
@@ -125,17 +144,20 @@ public final class Atlas extends JavaPlugin {
         jobsDataFile = new File(getDataFolder(), "jobs-data.yml");
         jobsDataConfig = YamlConfiguration.loadConfiguration(jobsDataFile);
 
-        safezoneDataFile = new File(getDataFolder(), "safezone-data.yml");
-        safezoneDataConfig = YamlConfiguration.loadConfiguration(safezoneDataFile);
+        homesDataFile = new File(getDataFolder(), "homes-data.yml");
+        homesDataConfig = YamlConfiguration.loadConfiguration(homesDataFile);
 
-        // Load from config.yml
+        safezonesDataFile = new File(getDataFolder(), "safezones-data.yml");
+        safezonesDataConfig = YamlConfiguration.loadConfiguration(safezonesDataFile);
+
+        // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
-        SafeZoneManager.loadConfig(safezoneDataConfig, configFile);
-        SafeZoneTeleportManager.loadConfig(configFile);
+        SafeZoneManager.loadConfig(safezonesDataConfig);
+        SafeZoneTeleportManager.loadConfig(safezonesConfig);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
         SpawnTeleportManager.loadConfig(configFile);
-        HomeManager.loadConfig(configFile);
+        HomeManager.loadConfig(homeConfig);
         HomeTeleportManager.loadConfig(factionsConfig);
         TeleportAtManager.loadConfig(configFile);
         AfkManager.loadConfig(configFile);
@@ -164,7 +186,7 @@ public final class Atlas extends JavaPlugin {
         RaiderPickaxe.init();
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
-        HomeManager.loadHomes(configFile);
+        HomeManager.loadHomes(homesDataConfig);
 
         // Register all listeners
         getServer().getPluginManager().registerEvents(new ChatListener(), this);
@@ -222,11 +244,16 @@ public final class Atlas extends JavaPlugin {
         FileConfiguration configFile = getConfig();
 
         // Save to config.yml
-        HomeManager.saveHomes(configFile);
         SpawnManager.saveSpawn(configFile);
-        SafeZoneManager.saveConfig(safezoneDataConfig, configFile);
         saveConfig();
-        saveSafezoneDataConfig();
+
+        // Save to homes-data.yml
+        HomeManager.saveHomes(homesDataConfig);
+        saveHomesDataConfig();
+
+        // Save to safezones-data.yml
+        SafeZoneManager.saveConfig(safezonesDataConfig);
+        saveSafezonesDataConfig();
 
         // Save to tags-data.yml
         TagManager.saveTags(tagsDataConfig);
@@ -282,11 +309,19 @@ public final class Atlas extends JavaPlugin {
         }
     }
 
-    public static void saveSafezoneDataConfig() {
+    public static void saveHomesDataConfig() {
         try {
-            safezoneDataConfig.save(safezoneDataFile);
+            homesDataConfig.save(homesDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save safezone-data.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save homes-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveSafezonesDataConfig() {
+        try {
+            safezonesDataConfig.save(safezonesDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save safezones-data.yml: " + e.getMessage());
         }
     }
 }

@@ -97,8 +97,13 @@ public class DonjonListGui implements AtlasGui {
             return;
         }
 
+        Location dest = donjon.getTeleportSpawn();
+        if (dest == null) {
+            player.sendMessage(Component.text(
+                    "The smuggler has lost track of that destination.", NamedTextColor.RED));
+            return;
+        }
         player.closeInventory();
-        Location dest = donjon.getTeleportSpawn() != null ? donjon.getTeleportSpawn() : donjon.getCenter();
         player.teleport(dest);
         if (!player.isOp()) SmugglerManager.startCooldown(uuid);
         player.sendMessage(Component.text("The smuggler has sent you to ", NamedTextColor.AQUA)

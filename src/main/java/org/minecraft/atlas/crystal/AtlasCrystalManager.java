@@ -2,6 +2,7 @@ package org.minecraft.atlas.crystal;
 
 import net.kyori.adventure.text.Component;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -36,6 +37,7 @@ public class AtlasCrystalManager {
     private static NamespacedKey KEY_IMMUNE_UNTIL;
     private static NamespacedKey KEY_NAMETAG_DISPLAY;
     private static NamespacedKey KEY_HP_BONUS;
+    private static NamespacedKey KEY_REGEN_BONUS;
     private static NamespacedKey KEY_CLAIM_CAPACITY;
     private static NamespacedKey KEY_SPENT_SP;
     private static NamespacedKey KEY_PROTECTION_MS;          // legacy (single-sum)
@@ -75,6 +77,10 @@ public class AtlasCrystalManager {
         if (KEY_HP_BONUS == null) KEY_HP_BONUS = new NamespacedKey(Atlas.instance, "atlas_crystal_hp_bonus");
         return KEY_HP_BONUS;
     }
+    private static NamespacedKey getKeyRegenBonus() {
+        if (KEY_REGEN_BONUS == null) KEY_REGEN_BONUS = new NamespacedKey(Atlas.instance, "atlas_crystal_regen_bonus");
+        return KEY_REGEN_BONUS;
+    }
     private static NamespacedKey getKeyClaimCapacity() {
         if (KEY_CLAIM_CAPACITY == null) KEY_CLAIM_CAPACITY = new NamespacedKey(Atlas.instance, "atlas_crystal_claim_cap");
         return KEY_CLAIM_CAPACITY;
@@ -110,7 +116,7 @@ public class AtlasCrystalManager {
         regenPerSecond         = config.getDouble("crystal.regen_per_second", 1.5);
         immunityBaseMs         = config.getLong("crystal.immunity_base_seconds", 18000L) * 1000L;
         immunityMultiplierBase = config.getInt("crystal.immunity_multiplier", 2);
-        regenTimeoutMs         = config.getLong("crystal.regen_timeout_seconds", 60L) * 1000L;
+        regenTimeoutMs         = config.getLong("crystal.regen_timeout_seconds", 20L) * 1000L;
     }
 
     // ── State ─────────────────────────────────────────────────────────────────
@@ -189,6 +195,7 @@ public class AtlasCrystalManager {
         pdc.set(getKeyMaxHp(),        PersistentDataType.DOUBLE,  crystal.getMaxHp());
         pdc.set(getKeyImmuneUntil(),  PersistentDataType.LONG,    crystal.getImmuneUntilMillis());
         pdc.set(getKeyHpBonus(),      PersistentDataType.DOUBLE,  crystal.getHpBonus());
+        pdc.set(getKeyRegenBonus(),   PersistentDataType.DOUBLE,  crystal.getRegenBonus());
         pdc.set(getKeyClaimCapacity(),PersistentDataType.INTEGER, crystal.getClaimCapacity());
         pdc.set(getKeySpentSp(),      PersistentDataType.INTEGER, crystal.getSpentSkillPoints());
 
@@ -235,7 +242,13 @@ public class AtlasCrystalManager {
                 cs.set("home", encodeHome(home));
             }
             if (!crystal.getClaimedChunks().isEmpty()) {
-                cs.set("claimed_chunks", new ArrayList<>(crystal.getClaimedChunks()));
+                Map<String, List<String>> byWorld = groupChunkKeysByWorld(crystal.getClaimedChunks());
+                if (!byWorld.isEmpty()) {
+                    ConfigurationSection chunksSec = cs.createSection("claimed_chunks");
+                    for (Map.Entry<String, List<String>> e : byWorld.entrySet()) {
+                        chunksSec.set(e.getKey(), e.getValue());
+                    }
+                }
             }
             if (!crystal.getPurchasedChestSizes().isEmpty()) {
                 cs.set("chest_sizes", crystal.getPurchasedChestSizes());
@@ -264,6 +277,51 @@ public class AtlasCrystalManager {
                 }
             }
         }
+    }
+
+    /**
+     * Splits the runtime "world:cx:cz" chunk-key strings into a map of
+     * {@code worldName → list of stringified chunk-key longs} for persistence.
+     * Mirrors the donjon protected_chunks layout but nested per world.
+     */
+    private static Map<String, List<String>> groupChunkKeysByWorld(Set<String> runtimeKeys) {
+        Map<String, List<String>> byWorld = new LinkedHashMap<>();
+        for (String chunkKey : runtimeKeys) {
+            String[] parts = chunkKey.split(":");
+            if (parts.length != 3) continue;
+            try {
+                int cx = Integer.parseInt(parts[1]);
+                int cz = Integer.parseInt(parts[2]);
+                byWorld.computeIfAbsent(parts[0], w -> new ArrayList<>())
+                        .add(String.valueOf(Chunk.getChunkKey(cx, cz)));
+            } catch (NumberFormatException ignored) {}
+        }
+        return byWorld;
+    }
+
+    /**
+     * Reads the {@code claimed_chunks} key from {@code cs}. Accepts both the new format
+     * (section keyed by world, list of stringified chunk-key longs under each) and the
+     * legacy format (flat list of {@code "world:cx:cz"} strings). Returns runtime keys
+     * in the {@code "world:cx:cz"} form expected by FactionClaimManager.
+     */
+    private static List<String> readClaimedChunks(ConfigurationSection cs) {
+        if (cs.isConfigurationSection("claimed_chunks")) {
+            ConfigurationSection chunksSec = cs.getConfigurationSection("claimed_chunks");
+            List<String> out = new ArrayList<>();
+            for (String worldName : chunksSec.getKeys(false)) {
+                for (String keyStr : chunksSec.getStringList(worldName)) {
+                    try {
+                        long key = Long.parseLong(keyStr);
+                        int cx = (int) key;
+                        int cz = (int) (key >> 32);
+                        out.add(worldName + ":" + cx + ":" + cz);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
+            return out;
+        }
+        return cs.getStringList("claimed_chunks");
     }
 
     /** Kept for backward compatibility with Atlas.java which calls loadCrystalHomes. */
@@ -335,7 +393,7 @@ public class AtlasCrystalManager {
 
                     // Claims — populate FactionClaimManager runtime cache as we go so
                     // territory enforcement works without a separate per-faction "claims" section.
-                    for (String chunkKey : cs.getStringList("claimed_chunks")) {
+                    for (String chunkKey : readClaimedChunks(cs)) {
                         stub.getClaimedChunks().add(chunkKey);
                         String[] parts = chunkKey.split(":");
                         if (parts.length == 3) {
@@ -455,7 +513,7 @@ public class AtlasCrystalManager {
                     Location home = decodeHome(homeStr);
                     if (home != null) crystal.setHome(home);
                 }
-                for (String chunkKey : cs.getStringList("claimed_chunks")) {
+                for (String chunkKey : readClaimedChunks(cs)) {
                     crystal.getClaimedChunks().add(chunkKey);
                 }
                 for (int size : cs.getIntegerList("chest_sizes")) {
@@ -520,11 +578,13 @@ public class AtlasCrystalManager {
         // Restore scalar PDC fields (maxHp already loaded correctly, use restore methods)
         var pdc = entity.getPersistentDataContainer();
         Double hpBonus        = pdc.get(getKeyHpBonus(),      PersistentDataType.DOUBLE);
+        Double regenBonus     = pdc.get(getKeyRegenBonus(),   PersistentDataType.DOUBLE);
         Integer savedClaimCap = pdc.get(getKeyClaimCapacity(),PersistentDataType.INTEGER);
         Integer savedSpentSp  = pdc.get(getKeySpentSp(),      PersistentDataType.INTEGER);
         Long savedImmune      = pdc.get(getKeyImmuneUntil(),  PersistentDataType.LONG);
 
         if (hpBonus           != null) crystal.restoreHpBonus(hpBonus);
+        if (regenBonus        != null) crystal.restoreRegenBonus(regenBonus);
         if (savedClaimCap     != null) crystal.restoreClaimCapacity(savedClaimCap);
         if (savedSpentSp      != null) crystal.restoreSpentSkillPoints(savedSpentSp);
         if (savedImmune       != null) crystal.setImmuneUntilMillis(savedImmune);
@@ -572,6 +632,7 @@ public class AtlasCrystalManager {
         if (faction == null || crystal == null) return false;
         if (!faction.spendSkillPoints(tier.cost())) return false;
         crystal.addHpBonus(tier.bonus());
+        crystal.addRegenBonus(tier.regen());
         crystal.addSpentSkillPoints(tier.cost());
         crystal.setHp(Math.min(crystal.getHp() + tier.bonus(), crystal.getMaxHp()));
         persistCrystalState(crystal);
@@ -616,6 +677,30 @@ public class AtlasCrystalManager {
         if (!faction.spendSkillPoints(tier.cost())) return false;
         if (!crystal.addPurchasedProtection(tier.durationMs())) {
             // Race-safety: refund if the duplicate guard above missed.
+            faction.addSkillPoints(tier.cost());
+            return false;
+        }
+        crystal.addSpentSkillPoints(tier.cost());
+        persistCrystalState(crystal);
+        saveCrystalData(Atlas.factionsDataConfig);
+        Atlas.saveFactionsDataConfig();
+        return true;
+    }
+
+    /**
+     * Purchases a single homes-skill tier for a faction. Each tier index is a one-shot
+     * purchase that grants {@code tier.amount()} extra home slots to every faction member.
+     * Cost is attributed to the crystal that performed the purchase, mirroring the outpost
+     * skill — destroying that crystal refunds the cost as a level downgrade.
+     */
+    public static boolean purchaseHomeUpgrade(String factionName, UUID crystalUUID,
+                                              FactionLevelManager.HomeTier tier, int tierIndex) {
+        Faction faction = FactionManager.getFaction(factionName);
+        AtlasCrystal crystal = crystals.get(crystalUUID);
+        if (faction == null || crystal == null) return false;
+        if (faction.hasPurchasedHomeTier(tierIndex)) return false;
+        if (!faction.spendSkillPoints(tier.cost())) return false;
+        if (!faction.addPurchasedHomeTier(tierIndex)) {
             faction.addSkillPoints(tier.cost());
             return false;
         }
@@ -702,7 +787,8 @@ public class AtlasCrystalManager {
         if (faction != null) {
             int totalSpent = crystal.getSpentSkillPoints();
             if (crystal.isOutpost()) {
-                totalSpent += FactionLevelManager.getOutpostTier().cost();
+                FactionLevelManager.OutpostTier outpostTier = FactionLevelManager.getOutpostTier();
+                if (outpostTier != null) totalSpent += outpostTier.cost();
             }
             if (totalSpent > 0) {
                 int sp = FactionLevelManager.getSkillPointsPerLevel();
@@ -1019,7 +1105,7 @@ public class AtlasCrystalManager {
                         continue;
                     }
                     if (crystal.canRegen() && crystal.getHp() < crystal.getMaxHp()) {
-                        crystal.regen(regenPerSecond);
+                        crystal.regen(regenPerSecond + crystal.getRegenBonus());
                         entity.getPersistentDataContainer()
                                 .set(getKeyHp(), PersistentDataType.DOUBLE, crystal.getHp());
                     }

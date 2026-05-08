@@ -1,6 +1,7 @@
 package org.minecraft.atlas.donjon;
 
 import org.bukkit.Location;
+import org.bukkit.World;
 
 import java.util.*;
 import java.util.Collections;
@@ -10,7 +11,7 @@ public class Donjon {
     private final String id;
     private String name;
     private final String type;
-    private final Location center;
+    private final World world;
     private int level;
     private DonjonRarity rarity;
     private DonjonStatus status;
@@ -34,7 +35,7 @@ public class Donjon {
     // Auxiliary entities (e.g. chickens in chicken-jockeys) — tracked for cleanup only
     private final Set<UUID> auxiliaryEntities = new HashSet<>();
 
-    // Protected chunk keys (computed from center + radius)
+    // Protected chunk keys — admin-managed via /donjon claim and /donjon unclaim
     private final Set<Long> protectedChunkKeys = new HashSet<>();
 
     // Wave spawn points — keyed by auto-increment ID for admin management
@@ -51,11 +52,11 @@ public class Donjon {
     // Player teleport destination set via /donjon set spawn
     private Location teleportSpawn;
 
-    public Donjon(String id, String name, String type, Location center, int level, DonjonRarity rarity) {
+    public Donjon(String id, String name, String type, World world, int level, DonjonRarity rarity) {
         this.id = id;
         this.name = name;
         this.type = type;
-        this.center = center.clone();
+        this.world = world;
         this.level = level;
         this.rarity = rarity;
         this.status = DonjonStatus.IDLE;
@@ -65,7 +66,7 @@ public class Donjon {
     public String getName() { return name; }
     public void setName(String name) { this.name = name; }
     public String getType() { return type; }
-    public Location getCenter() { return center.clone(); }
+    public World getWorld() { return world; }
     public int getLevel() { return level; }
     public void setLevel(int level) { this.level = level; }
     public DonjonRarity getRarity() { return rarity; }

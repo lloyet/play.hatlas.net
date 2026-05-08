@@ -5,9 +5,11 @@ import org.bukkit.Bukkit;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.crystal.AtlasCrystal;
 import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.teleport.HomeManager;
 
 import java.util.*;
 
@@ -39,9 +41,14 @@ public class FactionManager {
         if (!faction.getOwner().equals(requesterUUID)) return false;
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
-        faction.getMembers().forEach(uuid -> { playerFaction.remove(uuid); JobManager.removeJob(uuid); });
+        faction.getMembers().forEach(uuid -> {
+            playerFaction.remove(uuid);
+            JobManager.removeJob(uuid);
+            forfeitSecondaryHomes(uuid);
+        });
         JobManager.removeJob(requesterUUID);
         playerFaction.remove(requesterUUID);
+        forfeitSecondaryHomes(requesterUUID);
         factions.remove(factionName);
         return true;
     }
@@ -115,6 +122,7 @@ public class FactionManager {
         faction.removeRole(playerUUID);
         playerFaction.remove(playerUUID);
         JobManager.removeJob(playerUUID);
+        forfeitSecondaryHomes(playerUUID);
         return true;
     }
 
@@ -136,6 +144,7 @@ public class FactionManager {
         faction.removeRole(targetUUID);
         playerFaction.remove(targetUUID);
         JobManager.removeJob(targetUUID);
+        forfeitSecondaryHomes(targetUUID);
         return true;
     }
 
@@ -272,10 +281,26 @@ public class FactionManager {
         if (faction == null) return;
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
-        faction.getMembers().forEach(uuid -> { playerFaction.remove(uuid); JobManager.removeJob(uuid); });
+        faction.getMembers().forEach(uuid -> {
+            playerFaction.remove(uuid);
+            JobManager.removeJob(uuid);
+            forfeitSecondaryHomes(uuid);
+        });
         JobManager.removeJob(faction.getOwner());
         playerFaction.remove(faction.getOwner());
+        forfeitSecondaryHomes(faction.getOwner());
         factions.remove(factionName);
+    }
+
+    /**
+     * Drops every home except the reserved main and persists the change so the player
+     * can't reclaim the bonus slots on relog. Called after the player loses faction
+     * membership for any reason.
+     */
+    private static void forfeitSecondaryHomes(UUID playerUUID) {
+        HomeManager.removeSecondaryHomes(playerUUID);
+        HomeManager.saveHomes(Atlas.homesDataConfig);
+        Atlas.saveHomesDataConfig();
     }
 
     /** Changes the color of the faction. Owner or Leaders can do this. */
@@ -355,6 +380,8 @@ public class FactionManager {
             if (faction.getDowngradeMul() != 1) s.set("downgrade_mul", faction.getDowngradeMul());
             if (faction.getDowngradeWindowEndMs() != 0L) s.set("downgrade_window_end", faction.getDowngradeWindowEndMs());
             if (faction.isOutpostUnlocked()) s.set("outpost_unlocked", true);
+            if (!faction.getPurchasedHomeTiers().isEmpty())
+                s.set("purchased_home_tiers", new ArrayList<>(faction.getPurchasedHomeTiers()));
         }
     }
 
@@ -411,6 +438,7 @@ public class FactionManager {
             faction.setDowngradeMul(s.getInt("downgrade_mul", 1));
             faction.setDowngradeWindowEndMs(s.getLong("downgrade_window_end", 0L));
             faction.setOutpostUnlocked(s.getBoolean("outpost_unlocked", false));
+            for (int idx : s.getIntegerList("purchased_home_tiers")) faction.addPurchasedHomeTier(idx);
 
             factions.put(factionName, faction);
         }

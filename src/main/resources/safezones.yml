@@ -1,0 +1,9 @@
+# Atlas plugin safe-zones configuration
+# Safe-zone teleport settings for /safezone tp <name>.
+# Persisted safe-zone definitions and visit history live in safezones-data.yml.
+
+safezone:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
+  # Cooldown in seconds after a successful teleport before the player can use /safezone tp again. Op bypasses.
+  teleport_cooldown_seconds: 30

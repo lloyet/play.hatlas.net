@@ -21,6 +21,9 @@ public class Faction {
 
     private boolean outpostUnlocked = false;
 
+    /** Indices into FactionLevelManager.getHomeTiers() that this faction has purchased. */
+    private final Set<Integer> purchasedHomeTiers = new LinkedHashSet<>();
+
     private final Set<String> allies = new HashSet<>();
 
     public Faction(String name, UUID owner) {
@@ -70,6 +73,20 @@ public class Faction {
 
     public boolean isOutpostUnlocked()        { return outpostUnlocked; }
     public void setOutpostUnlocked(boolean b) { this.outpostUnlocked = b; }
+
+    public Set<Integer> getPurchasedHomeTiers() { return purchasedHomeTiers; }
+    public boolean hasPurchasedHomeTier(int index) { return purchasedHomeTiers.contains(index); }
+    public boolean addPurchasedHomeTier(int index) { return purchasedHomeTiers.add(index); }
+
+    /** Sum of {@code amount()} across all purchased home tiers. Each member's home cap is 1 + this. */
+    public int getBonusHomes() {
+        var tiers = FactionLevelManager.getHomeTiers();
+        int total = 0;
+        for (int i : purchasedHomeTiers) {
+            if (i >= 0 && i < tiers.size()) total += tiers.get(i).amount();
+        }
+        return total;
+    }
 
     public Set<String> getAllies() { return allies; }
     public boolean hasAlly(String factionName) { return allies.contains(factionName); }
