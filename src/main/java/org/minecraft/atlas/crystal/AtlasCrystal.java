@@ -262,7 +262,7 @@ public class AtlasCrystal {
             int ready = total - brokenProtections.size();
             NamedTextColor immunityColor = isImmune() ? NamedTextColor.AQUA : NamedTextColor.YELLOW;
             result = result.append(Component.newline())
-                    .append(Component.text("[IMMUNITY - " + ready + "/" + total + "]", immunityColor));
+                    .append(Component.text("IMMUNITY - [" + ready + "/" + total + "]", immunityColor));
         }
 
         return result;

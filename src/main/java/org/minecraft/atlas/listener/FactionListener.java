@@ -335,10 +335,29 @@ public class FactionListener implements Listener {
                     Component.text("☠ " + displayName2 + " was destroyed by " + attackerFaction + "!", NamedTextColor.RED), null);
             Component serverMsg = Component.text("☠ [" + crystalFaction + "] lost a crystal to [" + attackerFaction + "]!", NamedTextColor.RED);
             Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(serverMsg));
+            // Detect the last-crystal case before destroyCrystal triggers the auto-disband
+            // so we can attribute the global disband broadcast to the attacker faction.
+            boolean willDisband = AtlasCrystalManager.getFactionCrystals(crystalFaction).size() <= 1;
+            Faction crystalFactionData = FactionManager.getFaction(crystalFaction);
+            Faction attackerFactionData = FactionManager.getFaction(attackerFaction);
             // Drop this crystal's chests + remove its claims while the entity is still valid;
             // other crystals of the same faction keep their own claims and chests.
             AtlasCrystalManager.destroyCrystal(atlasCrystal.getEntityUUID());
             crystal.remove(); // despawn the entity afterward
+            if (willDisband) {
+                NamedTextColor crystalColor  = crystalFactionData  != null ? crystalFactionData.getColor()  : NamedTextColor.WHITE;
+                NamedTextColor attackerColor = attackerFactionData != null ? attackerFactionData.getColor() : NamedTextColor.WHITE;
+                Component disbandMsg = Component.text("☠ Faction ", NamedTextColor.RED)
+                        .append(Component.text("[", NamedTextColor.GRAY))
+                        .append(Component.text(crystalFaction, crystalColor))
+                        .append(Component.text("]", NamedTextColor.GRAY))
+                        .append(Component.text(" has been disbanded by ", NamedTextColor.RED))
+                        .append(Component.text("[", NamedTextColor.GRAY))
+                        .append(Component.text(attackerFaction, attackerColor))
+                        .append(Component.text("]", NamedTextColor.GRAY))
+                        .append(Component.text(".", NamedTextColor.RED));
+                Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(disbandMsg));
+            }
         }
     }
 

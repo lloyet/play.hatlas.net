@@ -26,6 +26,7 @@ import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
@@ -92,9 +93,32 @@ public class CrystalMainGui implements AtlasGui {
                 player.closeInventory();
                 return;
             }
-            player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.0f);
-            player.closeInventory();
-            openRenameDialog(player, factionName, crystalEntityUUID, null);
+            // Shift-click keeps the rename flow accessible from this same item.
+            if (event.isShiftClick()) {
+                player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.0f);
+                player.closeInventory();
+                openRenameDialog(player, factionName, crystalEntityUUID, null);
+                return;
+            }
+            // Plain click opens the "Set as Main" confirm — gated to owner/leader, and only
+            // meaningful when the crystal isn't already the main of the faction.
+            boolean isOwner  = faction.getOwner().equals(player.getUniqueId());
+            boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+            if (!isOwner && !isLeader) {
+                player.sendMessage(Component.text(
+                        "Only the faction owner or a leader can set the main crystal.",
+                        NamedTextColor.RED));
+                return;
+            }
+            if (!crystal.isOutpost()) {
+                player.sendMessage(Component.text(
+                        "This crystal is already the main crystal of the faction.",
+                        NamedTextColor.YELLOW));
+                return;
+            }
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
+            new CrystalHomeConfirmGui(player, factionName, crystalEntityUUID).open(player);
             return;
         }
 
@@ -272,8 +296,17 @@ public class CrystalMainGui implements AtlasGui {
             lore.add(GuiUtil.loreLine("EXP", "MAX LEVEL", NamedTextColor.GOLD));
         }
         lore.add(GuiUtil.loreLine("Skill Points", String.valueOf(faction.getSkillPoints()), NamedTextColor.LIGHT_PURPLE));
+        lore.add(GuiUtil.loreLine("Role", crystal.isOutpost() ? "Outpost" : "Main",
+                crystal.isOutpost() ? NamedTextColor.AQUA : NamedTextColor.GOLD));
         lore.add(Component.empty());
-        lore.add(Component.text("  Click to rename this crystal", NamedTextColor.GRAY)
+        if (crystal.isOutpost()) {
+            lore.add(Component.text("  Click to set as main crystal", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("  Already the main crystal", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        lore.add(Component.text("  Shift-click to rename", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
         meta.lore(lore);

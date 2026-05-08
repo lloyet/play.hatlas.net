@@ -845,6 +845,38 @@ public class AtlasCrystalManager {
         return map == null ? Collections.emptyList() : Collections.unmodifiableCollection(map.values());
     }
 
+    /**
+     * Promotes the given crystal to "main" status (and demotes the previous main to outpost).
+     * Reorders the per-faction crystal map so the new main is iterated first, which is what
+     * {@link #getFirstHome(String)} returns for {@code /faction home} with no argument.
+     * Returns false if the crystal isn't found, has no faction map, or is already the main.
+     */
+    public static boolean setAsMainCrystal(UUID crystalUUID) {
+        AtlasCrystal target = crystals.get(crystalUUID);
+        if (target == null || !target.isOutpost()) return false;
+        String factionName = target.getFactionName();
+        Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);
+        if (map == null || !map.containsKey(crystalUUID)) return false;
+
+        // Demote any current main(s) and promote the target.
+        for (AtlasCrystal c : map.values()) {
+            if (!c.isOutpost()) c.setOutpost(true);
+        }
+        target.setOutpost(false);
+
+        // LinkedHashMap iteration order drives getFirstHome — put target first.
+        LinkedHashMap<UUID, AtlasCrystal> reordered = new LinkedHashMap<>();
+        reordered.put(crystalUUID, target);
+        for (Map.Entry<UUID, AtlasCrystal> e : map.entrySet()) {
+            if (!e.getKey().equals(crystalUUID)) reordered.put(e.getKey(), e.getValue());
+        }
+        factionCrystals.put(factionName, reordered);
+
+        saveCrystalData(Atlas.factionsDataConfig);
+        Atlas.saveFactionsDataConfig();
+        return true;
+    }
+
     /** Returns the home of the first crystal with a home set for this faction, or null if none. */
     public static Location getFirstHome(String factionName) {
         Map<UUID, AtlasCrystal> map = factionCrystals.get(factionName);

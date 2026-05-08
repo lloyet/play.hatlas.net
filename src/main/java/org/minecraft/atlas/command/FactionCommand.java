@@ -842,6 +842,16 @@ public class FactionCommand {
                                     FactionManager.broadcastToFaction(targetFaction,
                                             error("Your faction has been forcibly disbanded by an administrator."),
                                             null);
+                                    Faction disbandedFaction = FactionManager.getFaction(targetFaction);
+                                    NamedTextColor disbandColor = disbandedFaction != null
+                                            ? disbandedFaction.getColor() : NamedTextColor.WHITE;
+                                    Component globalMsg = Component.text("☠ Faction ", NamedTextColor.RED)
+                                            .append(Component.text("[", NamedTextColor.GRAY))
+                                            .append(Component.text(targetFaction, disbandColor))
+                                            .append(Component.text("]", NamedTextColor.GRAY))
+                                            .append(Component.text(" has been disbanded by an administrator.",
+                                                    NamedTextColor.RED));
+                                    Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(globalMsg));
                                     FactionManager.disbandFaction(targetFaction);
                                     sender.sendMessage(success("Faction '" + targetFaction + "' has been disbanded."));
                                     return Command.SINGLE_SUCCESS;
