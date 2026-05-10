@@ -19,6 +19,11 @@ quests:
         - DEEPSLATE_COAL_ORE
       item_rewards:
         - material: COAL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_iron
       job: miner
       name: Iron Gatherer
@@ -29,6 +34,11 @@ quests:
         - DEEPSLATE_IRON_ORE
       item_rewards:
         - material: IRON_INGOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_redstone
       job: miner
       name: Redstone Engineer
@@ -39,6 +49,11 @@ quests:
         - DEEPSLATE_REDSTONE_ORE
       item_rewards:
         - material: REDSTONE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_gold
       job: miner
       name: Gold Rush
@@ -50,6 +65,11 @@ quests:
         - NETHER_GOLD_ORE
       item_rewards:
         - material: GOLD_INGOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_diamond
       job: miner
       name: Diamond Hunt
@@ -60,6 +80,11 @@ quests:
         - DEEPSLATE_DIAMOND_ORE
       item_rewards:
         - material: DIAMOND
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_ancient_debris
       job: miner
       name: Nether Excavation
@@ -69,6 +94,11 @@ quests:
         - ANCIENT_DEBRIS
       item_rewards:
         - material: NETHERITE_INGOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_emerald
       job: miner
       name: "Emerald Hunter"
@@ -79,6 +109,11 @@ quests:
         - DEEPSLATE_EMERALD_ORE
       item_rewards:
         - material: EMERALD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_lapis
       job: miner
       name: "Lapis Extractor"
@@ -89,6 +124,11 @@ quests:
         - DEEPSLATE_LAPIS_ORE
       item_rewards:
         - material: LAPIS_LAZULI
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_copper
       job: miner
       name: "Copper Prospector"
@@ -99,6 +139,11 @@ quests:
         - DEEPSLATE_COPPER_ORE
       item_rewards:
         - material: COPPER_INGOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_quartz
       job: miner
       name: "Nether Quartz Run"
@@ -108,6 +153,11 @@ quests:
         - NETHER_QUARTZ_ORE
       item_rewards:
         - material: QUARTZ
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_obsidian
       job: miner
       name: "Obsidian Quarrier"
@@ -117,6 +167,11 @@ quests:
         - OBSIDIAN
       item_rewards:
         - material: OBSIDIAN
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_gravel
       job: miner
       name: "Gravel Sifter"
@@ -126,6 +181,11 @@ quests:
         - GRAVEL
       item_rewards:
         - material: FLINT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_clay
       job: miner
       name: "Clay Collector"
@@ -135,6 +195,11 @@ quests:
         - CLAY
       item_rewards:
         - material: CLAY_BALL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_magma
       job: miner
       name: "Magma Harvester"
@@ -144,6 +209,11 @@ quests:
         - MAGMA_BLOCK
       item_rewards:
         - material: MAGMA_CREAM
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_prismarine
       job: miner
       name: "Ocean Quarrier"
@@ -154,6 +224,11 @@ quests:
         - DARK_PRISMARINE
       item_rewards:
         - material: PRISMARINE_SHARD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: mine_glowstone
       job: miner
       name: "Glowstone Miner"
@@ -163,6 +238,11 @@ quests:
         - GLOWSTONE
       item_rewards:
         - material: GLOWSTONE_DUST
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
 
     - id: chop_oak
       job: lumberjack
@@ -173,6 +253,11 @@ quests:
         - OAK_LOG
       item_rewards:
         - material: OAK_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_birch
       job: lumberjack
       name: Birch Harvester
@@ -182,6 +267,11 @@ quests:
         - BIRCH_LOG
       item_rewards:
         - material: BIRCH_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_spruce
       job: lumberjack
       name: Spruce Logging
@@ -191,6 +281,11 @@ quests:
         - SPRUCE_LOG
       item_rewards:
         - material: SPRUCE_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_jungle
       job: lumberjack
       name: Jungle Expedition
@@ -200,6 +295,11 @@ quests:
         - JUNGLE_LOG
       item_rewards:
         - material: JUNGLE_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_dark_oak
       job: lumberjack
       name: Dark Oak Lumbering
@@ -209,6 +309,11 @@ quests:
         - DARK_OAK_LOG
       item_rewards:
         - material: DARK_OAK_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_crimson
       job: lumberjack
       name: Nether Forester
@@ -220,6 +325,11 @@ quests:
       item_rewards:
         - material: CRIMSON_STEM
         - material: WARPED_STEM
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_acacia
       job: lumberjack
       name: "Acacia Logger"
@@ -229,6 +339,11 @@ quests:
         - ACACIA_LOG
       item_rewards:
         - material: ACACIA_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_mangrove
       job: lumberjack
       name: "Mangrove Forager"
@@ -238,6 +353,11 @@ quests:
         - MANGROVE_LOG
       item_rewards:
         - material: MANGROVE_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_cherry
       job: lumberjack
       name: "Cherry Grove Harvest"
@@ -247,6 +367,11 @@ quests:
         - CHERRY_LOG
       item_rewards:
         - material: CHERRY_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_bamboo_block
       job: lumberjack
       name: "Bamboo Sawyer"
@@ -256,6 +381,11 @@ quests:
         - BAMBOO_BLOCK
       item_rewards:
         - material: BAMBOO
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_pale_oak
       job: lumberjack
       name: "Pale Forest Logger"
@@ -265,6 +395,11 @@ quests:
         - PALE_OAK_LOG
       item_rewards:
         - material: PALE_OAK_LOG
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_leaves
       job: lumberjack
       name: "Leaf Stripper"
@@ -276,6 +411,11 @@ quests:
         - SPRUCE_LEAVES
       item_rewards:
         - material: STICK
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_mushroom
       job: lumberjack
       name: "Mushroom Woodcutter"
@@ -286,6 +426,11 @@ quests:
         - RED_MUSHROOM_BLOCK
       item_rewards:
         - material: BOWL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_chorus
       job: lumberjack
       name: "End Forester"
@@ -296,6 +441,11 @@ quests:
         - CHORUS_FLOWER
       item_rewards:
         - material: CHORUS_FRUIT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_hyphae
       job: lumberjack
       name: "Nether Mycelium Logger"
@@ -306,6 +456,11 @@ quests:
         - WARPED_HYPHAE
       item_rewards:
         - material: CRIMSON_STEM
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: chop_bamboo
       job: lumberjack
       name: "Bamboo Harvester"
@@ -315,6 +470,11 @@ quests:
         - BAMBOO
       item_rewards:
         - material: BAMBOO
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
 
     - id: hunt_zombies
       job: hunter
@@ -326,6 +486,11 @@ quests:
         - HUSK
       item_rewards:
         - material: ROTTEN_FLESH
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_skeletons
       job: hunter
       name: Bone Collector
@@ -337,6 +502,11 @@ quests:
       item_rewards:
         - material: BONE
         - material: ARROW
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_spiders
       job: hunter
       name: Web Clearer
@@ -347,6 +517,11 @@ quests:
         - CAVE_SPIDER
       item_rewards:
         - material: STRING
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_creepers
       job: hunter
       name: Creeper Hunter
@@ -356,6 +531,11 @@ quests:
         - CREEPER
       item_rewards:
         - material: GUNPOWDER
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_endermen
       job: hunter
       name: Void Walker
@@ -365,6 +545,11 @@ quests:
         - ENDERMAN
       item_rewards:
         - material: ENDER_PEARL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_blazes
       job: hunter
       name: Blaze Extinguisher
@@ -374,6 +559,11 @@ quests:
         - BLAZE
       item_rewards:
         - material: BLAZE_ROD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_witches
       job: hunter
       name: "Witch Hunter"
@@ -384,6 +574,11 @@ quests:
       item_rewards:
         - material: GLASS_BOTTLE
         - material: SPIDER_EYE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_guardians
       job: hunter
       name: "Ocean Guardian"
@@ -394,6 +589,11 @@ quests:
         - ELDER_GUARDIAN
       item_rewards:
         - material: PRISMARINE_SHARD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_phantoms
       job: hunter
       name: "Phantom Slayer"
@@ -403,6 +603,11 @@ quests:
         - PHANTOM
       item_rewards:
         - material: PHANTOM_MEMBRANE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_pillagers
       job: hunter
       name: "Pillager Purge"
@@ -413,6 +618,11 @@ quests:
         - VINDICATOR
       item_rewards:
         - material: EMERALD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_piglins
       job: hunter
       name: "Nether Warrior"
@@ -423,6 +633,11 @@ quests:
         - PIGLIN_BRUTE
       item_rewards:
         - material: GOLD_INGOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_wither_skeletons
       job: hunter
       name: "Wither Skull Hunter"
@@ -433,6 +648,11 @@ quests:
       item_rewards:
         - material: COAL
         - material: BONE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_drowned
       job: hunter
       name: "Drowned Diver"
@@ -442,6 +662,11 @@ quests:
         - DROWNED
       item_rewards:
         - material: NAUTILUS_SHELL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_slimes
       job: hunter
       name: "Slime Squasher"
@@ -452,6 +677,11 @@ quests:
         - MAGMA_CUBE
       item_rewards:
         - material: SLIME_BALL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_ghasts
       job: hunter
       name: "Ghast Tearer"
@@ -461,6 +691,11 @@ quests:
         - GHAST
       item_rewards:
         - material: GHAST_TEAR
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_shulkers
       job: hunter
       name: "Shell Breaker"
@@ -470,6 +705,11 @@ quests:
         - SHULKER
       item_rewards:
         - material: SHULKER_SHELL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
 
     - id: farm_wheat
       job: farmer
@@ -480,6 +720,11 @@ quests:
         - WHEAT
       item_rewards:
         - material: BREAD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_carrots
       job: farmer
       name: Carrot Crop
@@ -489,6 +734,11 @@ quests:
         - CARROTS
       item_rewards:
         - material: CARROT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_potatoes
       job: farmer
       name: Potato Supply
@@ -498,6 +748,11 @@ quests:
         - POTATOES
       item_rewards:
         - material: BAKED_POTATO
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_beetroot
       job: farmer
       name: Beetroot Harvest
@@ -507,6 +762,11 @@ quests:
         - BEETROOTS
       item_rewards:
         - material: BEETROOT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_melon
       job: farmer
       name: Melon Patch
@@ -516,6 +776,11 @@ quests:
         - MELON
       item_rewards:
         - material: MELON_SLICE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_nether_wart
       job: farmer
       name: Nether Alchemist
@@ -525,6 +790,11 @@ quests:
         - NETHER_WART
       item_rewards:
         - material: NETHER_WART
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_pumpkin
       job: farmer
       name: "Pumpkin Patch"
@@ -534,6 +804,11 @@ quests:
         - PUMPKIN
       item_rewards:
         - material: PUMPKIN_SEEDS
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_cocoa
       job: farmer
       name: "Cocoa Plantation"
@@ -543,6 +818,11 @@ quests:
         - COCOA
       item_rewards:
         - material: COCOA_BEANS
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_sugarcane
       job: farmer
       name: "Sugar Rush"
@@ -552,6 +832,11 @@ quests:
         - SUGAR_CANE
       item_rewards:
         - material: SUGAR
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_bamboo_farm
       job: farmer
       name: "Bamboo Grove"
@@ -561,6 +846,11 @@ quests:
         - BAMBOO
       item_rewards:
         - material: BAMBOO
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_cactus
       job: farmer
       name: "Cactus Harvester"
@@ -570,6 +860,11 @@ quests:
         - CACTUS
       item_rewards:
         - material: CACTUS
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_kelp
       job: farmer
       name: "Kelp Diver"
@@ -580,6 +875,11 @@ quests:
         - KELP_PLANT
       item_rewards:
         - material: DRIED_KELP
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_chorus
       job: farmer
       name: "End Orchard"
@@ -589,6 +889,11 @@ quests:
         - CHORUS_PLANT
       item_rewards:
         - material: CHORUS_FRUIT
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_sweet_berries
       job: farmer
       name: "Berry Picker"
@@ -598,6 +903,11 @@ quests:
         - SWEET_BERRY_BUSH
       item_rewards:
         - material: SWEET_BERRIES
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_cave_vines
       job: farmer
       name: "Glow Berry Farmer"
@@ -607,6 +917,11 @@ quests:
         - CAVE_VINES_PLANT
       item_rewards:
         - material: GLOW_BERRIES
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: farm_torchflower
       job: farmer
       name: "Torchflower Garden"
@@ -616,6 +931,11 @@ quests:
         - TORCHFLOWER_CROP
       item_rewards:
         - material: TORCHFLOWER_SEEDS
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
 
     - id: brew_potions
       job: alchemist
@@ -628,6 +948,11 @@ quests:
         - LINGERING_POTION
       item_rewards:
         - material: GLASS_BOTTLE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_golden_items
       job: alchemist
       name: Golden Crafter
@@ -638,6 +963,11 @@ quests:
         - GOLDEN_APPLE
       item_rewards:
         - material: GOLD_NUGGET
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_potion_ingredients
       job: alchemist
       name: Ingredient Gatherer
@@ -650,6 +980,11 @@ quests:
         - FERMENTED_SPIDER_EYE
       item_rewards:
         - material: NETHER_WART
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_tipped_arrows
       job: alchemist
       name: Arrow Infuser
@@ -659,6 +994,11 @@ quests:
         - TIPPED_ARROW
       item_rewards:
         - material: ARROW
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_nether_alchemist
       job: alchemist
       name: Nether Hunter
@@ -671,6 +1011,11 @@ quests:
         - MAGMA_CUBE
       item_rewards:
         - material: BLAZE_ROD
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: gather_mushrooms
       job: alchemist
       name: "Mushroom Picker"
@@ -681,6 +1026,11 @@ quests:
         - RED_MUSHROOM
       item_rewards:
         - material: MUSHROOM_STEW
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: gather_sugar_cane
       job: alchemist
       name: "Sugar Alchemist"
@@ -690,6 +1040,11 @@ quests:
         - SUGAR_CANE
       item_rewards:
         - material: SUGAR
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_fire_charge
       job: alchemist
       name: "Pyromancer"
@@ -699,6 +1054,11 @@ quests:
         - FIRE_CHARGE
       item_rewards:
         - material: COAL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_ender_eye
       job: alchemist
       name: "Eye Crafter"
@@ -708,6 +1068,11 @@ quests:
         - ENDER_EYE
       item_rewards:
         - material: ENDER_PEARL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_glistering_melon
       job: alchemist
       name: "Melon Gilding"
@@ -717,6 +1082,11 @@ quests:
         - GLISTERING_MELON_SLICE
       item_rewards:
         - material: GOLD_NUGGET
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_spectral_arrow
       job: alchemist
       name: "Spectral Infuser"
@@ -726,6 +1096,11 @@ quests:
         - SPECTRAL_ARROW
       item_rewards:
         - material: GLOWSTONE_DUST
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_cave_creatures
       job: alchemist
       name: "Cave Exterminator"
@@ -736,6 +1111,11 @@ quests:
         - CAVE_SPIDER
       item_rewards:
         - material: SPIDER_EYE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_swamp_beasts
       job: alchemist
       name: "Swamp Stalker"
@@ -746,6 +1126,11 @@ quests:
         - SLIME
       item_rewards:
         - material: SLIME_BALL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: hunt_ocean_horrors
       job: alchemist
       name: "Deep Sea Hunter"
@@ -755,6 +1140,11 @@ quests:
         - DROWNED
       item_rewards:
         - material: NAUTILUS_SHELL
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: gather_glowstone
       job: alchemist
       name: "Glowstone Collector"
@@ -764,6 +1154,11 @@ quests:
         - GLOWSTONE
       item_rewards:
         - material: GLOWSTONE_DUST
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: craft_respawn_anchor
       job: alchemist
       name: "Anchor Architect"
@@ -773,6 +1168,11 @@ quests:
         - RESPAWN_ANCHOR
       item_rewards:
         - material: GLOWSTONE
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
 
 # ============================================================
 # Jokeyrini — the wandering trader of challenges.
@@ -792,6 +1192,11 @@ jokeyrini:
         - WITHER_SKELETON
         - PIGLIN_BRUTE
       item_rewards: []
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: jok_ancient_miner
       name: Ancient Miner
       description: Excavate ancient debris deep in the Nether.
@@ -799,6 +1204,11 @@ jokeyrini:
       targets:
         - ANCIENT_DEBRIS
       item_rewards: []
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: jok_master_brewer
       name: Master Brewer
       description: Brew potent lingering or splash potions.
@@ -807,6 +1217,11 @@ jokeyrini:
         - LINGERING_POTION
         - SPLASH_POTION
       item_rewards: []
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: jok_golden_crafter
       name: Golden Artisan
       description: Craft powerful golden items.
@@ -815,6 +1230,11 @@ jokeyrini:
         - GOLDEN_APPLE
         - GOLDEN_CARROT
       item_rewards: []
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0
     - id: jok_diamond_miner
       name: Diamond Seeker
       description: Mine diamonds from the deep.
@@ -823,3 +1243,8 @@ jokeyrini:
         - DIAMOND_ORE
         - DEEPSLATE_DIAMOND_ORE
       item_rewards: []
+      multiplier_exp:
+        easy: 1.0
+        normal: 1.0
+        hard: 1.0
+        hardcore: 1.0

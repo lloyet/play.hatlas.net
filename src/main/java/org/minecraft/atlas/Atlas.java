@@ -10,6 +10,7 @@ import org.jspecify.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.minecraft.atlas.combat.CombatLogManager;
 import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
 import org.minecraft.atlas.command.SafeZoneCommand;
@@ -30,7 +31,6 @@ import org.minecraft.atlas.teleport.HomeTeleportManager;
 import org.minecraft.atlas.safezone.SafeZoneManager;
 import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
 import org.minecraft.atlas.spawn.SpawnManager;
-import org.minecraft.atlas.spawn.SpawnTeleportManager;
 import org.minecraft.atlas.teleport.TeleportAtManager;
 import org.minecraft.atlas.listener.CrystalListener;
 import org.minecraft.atlas.crystal.AtlasCrystalManager;
@@ -73,11 +73,14 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsConfig;
     public static File jobsFile;
 
-    public static YamlConfiguration homeConfig;
-    public static File homeFile;
+    public static YamlConfiguration homesConfig;
+    public static File homesFile;
 
     public static YamlConfiguration safezonesConfig;
     public static File safezonesFile;
+
+    public static YamlConfiguration combatsConfig;
+    public static File combatsFile;
 
     public static YamlConfiguration tagsDataConfig;
     public static File tagsDataFile;
@@ -96,6 +99,9 @@ public final class Atlas extends JavaPlugin {
 
     public static YamlConfiguration safezonesDataConfig;
     public static File safezonesDataFile;
+
+    public static YamlConfiguration combatsDataConfig;
+    public static File combatsDataFile;
 
     @Override
     public void onEnable() {
@@ -120,15 +126,20 @@ public final class Atlas extends JavaPlugin {
         if (!jobsFile.exists()) saveResource("jobs.yml", false);
         jobsConfig = YamlConfiguration.loadConfiguration(jobsFile);
 
-        // home.yml — /home and /sethome teleport settings
-        homeFile = new File(getDataFolder(), "home.yml");
-        if (!homeFile.exists()) saveResource("home.yml", false);
-        homeConfig = YamlConfiguration.loadConfiguration(homeFile);
+        // homes.yml — /home and /sethome teleport settings
+        homesFile = new File(getDataFolder(), "homes.yml");
+        if (!homesFile.exists()) saveResource("homes.yml", false);
+        homesConfig = YamlConfiguration.loadConfiguration(homesFile);
 
         // safezones.yml — safe-zone teleport settings
         safezonesFile = new File(getDataFolder(), "safezones.yml");
         if (!safezonesFile.exists()) saveResource("safezones.yml", false);
         safezonesConfig = YamlConfiguration.loadConfiguration(safezonesFile);
+
+        // combats.yml — anti-disconnect combat-log settings
+        combatsFile = new File(getDataFolder(), "combats.yml");
+        if (!combatsFile.exists()) saveResource("combats.yml", false);
+        combatsConfig = YamlConfiguration.loadConfiguration(combatsFile);
 
         // tags-data.yml — in-world text display tags (runtime-only, not in resources)
         tagsDataFile = new File(getDataFolder(), "tags-data.yml");
@@ -150,25 +161,29 @@ public final class Atlas extends JavaPlugin {
         safezonesDataFile = new File(getDataFolder(), "safezones-data.yml");
         safezonesDataConfig = YamlConfiguration.loadConfiguration(safezonesDataFile);
 
+        combatsDataFile = new File(getDataFolder(), "combats-data.yml");
+        combatsDataConfig = YamlConfiguration.loadConfiguration(combatsDataFile);
+
         // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
         SafeZoneManager.loadConfig(safezonesDataConfig);
         SafeZoneTeleportManager.loadConfig(safezonesConfig);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
-        SpawnTeleportManager.loadConfig(configFile);
-        HomeManager.loadConfig(homeConfig);
+        HomeManager.loadConfig(homesConfig);
         HomeTeleportManager.loadConfig(factionsConfig);
         TeleportAtManager.loadConfig(configFile);
         AfkManager.loadConfig(configFile);
         DeathTeleportCooldownManager.loadConfig(configFile);
+        CombatLogManager.loadConfig(combatsConfig);
+        CombatLogManager.loadCombatData(combatsDataConfig);
 
         // Load from factions.yml (config) and factions-data.yml (data)
         FactionLevelManager.loadUpgrades(factionsConfig);
         FactionManager.loadFactions(factionsDataConfig);
         // Crystals own their claims; loadCrystalHomes also rebuilds FactionClaimManager's
         // runtime cache by calling claimChunk() for each per-crystal claim.
-        AtlasCrystalManager.loadCrystalHomes(factionsDataConfig);
+        AtlasCrystalManager.loadCrystalData(factionsDataConfig);
 
         // Load from jobs.yml (config) and jobs-data.yml (data)
         QuestManager.loadQuestConfig(jobsConfig);
@@ -202,6 +217,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new SafeZoneNpcListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
+        getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
 
         // Schedulers
         GolemListener.schedule(this);
@@ -210,6 +226,7 @@ public final class Atlas extends JavaPlugin {
         QuestManager.scheduleExpiry(this);
         ItemClearManager.schedule(this);
         AfkManager.schedule(this);
+        CombatLogManager.schedule(this);
         FactionClaimBorderRenderer.schedule(this);
         NpcLookHelper.schedule(this);
 
@@ -241,6 +258,10 @@ public final class Atlas extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Mark shutdown first so any incoming PlayerQuitEvent does not trigger the
+        // combat-log kill — state will be persisted to combats-data.yml below.
+        CombatLogManager.setShuttingDown(true);
+
         FileConfiguration configFile = getConfig();
 
         // Save to config.yml
@@ -262,7 +283,7 @@ public final class Atlas extends JavaPlugin {
         // Save to factions-data.yml
         FactionManager.saveFactions(factionsDataConfig);
         // Per-crystal claims are persisted as part of saveCrystalHomes (the "crystals" section).
-        AtlasCrystalManager.saveCrystalHomes(factionsDataConfig);
+        AtlasCrystalManager.saveCrystalData(factionsDataConfig);
         saveFactionsDataConfig();
 
         // Save to jobs-data.yml
@@ -274,7 +295,19 @@ public final class Atlas extends JavaPlugin {
         DonjonManager.saveDonjonData(donjonsDataConfig);
         saveDonjonsDataConfig();
 
+        // Save to combats-data.yml
+        CombatLogManager.saveCombatData(combatsDataConfig);
+        saveCombatsDataConfig();
+
         getLogger().info("Atlas disabled.");
+    }
+
+    public static void saveCombatsDataConfig() {
+        try {
+            combatsDataConfig.save(combatsDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save combats-data.yml: " + e.getMessage());
+        }
     }
 
     public static void saveTagsDataConfig() {

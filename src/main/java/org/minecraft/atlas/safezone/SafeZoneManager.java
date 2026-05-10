@@ -137,7 +137,19 @@ public class SafeZoneManager {
                 SafeZone p = new SafeZone(name.toLowerCase());
                 ConfigurationSection sec = root.getConfigurationSection(name);
                 if (sec != null) {
-                    p.getChunks().addAll(readChunks(sec));
+                    ConfigurationSection chunksSec = sec.getConfigurationSection("chunks");
+                    if (chunksSec != null) {
+                        for (String worldName : chunksSec.getKeys(false)) {
+                            for (String keyStr : chunksSec.getStringList(worldName)) {
+                                try {
+                                    long key = Long.parseLong(keyStr);
+                                    int cx = (int) key;
+                                    int cz = (int) (key >> 32);
+                                    p.getChunks().add(worldName + ":" + cx + ":" + cz);
+                                } catch (NumberFormatException ignored) {}
+                            }
+                        }
+                    }
                     String sp = sec.getString("spawn_point");
                     if (sp != null) {
                         Location loc = decodeLocation(sp);
@@ -182,30 +194,6 @@ public class SafeZoneManager {
             } catch (NumberFormatException ignored) {}
         }
         return byWorld;
-    }
-
-    /**
-     * Reads the {@code chunks} entry from {@code sec}. Accepts both the new format
-     * (section keyed by world, list of stringified chunk-key longs under each) and
-     * the legacy format (flat list of {@code "world:cx:cz"} strings).
-     */
-    private static List<String> readChunks(ConfigurationSection sec) {
-        if (sec.isConfigurationSection("chunks")) {
-            ConfigurationSection chunksSec = sec.getConfigurationSection("chunks");
-            List<String> out = new ArrayList<>();
-            for (String worldName : chunksSec.getKeys(false)) {
-                for (String keyStr : chunksSec.getStringList(worldName)) {
-                    try {
-                        long key = Long.parseLong(keyStr);
-                        int cx = (int) key;
-                        int cz = (int) (key >> 32);
-                        out.add(worldName + ":" + cx + ":" + cz);
-                    } catch (NumberFormatException ignored) {}
-                }
-            }
-            return out;
-        }
-        return sec.getStringList("chunks");
     }
 
     private static String encodeLocation(Location loc) {

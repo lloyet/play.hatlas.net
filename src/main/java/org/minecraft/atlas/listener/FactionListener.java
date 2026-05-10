@@ -44,7 +44,6 @@ import org.minecraft.atlas.teleport.RandomTeleportManager;
 import org.minecraft.atlas.teleport.HomeManager;
 import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
 import org.minecraft.atlas.teleport.HomeTeleportManager;
-import org.minecraft.atlas.spawn.SpawnTeleportManager;
 import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
 import org.minecraft.atlas.teleport.TeleportAtManager;
 import org.minecraft.atlas.util.TabListManager;
@@ -104,9 +103,6 @@ public class FactionListener implements Listener {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
         if (RandomTeleportManager.cancelTeleport(player.getUniqueId())) {
-            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
-        }
-        if (SpawnTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
         if (TeleportAtManager.cancelTeleport(player.getUniqueId())) {

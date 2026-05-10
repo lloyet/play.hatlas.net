@@ -1,5 +1,5 @@
 # Atlas plugin configuration
-# See also: home.yml, safezones.yml, factions.yml, donjons.yml, jobs.yml, tags.yml
+# See also: homes.yml, safezones.yml, combats.yml, factions.yml, donjons.yml, jobs.yml, tags.yml
 
 # Teleport-to-player settings for /tpa
 tpa:
@@ -7,13 +7,6 @@ tpa:
   teleport_delay_seconds: 10
   # Cooldown in seconds after a completed /tpa teleport
   cooldown_seconds: 60
-
-# Spawn command settings for /spawn
-spawn_teleport:
-  # Countdown delay in seconds before the player is teleported. Op bypasses.
-  teleport_delay_seconds: 10
-  # Cooldown in seconds after a successful teleport to spawn
-  cooldown_seconds: 30
 
 # Random teleport settings for /air tp
 random_teleport:

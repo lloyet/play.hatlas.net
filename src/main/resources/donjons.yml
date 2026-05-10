@@ -186,16 +186,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -230,16 +230,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -278,16 +278,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -333,16 +333,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -449,16 +449,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -488,16 +488,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -524,16 +524,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -568,16 +568,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -685,16 +685,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -726,16 +726,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -767,16 +767,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -811,16 +811,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -934,16 +934,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -975,16 +975,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1016,16 +1016,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1061,16 +1061,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1166,16 +1166,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1209,16 +1209,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1252,16 +1252,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1297,16 +1297,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1408,16 +1408,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1450,16 +1450,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1485,16 +1485,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2
@@ -1527,16 +1527,16 @@ types:
             chance: 0.15
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.08
+            chance: 0.10
           - material: CREEPER_SPAWN_EGG
             amount: 1
-            chance: 0.10
+            chance: 0.8
             enchantments:
               - enchantment: powered
                 level: 2
           - material: WOODEN_PICKAXE
             amount: 1
-            chance: 0.10
+            chance: 0.05
             enchantments:
               - enchantment: raider
                 level: 2

@@ -299,8 +299,10 @@ public class QuestManager {
                     }
                 }
 
+                TaskTemplate.ExpMultiplier expMult = parseExpMultiplier(tMap.get("exp_multiplier"));
+
                 taskTemplates.computeIfAbsent(job, k -> new ArrayList<>())
-                        .add(new TaskTemplate(id, name, desc, job, action, targets, baseRewards));
+                        .add(new TaskTemplate(id, name, desc, job, action, targets, baseRewards, expMult));
             }
         }
     }
@@ -315,5 +317,20 @@ public class QuestManager {
     private static int mapInt(Map<?, ?> map, String key, int def) {
         Object v = map.get(key);
         return v instanceof Number n ? n.intValue() : def;
+    }
+
+    public static TaskTemplate.ExpMultiplier parseExpMultiplier(Object raw) {
+        if (!(raw instanceof Map<?, ?> m)) return TaskTemplate.ExpMultiplier.defaults();
+        return new TaskTemplate.ExpMultiplier(
+                mapDouble(m, "easy",     1.0),
+                mapDouble(m, "normal",   1.0),
+                mapDouble(m, "hard",     1.0),
+                mapDouble(m, "hardcore", 1.0)
+        );
+    }
+
+    private static double mapDouble(Map<?, ?> map, String key, double def) {
+        Object v = map.get(key);
+        return v instanceof Number n ? n.doubleValue() : def;
     }
 }

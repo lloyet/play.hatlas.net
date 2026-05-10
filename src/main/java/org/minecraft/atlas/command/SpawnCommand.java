@@ -13,8 +13,8 @@ import org.bukkit.entity.Player;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.safezone.SafeZone;
 import org.minecraft.atlas.safezone.SafeZoneManager;
+import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
 import org.minecraft.atlas.spawn.SpawnManager;
-import org.minecraft.atlas.spawn.SpawnTeleportManager;
 
 public class SpawnCommand {
 
@@ -25,21 +25,14 @@ public class SpawnCommand {
         return Commands.literal("spawn")
                 .requires(src -> src.getSender().hasPermission("atlas.spawn"))
 
-                // /spawn — teleport to "spawn" safe zone, or world spawn if none configured
+                // /spawn — alias of /safezone tp spawn
                 .executes(ctx -> {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
                         ctx.getSource().getSender().sendMessage(error("Only players can use this command."));
                         return Command.SINGLE_SUCCESS;
                     }
-                    SafeZone spawnZone = SafeZoneManager.get("spawn");
-                    if (spawnZone != null && spawnZone.getSpawnPoint() != null) {
-                        player.teleport(spawnZone.getSpawnPoint());
-                        player.sendMessage(success("Teleported to spawn."));
-                        SafeZoneManager.recordVisit(player.getUniqueId(), "spawn");
-                    } else {
-                        SpawnTeleportManager.startTeleport(player);
-                    }
+                    teleportToSafeZone(player, "spawn");
                     return Command.SINGLE_SUCCESS;
                 })
 
@@ -78,26 +71,30 @@ public class SpawnCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "safezone").toLowerCase();
-                            SafeZone zone = SafeZoneManager.get(name);
-                            if (zone == null) {
-                                player.sendMessage(error("No safe zone named '" + name + "' exists."));
-                                return Command.SINGLE_SUCCESS;
-                            }
-                            Location dest = zone.getSpawnPoint();
-                            if (dest == null) {
-                                player.sendMessage(error("No teleport location is set for '" + name + "'."));
-                                return Command.SINGLE_SUCCESS;
-                            }
                             boolean isAdmin = player.hasPermission("atlas.spawn.admin");
                             if (!isAdmin && !SafeZoneManager.hasVisited(player.getUniqueId(), name)) {
                                 player.sendMessage(error("You have not visited '" + name + "' yet."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            player.teleport(dest);
-                            player.sendMessage(success("Teleported to '" + name + "'."));
+                            teleportToSafeZone(player, name);
                             return Command.SINGLE_SUCCESS;
                         }))
 
                 .build();
+    }
+
+    /** Routes a /spawn invocation through the same code path as {@code /safezone tp <name>}. */
+    private static void teleportToSafeZone(Player player, String name) {
+        SafeZone zone = SafeZoneManager.get(name);
+        if (zone == null) {
+            player.sendMessage(error("No safe zone named '" + name + "' exists."));
+            return;
+        }
+        Location dest = zone.getSpawnPoint();
+        if (dest == null) {
+            player.sendMessage(error("No teleport location is set for '" + name + "'."));
+            return;
+        }
+        SafeZoneTeleportManager.startTeleport(player, dest, SafeZoneManager.capitalizedName(zone.getName()));
     }
 }

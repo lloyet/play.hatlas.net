@@ -31,7 +31,8 @@
       "Bash(git *)",
       "Bash(./gradlew compileJava --quiet)",
       "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")",
-      "Bash(./gradlew dependencies *)"
+      "Bash(./gradlew dependencies *)",
+      "Bash(./gradlew compileJava --console=plain)"
     ]
   }
 }

@@ -12,6 +12,7 @@ import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonKey;
 import org.minecraft.atlas.quest.ActiveQuest;
 import org.minecraft.atlas.quest.GeneratedTask;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.quest.TaskTemplate;
 
 import java.util.ArrayList;
@@ -300,7 +301,8 @@ public class JokeyriniManager {
                 if (mat != null) rewards.add(new ItemStack(mat, 1));
             }
         }
-        return new TaskTemplate(id, name, desc, Job.JOKEYRINI, action, targets, rewards);
+        TaskTemplate.ExpMultiplier expMult = QuestManager.parseExpMultiplier(tMap.get("exp_multiplier"));
+        return new TaskTemplate(id, name, desc, Job.JOKEYRINI, action, targets, rewards, expMult);
     }
 
     private static List<GeneratedTask> deserializeTasks(Object raw) {

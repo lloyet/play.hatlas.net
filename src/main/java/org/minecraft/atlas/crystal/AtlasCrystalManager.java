@@ -324,17 +324,7 @@ public class AtlasCrystalManager {
         return cs.getStringList("claimed_chunks");
     }
 
-    /** Kept for backward compatibility with Atlas.java which calls loadCrystalHomes. */
-    public static void loadCrystalHomes(FileConfiguration config) {
-        loadCrystalData(config);
-    }
-
-    /** Also kept for backward compat with Atlas.onDisable which calls saveCrystalHomes. */
-    public static void saveCrystalHomes(FileConfiguration config) {
-        saveCrystalData(config);
-    }
-
-    private static void loadCrystalData(FileConfiguration config) {
+    public static void loadCrystalData(FileConfiguration config) {
         crystals.clear();
         factionCrystals.clear();
 
