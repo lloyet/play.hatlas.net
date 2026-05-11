@@ -1,9 +1,16 @@
 name: atlas
 version: '$version'
-
 main: org.minecraft.atlas.Atlas
-api-version: '1.21.11'
+api-version: '1.21'
 load: POSTWORLD
+
+# Optional — declare if you depend on other plugins:
+# dependencies:
+#   server:
+#     SomePlugin:
+#       load: BEFORE          # BEFORE | AFTER | OMIT
+#       required: true        # plugin won't load without it
+#       join-classpath: true  # share classes (rarely needed under isolated loaders)
 
 permissions:
   atlas.quest:
