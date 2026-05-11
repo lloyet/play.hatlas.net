@@ -32,7 +32,8 @@
       "Bash(./gradlew compileJava --quiet)",
       "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")",
       "Bash(./gradlew dependencies *)",
-      "Bash(./gradlew compileJava --console=plain)"
+      "Bash(./gradlew compileJava --console=plain)",
+      "Bash(unzip -p \"/c/Users/lloyet/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api/1.21.11-R0.1-SNAPSHOT/a3a811fd1e99bce749c4e6db9991e45294438d00/paper-api-1.21.11-R0.1-SNAPSHOT-sources.jar\" org/bukkit/Material.java)"
     ]
   }
 }

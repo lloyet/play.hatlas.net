@@ -29,3 +29,14 @@ death_teleport_cooldown:
   # Escalation multiplier applied on each death within the active escalation window.
   # Also the value the multiplier resets to when the window expires.
   multiplier: 2
+
+# hatlas resource pack — pushed to every joining player via Player#sendResourcePacks
+resourcepack:
+  # Direct download URL of the .zip (must be reachable from the client)
+  url: "https://example.com/hatlas.zip"
+  # 40-character lowercase SHA-1 of the .zip — clients refuse mismatched hashes
+  sha1: "0000000000000000000000000000000000000000"
+  # If true, the client is kicked when they decline or fail to download
+  required: false
+  # Prompt shown in the accept dialog (plain text)
+  prompt: "Please accept the Atlas resource pack to see custom items."

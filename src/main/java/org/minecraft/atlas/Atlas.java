@@ -52,9 +52,11 @@ import org.minecraft.atlas.quest.QuestCommand;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
+import org.minecraft.atlas.item.RubyItems;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 import org.minecraft.atlas.util.NpcLookHelper;
+import org.minecraft.atlas.util.ResourcePackManager;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.minecraft.atlas.listener.GolemListener;
@@ -199,6 +201,9 @@ public final class Atlas extends JavaPlugin {
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
+        RubyItems.init();
+        RubyItems.registerRecipes();
+        ResourcePackManager.loadConfig(configFile);
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
         HomeManager.loadHomes(homesDataConfig);
@@ -218,6 +223,8 @@ public final class Atlas extends JavaPlugin {
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
         getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
+        getServer().getPluginManager().registerEvents(new ResourcePackManager(), this);
+        ResourcePackManager.sendToAll();
 
         // Schedulers
         GolemListener.schedule(this);

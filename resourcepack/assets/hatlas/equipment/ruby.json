@@ -1,0 +1,10 @@
+{
+  "layers": {
+    "humanoid": [
+      { "texture": "hatlas:ruby" }
+    ],
+    "humanoid_leggings": [
+      { "texture": "hatlas:ruby" }
+    ]
+  }
+}

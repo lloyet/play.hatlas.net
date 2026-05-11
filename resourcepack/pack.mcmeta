@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "description": "RubyEconomy textures for Paper 1.21.11",
+    "_comment_": "Verify the correct pack_format for 1.21.11 in-game via F3+V or /version. As of 1.21.9 the format moved to min_format/max_format (was 88 for 1.21.9). Update both values to whatever 1.21.11 reports.",
+    "min_format": 88,
+    "max_format": 99
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "hatlas:item/deepslate_ruby_ore"
+  }
+}
