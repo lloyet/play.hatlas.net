@@ -10,9 +10,10 @@ import org.jspecify.annotations.NonNull;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import org.minecraft.atlas.combat.CombatLogManager;
 import org.minecraft.atlas.command.RandomTeleportCommand;
 import org.minecraft.atlas.command.HomeCommand;
-import org.minecraft.atlas.command.SetSpawnCommand;
+import org.minecraft.atlas.command.SafeZoneCommand;
 import org.minecraft.atlas.command.SpawnCommand;
 import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
@@ -23,32 +24,37 @@ import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 import org.minecraft.atlas.donjon.SmugglerManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
-import org.minecraft.atlas.faction.RandomTeleportManager;
-import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
-import org.minecraft.atlas.faction.HomeManager;
-import org.minecraft.atlas.faction.HomeTeleportManager;
-import org.minecraft.atlas.faction.SpawnManager;
-import org.minecraft.atlas.faction.SpawnTeleportManager;
-import org.minecraft.atlas.faction.TpaManager;
-import org.minecraft.atlas.faction.CrystalGui;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.teleport.RandomTeleportManager;
+import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
+import org.minecraft.atlas.teleport.HomeManager;
+import org.minecraft.atlas.teleport.HomeTeleportManager;
+import org.minecraft.atlas.safezone.SafeZoneManager;
+import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
+import org.minecraft.atlas.spawn.SpawnManager;
+import org.minecraft.atlas.teleport.TeleportAtManager;
+import org.minecraft.atlas.listener.CrystalListener;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.command.TradeCommand;
-import org.minecraft.atlas.faction.FactionClaimManager;
+import org.minecraft.atlas.faction.FactionClaimBorderRenderer;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.listener.ChatListener;
 import org.minecraft.atlas.listener.DonjonListener;
 import org.minecraft.atlas.listener.FactionListener;
-import org.minecraft.atlas.listener.SpawnProtectionListener;
+import org.minecraft.atlas.listener.SafeZoneNpcListener;
+import org.minecraft.atlas.listener.SafeZoneListener;
 import org.minecraft.atlas.listener.TagListener;
 import org.minecraft.atlas.command.JobCommand;
 import org.minecraft.atlas.tag.TagManager;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
+import org.minecraft.atlas.quest.QuestCommand;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
+import org.minecraft.atlas.util.NpcLookHelper;
 
 import org.bukkit.plugin.java.JavaPlugin;
 import org.minecraft.atlas.listener.GolemListener;
@@ -67,14 +73,41 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration jobsConfig;
     public static File jobsFile;
 
-    public static YamlConfiguration tagsConfig;
-    public static File tagsFile;
+    public static YamlConfiguration homesConfig;
+    public static File homesFile;
+
+    public static YamlConfiguration safezonesConfig;
+    public static File safezonesFile;
+
+    public static YamlConfiguration combatsConfig;
+    public static File combatsFile;
+
+    public static YamlConfiguration tagsDataConfig;
+    public static File tagsDataFile;
+
+    public static YamlConfiguration factionsDataConfig;
+    public static File factionsDataFile;
+
+    public static YamlConfiguration donjonsDataConfig;
+    public static File donjonsDataFile;
+
+    public static YamlConfiguration jobsDataConfig;
+    public static File jobsDataFile;
+
+    public static YamlConfiguration homesDataConfig;
+    public static File homesDataFile;
+
+    public static YamlConfiguration safezonesDataConfig;
+    public static File safezonesDataFile;
+
+    public static YamlConfiguration combatsDataConfig;
+    public static File combatsDataFile;
 
     @Override
     public void onEnable() {
         instance = this;
 
-        // config.yml — homes, teleport cooldowns, crystal, spawn protection, tags
+        // config.yml — tpa, spawn/random teleport, AFK, death-teleport cooldown
         saveDefaultConfig();
         FileConfiguration configFile = getConfig();
 
@@ -93,43 +126,82 @@ public final class Atlas extends JavaPlugin {
         if (!jobsFile.exists()) saveResource("jobs.yml", false);
         jobsConfig = YamlConfiguration.loadConfiguration(jobsFile);
 
-        // tags.yml — in-world text display tags
-        tagsFile = new File(getDataFolder(), "tags.yml");
-        if (!tagsFile.exists()) saveResource("tags.yml", false);
-        tagsConfig = YamlConfiguration.loadConfiguration(tagsFile);
+        // homes.yml — /home and /sethome teleport settings
+        homesFile = new File(getDataFolder(), "homes.yml");
+        if (!homesFile.exists()) saveResource("homes.yml", false);
+        homesConfig = YamlConfiguration.loadConfiguration(homesFile);
 
-        // Load from config.yml
+        // safezones.yml — safe-zone teleport settings
+        safezonesFile = new File(getDataFolder(), "safezones.yml");
+        if (!safezonesFile.exists()) saveResource("safezones.yml", false);
+        safezonesConfig = YamlConfiguration.loadConfiguration(safezonesFile);
+
+        // combats.yml — anti-disconnect combat-log settings
+        combatsFile = new File(getDataFolder(), "combats.yml");
+        if (!combatsFile.exists()) saveResource("combats.yml", false);
+        combatsConfig = YamlConfiguration.loadConfiguration(combatsFile);
+
+        // tags-data.yml — in-world text display tags (runtime-only, not in resources)
+        tagsDataFile = new File(getDataFolder(), "tags-data.yml");
+        tagsDataConfig = YamlConfiguration.loadConfiguration(tagsDataFile);
+
+        // Data files (runtime-only, not shipped in resources)
+        factionsDataFile = new File(getDataFolder(), "factions-data.yml");
+        factionsDataConfig = YamlConfiguration.loadConfiguration(factionsDataFile);
+
+        donjonsDataFile = new File(getDataFolder(), "donjons-data.yml");
+        donjonsDataConfig = YamlConfiguration.loadConfiguration(donjonsDataFile);
+
+        jobsDataFile = new File(getDataFolder(), "jobs-data.yml");
+        jobsDataConfig = YamlConfiguration.loadConfiguration(jobsDataFile);
+
+        homesDataFile = new File(getDataFolder(), "homes-data.yml");
+        homesDataConfig = YamlConfiguration.loadConfiguration(homesDataFile);
+
+        safezonesDataFile = new File(getDataFolder(), "safezones-data.yml");
+        safezonesDataConfig = YamlConfiguration.loadConfiguration(safezonesDataFile);
+
+        combatsDataFile = new File(getDataFolder(), "combats-data.yml");
+        combatsDataConfig = YamlConfiguration.loadConfiguration(combatsDataFile);
+
+        // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
-        SpawnProtectionListener.loadConfig(configFile);
+        SafeZoneManager.loadConfig(safezonesDataConfig);
+        SafeZoneTeleportManager.loadConfig(safezonesConfig);
         SpawnManager.loadConfig(configFile);
         RandomTeleportManager.loadConfig(configFile);
-        SpawnTeleportManager.loadConfig(configFile);
-        HomeManager.loadConfig(configFile);
+        HomeManager.loadConfig(homesConfig);
         HomeTeleportManager.loadConfig(factionsConfig);
-        TpaManager.loadConfig(configFile);
+        TeleportAtManager.loadConfig(configFile);
         AfkManager.loadConfig(configFile);
         DeathTeleportCooldownManager.loadConfig(configFile);
+        CombatLogManager.loadConfig(combatsConfig);
+        CombatLogManager.loadCombatData(combatsDataConfig);
 
-        // Load from factions.yml
+        // Load from factions.yml (config) and factions-data.yml (data)
         FactionLevelManager.loadUpgrades(factionsConfig);
-        FactionManager.loadFactions(factionsConfig);
-        FactionClaimManager.loadClaims(factionsConfig);
+        FactionManager.loadFactions(factionsDataConfig);
+        // Crystals own their claims; loadCrystalHomes also rebuilds FactionClaimManager's
+        // runtime cache by calling claimChunk() for each per-crystal claim.
+        AtlasCrystalManager.loadCrystalData(factionsDataConfig);
 
-        // Load from jobs.yml
-        JobManager.loadJobs(jobsConfig);
-        JokeyriniManager.loadJokeyrini(jobsConfig);
+        // Load from jobs.yml (config) and jobs-data.yml (data)
+        QuestManager.loadQuestConfig(jobsConfig);
+        JobManager.loadJobData(jobsDataConfig);
+        JokeyriniManager.loadJokeyriniConfig(jobsConfig);
+        JokeyriniManager.loadJokeyriniData(jobsDataConfig);
 
-        // Load from donjons.yml
+        // Load from donjons.yml (config) and donjons-data.yml (data)
         DonjonManager.loadConfig(donjonsConfig);
-        DonjonManager.loadDonjons(donjonsConfig);
+        DonjonManager.loadDonjons(donjonsDataConfig);
         SmugglerManager.loadConfig(donjonsConfig);
 
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
         TagManager.init();
-        TagManager.loadTags(tagsConfig);
-        HomeManager.loadHomes(configFile);
+        TagManager.loadTags(tagsDataConfig);
+        HomeManager.loadHomes(homesDataConfig);
 
         // Register all listeners
         getServer().getPluginManager().registerEvents(new ChatListener(), this);
@@ -139,19 +211,24 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new JobListener(), this);
         getServer().getPluginManager().registerEvents(new DonjonListener(), this);
         getServer().getPluginManager().registerEvents(new TagListener(), this);
-        getServer().getPluginManager().registerEvents(new CrystalGui(), this);
+        getServer().getPluginManager().registerEvents(new CrystalListener(), this);
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
-        getServer().getPluginManager().registerEvents(new SpawnProtectionListener(), this);
+        getServer().getPluginManager().registerEvents(new SafeZoneListener(), this);
+        getServer().getPluginManager().registerEvents(new SafeZoneNpcListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
+        getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
 
         // Schedulers
         GolemListener.schedule(this);
         AtlasCrystalManager.schedule(this);
         DonjonManager.schedule(this);
-        JobManager.scheduleExpiry(this);
+        QuestManager.scheduleExpiry(this);
         ItemClearManager.schedule(this);
         AfkManager.schedule(this);
+        CombatLogManager.schedule(this);
+        FactionClaimBorderRenderer.schedule(this);
+        NpcLookHelper.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -161,12 +238,13 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(FactionCommand.build(), "Faction management commands", List.of("f"));
                         event.registrar().register(TradeCommand.build());
                         event.registrar().register(JobCommand.build());
+                        event.registrar().register(QuestCommand.build());
                         event.registrar().register(CrystalCommand.build());
                         event.registrar().register(DonjonCommand.build());
                         event.registrar().register(TagCommand.build());
                         event.registrar().register(RandomTeleportCommand.build());
                         event.registrar().register(SpawnCommand.build());
-                        event.registrar().register(SetSpawnCommand.build());
+                        event.registrar().register(SafeZoneCommand.build());
                         event.registrar().register(TpaCommand.build());
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
@@ -180,64 +258,103 @@ public final class Atlas extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Mark shutdown first so any incoming PlayerQuitEvent does not trigger the
+        // combat-log kill — state will be persisted to combats-data.yml below.
+        CombatLogManager.setShuttingDown(true);
+
         FileConfiguration configFile = getConfig();
 
         // Save to config.yml
-        HomeManager.saveHomes(configFile);
         SpawnManager.saveSpawn(configFile);
         saveConfig();
 
-        // Save to tags.yml
-        TagManager.saveTags(tagsConfig);
-        saveTagsConfig();
+        // Save to homes-data.yml
+        HomeManager.saveHomes(homesDataConfig);
+        saveHomesDataConfig();
 
-        // Save to factions.yml
-        FactionManager.saveFactions(factionsConfig);
-        FactionClaimManager.saveClaims(factionsConfig);
-        AtlasCrystalManager.saveCrystalHomes(factionsConfig);
-        saveFactionsConfig();
+        // Save to safezones-data.yml
+        SafeZoneManager.saveConfig(safezonesDataConfig);
+        saveSafezonesDataConfig();
 
-        // Save to jobs.yml
-        JobManager.saveJobs(jobsConfig);
-        JokeyriniManager.saveJokeyrini(jobsConfig);
-        saveJobsConfig();
+        // Save to tags-data.yml
+        TagManager.saveTags(tagsDataConfig);
+        saveTagsDataConfig();
 
-        // Save to donjons.yml
-        DonjonManager.saveDonjonConfig(donjonsConfig);
-        saveDonjonsConfig();
+        // Save to factions-data.yml
+        FactionManager.saveFactions(factionsDataConfig);
+        // Per-crystal claims are persisted as part of saveCrystalHomes (the "crystals" section).
+        AtlasCrystalManager.saveCrystalData(factionsDataConfig);
+        saveFactionsDataConfig();
+
+        // Save to jobs-data.yml
+        JobManager.saveJobData(jobsDataConfig);
+        JokeyriniManager.saveJokeyriniData(jobsDataConfig);
+        saveJobsDataConfig();
+
+        // Save to donjons-data.yml
+        DonjonManager.saveDonjonData(donjonsDataConfig);
+        saveDonjonsDataConfig();
+
+        // Save to combats-data.yml
+        CombatLogManager.saveCombatData(combatsDataConfig);
+        saveCombatsDataConfig();
 
         getLogger().info("Atlas disabled.");
     }
 
-    public static void saveTagsConfig() {
+    public static void saveCombatsDataConfig() {
         try {
-            tagsConfig.save(tagsFile);
+            combatsDataConfig.save(combatsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save tags.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save combats-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveDonjonsConfig() {
+    public static void saveTagsDataConfig() {
         try {
-            donjonsConfig.save(donjonsFile);
+            tagsDataConfig.save(tagsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save donjons.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save tags-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveFactionsConfig() {
+    public static void saveDonjonsDataConfig() {
         try {
-            factionsConfig.save(factionsFile);
+            donjonsDataConfig.save(donjonsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save factions.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save donjons-data.yml: " + e.getMessage());
         }
     }
 
-    public static void saveJobsConfig() {
+    public static void saveFactionsDataConfig() {
         try {
-            jobsConfig.save(jobsFile);
+            factionsDataConfig.save(factionsDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save jobs.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save factions-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveJobsDataConfig() {
+        try {
+            jobsDataConfig.save(jobsDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save jobs-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveHomesDataConfig() {
+        try {
+            homesDataConfig.save(homesDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save homes-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveSafezonesDataConfig() {
+        try {
+            safezonesDataConfig.save(safezonesDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save safezones-data.yml: " + e.getMessage());
         }
     }
 }

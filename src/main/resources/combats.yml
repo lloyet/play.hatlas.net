@@ -1,0 +1,7 @@
+# Atlas plugin combat-log configuration
+# Active combat timers persist across restarts in combats-data.yml.
+
+combat_log:
+  # Seconds a player stays "in combat" after taking or dealing PvP damage.
+  # If they disconnect before the timer expires they are killed and their inventory drops.
+  timeout_seconds: 20

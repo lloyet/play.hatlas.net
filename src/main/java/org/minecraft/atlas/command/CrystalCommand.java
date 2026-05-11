@@ -9,8 +9,8 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.Collection;

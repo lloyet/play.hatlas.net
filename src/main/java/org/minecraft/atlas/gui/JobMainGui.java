@@ -11,9 +11,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.job.ActiveQuest;
+import org.minecraft.atlas.quest.ActiveQuest;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.PlayerJobData;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -24,7 +25,6 @@ public class JobMainGui implements AtlasGui {
 
     private static final int SLOT_MY_QUESTS    = 11;
     private static final int SLOT_DAILY_QUESTS = 15;
-    private static final int SLOT_BACK         = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -42,7 +42,7 @@ public class JobMainGui implements AtlasGui {
         ItemStack myQuests = new ItemStack(Material.PAPER);
         ItemMeta mqMeta = myQuests.getItemMeta();
         mqMeta.displayName(Component.text("My Quests", NamedTextColor.YELLOW).decoration(TextDecoration.ITALIC, false));
-        List<ActiveQuest> active = JobManager.getActiveQuests(player.getUniqueId());
+        List<ActiveQuest> active = QuestManager.getActiveQuests(player.getUniqueId());
         List<Component> mqLore = new ArrayList<>();
         if (active.isEmpty()) {
             mqLore.add(Component.text("No active quests.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
@@ -59,11 +59,11 @@ public class JobMainGui implements AtlasGui {
         ItemMeta dMeta = daily.getItemMeta();
         dMeta.displayName(Component.text("Daily Quests", NamedTextColor.GOLD).decoration(TextDecoration.ITALIC, false));
         List<Component> dLore = new ArrayList<>();
-        if (JobManager.isDailyLocked(player.getUniqueId())) {
+        if (QuestManager.isDailyLocked(player.getUniqueId())) {
             dLore.add(Component.text("You have chosen your 2 daily quests.", NamedTextColor.RED).decoration(TextDecoration.ITALIC, false));
             dLore.add(Component.text("Come back tomorrow!", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
         } else {
-            int selected = JobManager.getDailySelectedCount(player.getUniqueId());
+            int selected = QuestManager.getDailySelectedCount(player.getUniqueId());
             dLore.add(Component.text("Select up to 2 quests per day.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             dLore.add(Component.text(selected + "/2 selected today.", NamedTextColor.GRAY).decoration(TextDecoration.ITALIC, false));
             dLore.add(Component.text("Click to choose.", NamedTextColor.AQUA).decoration(TextDecoration.ITALIC, false));
@@ -72,8 +72,7 @@ public class JobMainGui implements AtlasGui {
         daily.setItemMeta(dMeta);
         this.inventory.setItem(SLOT_DAILY_QUESTS, daily);
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Close"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -93,22 +92,24 @@ public class JobMainGui implements AtlasGui {
 
         int slot = event.getRawSlot();
 
-        if (slot == SLOT_BACK) {
-            player.closeInventory();
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
             return;
         }
 
         if (slot == SLOT_MY_QUESTS) {
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobQuestListGui(player).open(player);
             return;
         }
 
         if (slot == SLOT_DAILY_QUESTS) {
-            if (JobManager.isDailyLocked(player.getUniqueId())) {
+            if (QuestManager.isDailyLocked(player.getUniqueId())) {
                 player.sendMessage(Component.text(
                         "You have already selected your 2 daily quests. Come back tomorrow!", NamedTextColor.RED));
                 return;
             }
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobDailyGui(player).open(player);
         }
     }

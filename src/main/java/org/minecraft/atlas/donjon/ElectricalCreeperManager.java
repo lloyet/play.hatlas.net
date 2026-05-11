@@ -19,9 +19,9 @@ import java.util.Map;
 public class ElectricalCreeperManager {
 
     /**
-     * Number of charged-creeper hits required to destroy one obsidian block.
+     * Number of charged-creeper explosions required to destroy one obsidian block.
      */
-    public static final int OBSIDIAN_HITS_REQUIRED = 4;
+    public static final int OBSIDIAN_HITS_REQUIRED = 3;
 
     private static NamespacedKey keyElectricalCreeperEgg;
     private static NamespacedKey keyElectricalCreeper;
@@ -43,14 +43,23 @@ public class ElectricalCreeperManager {
     public static ItemStack createElectricalCreeperEgg() {
         ItemStack item = new ItemStack(Material.CREEPER_SPAWN_EGG);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("⚡ Electrical Creeper Egg", NamedTextColor.YELLOW)
-                .decoration(TextDecoration.ITALIC, false));
+        meta.displayName(Component.text("⚡ Powered Creeper Egg", NamedTextColor.YELLOW)
+                .decoration(TextDecoration.ITALIC, false)
+                .decoration(net.kyori.adventure.text.format.TextDecoration.BOLD, true));
         meta.lore(List.of(
-                Component.text("Summons a charged creeper", NamedTextColor.GRAY)
+                Component.empty(),
+                Component.text("  Right-click on ground to spawn a Powered Creeper.", NamedTextColor.GRAY)
                         .decoration(TextDecoration.ITALIC, false),
-                Component.text("Needs " + OBSIDIAN_HITS_REQUIRED + " explosions to destroy obsidian.", NamedTextColor.GRAY)
+                Component.empty(),
+                Component.text("  ⛏ Damages Obsidian:", NamedTextColor.YELLOW)
+                        .decoration(TextDecoration.ITALIC, false),
+                Component.text("  " + OBSIDIAN_HITS_REQUIRED + " explosions to break 1 Obsidian block.", NamedTextColor.GRAY)
+                        .decoration(TextDecoration.ITALIC, false),
+                Component.empty(),
+                Component.text("  ✔ Usable in enemy faction territory!", NamedTextColor.GREEN)
                         .decoration(TextDecoration.ITALIC, false)
         ));
+        meta.setEnchantmentGlintOverride(true);
         meta.getPersistentDataContainer().set(keyElectricalCreeperEgg, PersistentDataType.BYTE, (byte) 1);
         item.setItemMeta(meta);
         return item;

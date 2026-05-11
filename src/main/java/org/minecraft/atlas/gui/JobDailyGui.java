@@ -13,9 +13,9 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.GeneratedTask;
-import org.minecraft.atlas.job.JobManager;
-import org.minecraft.atlas.job.QuestTemplate;
+import org.minecraft.atlas.quest.GeneratedTask;
+import org.minecraft.atlas.quest.QuestTemplate;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -25,7 +25,6 @@ import java.util.UUID;
 public class JobDailyGui implements AtlasGui {
 
     private static final int[] DAILY_ITEM_SLOTS = {10, 13, 16};
-    private static final int   SLOT_BACK        = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -34,8 +33,8 @@ public class JobDailyGui implements AtlasGui {
         this.playerUUID = player.getUniqueId();
         this.inventory  = Atlas.instance.getServer().createInventory(this, 27, Component.text("Daily Quests", NamedTextColor.GOLD));
 
-        List<QuestTemplate> offered = JobManager.getDailyOfferedQuests(player.getUniqueId());
-        boolean locked = JobManager.isDailyLocked(player.getUniqueId());
+        List<QuestTemplate> offered = QuestManager.getDailyOfferedQuests(player.getUniqueId());
+        boolean locked = QuestManager.isDailyLocked(player.getUniqueId());
 
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
         Faction faction = factionName != null ? FactionManager.getFaction(factionName) : null;
@@ -43,14 +42,13 @@ public class JobDailyGui implements AtlasGui {
 
         for (int i = 0; i < offered.size() && i < DAILY_ITEM_SLOTS.length; i++) {
             QuestTemplate qt = offered.get(i);
-            boolean selected = JobManager.isDailyQuestSelected(player.getUniqueId(), qt.getId());
+            boolean selected = QuestManager.isDailyQuestSelected(player.getUniqueId(), qt.getId());
             if (!selected) {
                 this.inventory.setItem(DAILY_ITEM_SLOTS[i], buildDailyQuestItem(qt, locked, factionLevel));
             }
         }
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Back"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -70,21 +68,21 @@ public class JobDailyGui implements AtlasGui {
 
         int slot = event.getRawSlot();
 
-        if (slot == SLOT_BACK) {
-            new JobMainGui(player).open(player);
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
             return;
         }
 
-        if (JobManager.isDailyLocked(player.getUniqueId())) return;
+        if (QuestManager.isDailyLocked(player.getUniqueId())) return;
 
-        List<QuestTemplate> offered = JobManager.getDailyOfferedQuests(player.getUniqueId());
+        List<QuestTemplate> offered = QuestManager.getDailyOfferedQuests(player.getUniqueId());
         for (int i = 0; i < offered.size() && i < DAILY_ITEM_SLOTS.length; i++) {
             if (DAILY_ITEM_SLOTS[i] != slot) continue;
             QuestTemplate qt = offered.get(i);
 
-            if (JobManager.isDailyQuestSelected(player.getUniqueId(), qt.getId())) return;
+            if (QuestManager.isDailyQuestSelected(player.getUniqueId(), qt.getId())) return;
 
-            if (JobManager.selectDailyQuest(player.getUniqueId(), qt.getId())) {
+            if (QuestManager.selectDailyQuest(player.getUniqueId(), qt.getId())) {
                 int taskCount = qt.getTasks().size();
                 player.sendMessage(
                     Component.text("Quest accepted! ", NamedTextColor.GREEN)
@@ -126,7 +124,7 @@ public class JobDailyGui implements AtlasGui {
         }
 
         lore.add(Component.empty());
-        int expReward = qt.calculateExpReward(factionLevel, JobManager.getBaseExpReward());
+        int expReward = qt.calculateExpReward(factionLevel, QuestManager.getBaseExpReward());
         lore.add(GuiUtil.label("Experience: ").append(GuiUtil.value(expReward + " XP")));
         lore.add(GuiUtil.label("Time Limit: ").append(GuiUtil.value(GuiUtil.formatTime(qt.getTimeLimitMs()))));
 

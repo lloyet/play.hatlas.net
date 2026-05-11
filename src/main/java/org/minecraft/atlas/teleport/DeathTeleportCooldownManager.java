@@ -1,4 +1,4 @@
-package org.minecraft.atlas.faction;
+package org.minecraft.atlas.teleport;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;

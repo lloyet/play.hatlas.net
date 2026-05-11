@@ -10,12 +10,14 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.faction.TpaManager;
+import org.minecraft.atlas.teleport.TeleportAtManager;
 
 import java.util.List;
 
 @SuppressWarnings("UnstableApiUsage")
 public class TpaCommand {
+
+    private static Component error(String msg) { return Component.text(msg, NamedTextColor.RED); }
 
     public static LiteralCommandNode<CommandSourceStack> build() {
         return Commands.literal("tpa")
@@ -27,16 +29,16 @@ public class TpaCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player requester)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             List<Player> resolved = ctx.getArgument("player", PlayerSelectorArgumentResolver.class)
                                     .resolve(ctx.getSource());
                             if (resolved.isEmpty()) {
-                                requester.sendMessage(Component.text("Player not found.", NamedTextColor.RED));
+                                requester.sendMessage(error("Player not found."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            TpaManager.sendRequest(requester, resolved.getFirst());
+                            TeleportAtManager.sendRequest(requester, resolved.getFirst());
                             return Command.SINGLE_SUCCESS;
                         }))
 
@@ -46,10 +48,10 @@ public class TpaCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player target)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            TpaManager.acceptRequest(target);
+                            TeleportAtManager.acceptRequest(target);
                             return Command.SINGLE_SUCCESS;
                         }))
 
@@ -59,10 +61,10 @@ public class TpaCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player target)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            TpaManager.denyRequest(target);
+                            TeleportAtManager.denyRequest(target);
                             return Command.SINGLE_SUCCESS;
                         }))
 

@@ -12,11 +12,10 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
-import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.teleport.HomeTeleportManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -26,11 +25,10 @@ import java.util.UUID;
 
 public class CrystalListGui implements AtlasGui {
 
-    private static final int SLOT_BACK = 49;
 
     private final String factionName;
     private final UUID mainCrystalUUID;
-    private final List<UUID> crystalUUIDs = new ArrayList<>();
+    private final List<AtlasCrystal> crystalList = new ArrayList<>();
     private final Inventory inventory;
 
     public CrystalListGui(Player player, Faction faction, UUID mainCrystalUUID) {
@@ -38,20 +36,19 @@ public class CrystalListGui implements AtlasGui {
         this.mainCrystalUUID = mainCrystalUUID;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text(faction.getName() + " - Crystals", faction.getColor()));
+                Component.text("Crystals - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
 
         Collection<AtlasCrystal> crystals = AtlasCrystalManager.getFactionCrystals(factionName);
         int[] slots = GuiUtil.contentSlots54();
         int i = 0;
         for (AtlasCrystal crystal : crystals) {
             if (i >= slots.length) break;
-            crystalUUIDs.add(crystal.getEntity().getUniqueId());
+            crystalList.add(crystal);
             this.inventory.setItem(slots[i], buildCrystalItem(crystal, faction));
             i++;
         }
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Back"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -71,13 +68,8 @@ public class CrystalListGui implements AtlasGui {
 
         int slot = event.getRawSlot();
 
-        if (slot == SLOT_BACK) {
-            String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-            if (fn == null) { player.closeInventory(); return; }
-            Faction faction  = FactionManager.getFaction(fn);
-            AtlasCrystal crystal = AtlasCrystalManager.getCrystal(mainCrystalUUID);
-            if (crystal == null) { player.closeInventory(); return; }
-            new CrystalMainGui(player, faction, crystal).open(player);
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
             return;
         }
 
@@ -86,10 +78,9 @@ public class CrystalListGui implements AtlasGui {
         for (int i = 0; i < slots.length; i++) {
             if (slots[i] == slot) { crystalIndex = i; break; }
         }
-        if (crystalIndex < 0 || crystalIndex >= crystalUUIDs.size()) return;
+        if (crystalIndex < 0 || crystalIndex >= crystalList.size()) return;
 
-        AtlasCrystal target = AtlasCrystalManager.getCrystal(crystalUUIDs.get(crystalIndex));
-        if (target == null) return;
+        AtlasCrystal target = crystalList.get(crystalIndex);
 
         Location home = target.getHome();
         if (home == null) {

@@ -14,22 +14,21 @@ import net.kyori.adventure.text.format.TextDecoration;
 import org.bukkit.Material;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
-import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.faction.FactionRole;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -57,14 +56,14 @@ public class CrystalMainGui implements AtlasGui {
         this.crystalEntityUUID = crystal.getEntity().getUniqueId();
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
-                Component.text("Faction - " + faction.getName(), faction.getColor()));
+                Component.text("Crystal Menu - " + GuiUtil.truncateFactionName(faction.getName()), faction.getColor()));
         this.inventory.setItem(SLOT_CRYSTAL_LIST, buildCrystalListButton(faction));
         this.inventory.setItem(SLOT_FACTION_INFO, buildFactionInfoItem(faction, crystal));
         this.inventory.setItem(SLOT_COLOR_INFO,   buildColorItem(faction));
         this.inventory.setItem(SLOT_CHEST_BTN,    buildChestButton(faction));
         this.inventory.setItem(SLOT_UPGRADES_BTN, buildUpgradesButton(faction));
         this.inventory.setItem(SLOT_QUESTS_BTN,   buildQuestsButton(player));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -94,32 +93,60 @@ public class CrystalMainGui implements AtlasGui {
                 player.closeInventory();
                 return;
             }
-            player.closeInventory();
-            openRenameDialog(player, factionName, crystalEntityUUID, null);
+            // Shift-click keeps the rename flow accessible from this same item.
+            if (event.isShiftClick()) {
+                player.playSound(player.getLocation(), Sound.ITEM_BOOK_PAGE_TURN, 1.0f, 1.0f);
+                player.closeInventory();
+                openRenameDialog(player, factionName, crystalEntityUUID, null);
+                return;
+            }
+            // Plain click opens the "Set as Main" confirm — gated to owner/leader, and only
+            // meaningful when the crystal isn't already the main of the faction.
+            boolean isOwner  = faction.getOwner().equals(player.getUniqueId());
+            boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+            if (!isOwner && !isLeader) {
+                player.sendMessage(Component.text(
+                        "Only the faction owner or a leader can set the main crystal.",
+                        NamedTextColor.RED));
+                return;
+            }
+            if (!crystal.isOutpost()) {
+                player.sendMessage(Component.text(
+                        "This crystal is already the main crystal of the faction.",
+                        NamedTextColor.YELLOW));
+                return;
+            }
+            player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
+            new CrystalHomeConfirmGui(player, factionName, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_CRYSTAL_LIST) {
             player.playSound(player.getLocation(), Sound.BLOCK_AMETHYST_BLOCK_CHIME, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_CHEST_BTN) {
-            int available = FactionLevelManager.getAvailableChests(faction.getLevel());
+            int available = AtlasCrystalManager.getFactionCrystals(faction.getName())
+                    .stream().mapToInt(c -> c.getPurchasedChestSizes().size()).sum();
             if (available == 0) {
                 player.sendMessage(Component.text(
-                        "Your faction has no chests yet. Reach an upgrade level to unlock one.",
+                        "Your faction has no chests yet. Purchase a chest upgrade via the Skills menu.",
                         NamedTextColor.YELLOW));
                 return;
             }
             player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalChestListGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
 
         if (slot == SLOT_COLOR_INFO) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new CrystalColorGui(player, faction, crystalEntityUUID).open(player);
             return;
         }
@@ -132,12 +159,18 @@ public class CrystalMainGui implements AtlasGui {
                 return;
             }
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
-            new CrystalUpgradeGui(player, faction, crystalEntityUUID).open(player);
+            GuiNavigator.push(player.getUniqueId(), this);
+            new CrystalSkillListGui(player, faction, crystalEntityUUID).open(player);
         }
 
         if (slot == SLOT_QUESTS_BTN) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
             new JobMainGui(player).open(player);
+        }
+
+        if (slot == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
         }
     }
 
@@ -262,8 +295,18 @@ public class CrystalMainGui implements AtlasGui {
         } else {
             lore.add(GuiUtil.loreLine("EXP", "MAX LEVEL", NamedTextColor.GOLD));
         }
+        lore.add(GuiUtil.loreLine("Skill Points", String.valueOf(faction.getSkillPoints()), NamedTextColor.LIGHT_PURPLE));
+        lore.add(GuiUtil.loreLine("Role", crystal.isOutpost() ? "Outpost" : "Main",
+                crystal.isOutpost() ? NamedTextColor.AQUA : NamedTextColor.GOLD));
         lore.add(Component.empty());
-        lore.add(Component.text("  Click to rename this crystal", NamedTextColor.GRAY)
+        if (crystal.isOutpost()) {
+            lore.add(Component.text("  Click to set as main crystal", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("  Already the main crystal", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+        lore.add(Component.text("  Shift-click to rename", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
         meta.lore(lore);
@@ -272,8 +315,10 @@ public class CrystalMainGui implements AtlasGui {
     }
 
     private static ItemStack buildChestButton(Faction faction) {
-        int available = FactionLevelManager.getAvailableChests(faction.getLevel());
-        ItemStack item = new ItemStack(available > 0 ? Material.BARREL : Material.CHEST);
+        // Count total chests across all crystals of this faction
+        int available = AtlasCrystalManager.getFactionCrystals(faction.getName())
+                .stream().mapToInt(c -> c.getPurchasedChestSizes().size()).sum();
+        ItemStack item = new ItemStack(Material.CHEST);
         ItemMeta meta  = item.getItemMeta();
         meta.displayName(Component.text("Faction Chests", NamedTextColor.YELLOW)
                 .decoration(TextDecoration.ITALIC, false));
@@ -314,20 +359,20 @@ public class CrystalMainGui implements AtlasGui {
     }
 
     private static ItemStack buildUpgradesButton(Faction faction) {
-        int pendingCount = faction.getPendingUpgrades().size();
-        NamedTextColor nameColor = pendingCount > 0 ? NamedTextColor.YELLOW : NamedTextColor.WHITE;
+        int sp = faction.getSkillPoints();
+        NamedTextColor nameColor = sp > 0 ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.WHITE;
 
         ItemStack item = new ItemStack(Material.ANVIL);
         ItemMeta meta = item.getItemMeta();
-        meta.displayName(Component.text("Upgrades", nameColor)
+        meta.displayName(Component.text("Skills", nameColor)
                 .decoration(TextDecoration.ITALIC, false));
 
         List<Component> lore = new ArrayList<>();
         lore.add(Component.empty());
-        lore.add(GuiUtil.loreLine("Pending", String.valueOf(pendingCount),
-                pendingCount > 0 ? NamedTextColor.YELLOW : NamedTextColor.GRAY));
+        lore.add(GuiUtil.loreLine("Skill Points", String.valueOf(sp),
+                sp > 0 ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.GRAY));
         lore.add(Component.empty());
-        lore.add(Component.text("  Click to view all upgrades", NamedTextColor.GRAY)
+        lore.add(Component.text("  Click to spend skill points on upgrades", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
         meta.lore(lore);
@@ -346,7 +391,7 @@ public class CrystalMainGui implements AtlasGui {
 
         if (JobManager.hasJob(player.getUniqueId())) {
             var data = JobManager.getJobData(player.getUniqueId());
-            int active = JobManager.getActiveQuests(player.getUniqueId()).size();
+            int active = QuestManager.getActiveQuests(player.getUniqueId()).size();
             lore.add(GuiUtil.loreLine("Job",    data.getJob().getDisplayName(), data.getJob().getColor()));
             lore.add(GuiUtil.loreLine("Active", active + " / 2", NamedTextColor.AQUA));
         } else {

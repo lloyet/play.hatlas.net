@@ -4,9 +4,11 @@
 
 | Section | Description |
 |---|---|
-| [Faction](#faction) | Create and manage a faction: levels, XP, upgrades, chests, claims, allies |
-| [Job](#job) | Choose a profession, complete daily quests, earn faction XP and item rewards |
-| [Dungeon](#dungeon) | Raid wave-based dungeons, fight a boss, and share loot between factions |
+| [Faction](#faction) | Create and manage a faction: levels, skill points, crystal, claims, allies |
+| [Job](#job) | Choose a profession (after joining a faction), complete daily quests, earn faction XP |
+| [Dungeon](#dungeon) | Raid wave-based dungeons, fight a boss, share loot, earn special rewards |
+| [Combat & PvP](#combat--pvp) | 1.8-style PvP, anti-disconnect (combat log) rules |
+| [Safe Zones](#safe-zones) | Protected hubs and `/spawn` behavior |
 | [Basic Commands](#basic-commands) | Home, trade, teleport, and utility commands |
 
 ---
@@ -15,7 +17,7 @@
 
 ### What is a Faction?
 
-A faction is a persistent group of players that fight, progress, and earn rewards together. Every member's contributions (job quests, dungeon clears) flow into the faction's shared XP pool, which raises the faction's level and unlocks new perks.
+A faction is a persistent group of players that fight, progress, and earn rewards together. Every member's contributions (job quests, dungeon clears) flow into the faction's shared XP pool, which raises the faction's level and grants **Skill Points**. Skill Points are spent inside the Atlas Crystal GUI to grow your faction the way *you* want — claims, chests, protection, HP, or homes.
 
 ### Levels and XP
 
@@ -30,30 +32,68 @@ The maximum faction level is **100**.
 
 XP is earned by completing job quests (via the daily quest system) or clearing dungeons. It is added to the faction pool automatically — no player action required.
 
-### Upgrades
+Each level-up grants **Skill Points**. Levelling up no longer auto-applies claims, chests, protection, or HP — those are now individual purchases.
 
-At certain faction levels, an **upgrade** becomes available. Each upgrade grants two bonuses:
+### Skill Points
 
-- **HP bonus** — increases the maximum HP of your faction's Atlas Crystals (Iron Golems)
-- **Faction chest** — unlocks one or more additional virtual double-chests accessible by all members
+The Skill Points shop is accessible inside the Atlas Crystal inventory (right-click on a faction crystal). Skills can be purchased independently:
 
-When an upgrade threshold is reached, it appears as a **pending upgrade** in `/faction upgrade list`. An officer or owner must apply it with `/faction upgrade apply` to receive the HP bonus on the crystals.
+| Skill | Effect | Repeatable? |
+|---|---|---|
+| **Claims** | Grants additional chunks you can manually claim | Yes |
+| **Faction Chest** | Unlocks an additional virtual double-chest accessible by all members | Yes |
+| **HP** | Increases the maximum HP of your faction's Atlas Crystals | Yes |
+| **Home** | Adds a personal home slot to every member | Yes |
+| **Protection** | Adds a stockpiled protection slot triggered when the Crystal is destroyed | Yes |
 
-> Chests unlocked by an upgrade are accessible immediately without applying; only the HP bonus requires the explicit apply step.
+You decide your faction's growth path. There is no fixed upgrade tree — every faction grows skill by skill.
 
 ### Faction Chest
 
-The faction chest is a virtual double-chest storage shared between all members. The number of available chests depends on how many upgrade thresholds have been reached. Use `/faction upgrade list` to see the current count.
+The faction chest is a virtual double-chest storage shared between all members. Available chests come from the **Faction Chest** skill — buy more slots with Skill Points to expand storage. Access them through the Atlas Crystal GUI.
 
-Access the faction chest through the Atlas Crystal GUI (right-click on a faction crystal).
+If a level downgrade ever drops the chest count below the number you've used, the excess chests are destroyed and their contents drop on the ground at the crystal location.
 
-### Level Gap Protection and Downgrade
+### Crystal Protection
 
-If a faction's level ever drops below an upgrade threshold (due to an admin action), chests beyond the new maximum are **automatically destroyed** — their contents are dropped on the ground at the crystal location.
+Protection is a Skill Point purchase that is **stockpiled** until your Crystal is attacked.
 
-### Claims and Outpost
+How it works:
+1. Your Crystal is destroyed by an enemy.
+2. The Crystal automatically respawns at full HP and becomes **invincible** for the duration of the longest stockpiled protection.
+3. If no damage is taken during that window, the protection regenerates and stays available for the next attack.
+4. If you own multiple protections, they activate one after another, **longest first**.
 
-Factions can claim territory using **outposts**. A claimed chunk prevents non-faction/non-ally players from building or breaking blocks inside it. Use `/faction outpost` to view and manage claims.
+**Example:** your faction owns one 1-hour protection and one 30-minute protection. When the Crystal is destroyed, it respawns at full HP and is invincible for 1 hour. If the 1-hour window survives without damage, it regenerates. If it's broken through, the 30-minute protection automatically takes over.
+
+The level-based "protection on downgrade" mechanic is gone — all Crystal protection now comes from this stockpile.
+
+### Claims
+
+Claims protect chunks against enemy mining and building. They are no longer granted automatically by levelling up — you must spend Skill Points to earn claim slots, then claim chunks manually.
+
+```
+/faction claim     — claim the chunk you are standing in
+/faction unclaim   — release the chunk you are standing in
+/faction showclaim — render particles along the borders of your claimed chunks
+```
+
+**Adjacency rule:** new claims must touch an existing claim (chunk-side adjacency). Your first claim must be adjacent to your Atlas Crystal.
+
+`/faction info` shows your current `[Free Claims / Total Claims]` count and remaining protection time.
+
+### Crystal Home & Outpost Promotion
+
+Creating an Atlas Crystal **no longer auto-sets your faction home**. Instead a chat prompt invites you to set it manually:
+
+```
+/faction sethome              — set the home of your main Crystal at your current location
+/faction sethome <crystal>    — set the home of any owned Crystal at your location (Owner / Leader)
+```
+
+Once an outpost has been created, **any Crystal can be promoted** between *main* and *outpost*. This lets you migrate your headquarters to an outpost without losing it — useful when an outpost is better defended than your original main Crystal.
+
+`/sethome` (the personal home command) is **blocked inside enemy claimed territory**.
 
 ### Ally System
 
@@ -70,6 +110,8 @@ To form an alliance, both faction owners or leaders must agree:
 /faction allydeny  <faction>  — deny a pending request
 /faction unally <faction>     — remove an existing alliance
 ```
+
+When a faction is **disbanded** by another faction destroying its last Crystal, a global broadcast announces the kill to every player on the server — credit goes to the attacker.
 
 ### Faction Commands
 
@@ -89,12 +131,14 @@ To form an alliance, both faction owners or leaders must agree:
 | `/faction promote <player>` | Promote a member to the next role | `atlas.faction.promote` |
 | `/faction demote <player>` | Demote a member to the previous role | `atlas.faction.demote` |
 | `/faction transfer <player>` | Transfer faction ownership | `atlas.faction.transfer` |
-| `/faction info [faction]` | View faction information | `atlas.faction.info` |
+| `/faction info [faction]` | View faction info (claims, protection, HP) | `atlas.faction.info` |
 | `/faction list` | List all factions | `atlas.faction.list` |
 | `/faction members` | List your faction's members and roles | `atlas.faction.members` |
-| `/faction home` | Teleport to the faction home (set via atlas crystal) | `atlas.faction.home` |
-| `/faction upgrade list` | Show available and pending upgrades | `atlas.faction.upgrade` |
-| `/faction upgrade apply` | Apply a pending upgrade to your crystals | `atlas.faction.upgrade` |
+| `/faction home` | Teleport to the main Crystal's home | `atlas.faction.home` |
+| `/faction sethome [crystal]` | Set the home of a Crystal at your location (Owner/Leader) | `atlas.faction.sethome` |
+| `/faction claim` | Claim the chunk you stand on | `atlas.faction.claim` |
+| `/faction unclaim` | Release the chunk you stand on | `atlas.faction.claim` |
+| `/faction showclaim` | Render particles along your claim borders | `atlas.faction.claim` |
 | `/faction ally <faction>` | Send an ally request | — |
 | `/faction allyaccept <faction>` | Accept an ally request | — |
 | `/faction allydeny <faction>` | Deny an ally request | — |
@@ -107,8 +151,8 @@ To form an alliance, both faction owners or leaders must agree:
 |---|---|
 | **Member** | Basic access, no management |
 | **Moderator** | Invite, kick members |
-| **Leader** | All Moderator actions + rename, color, description |
-| **Owner** | Full control, including disband and ownership transfer |
+| **Leader** | All Moderator actions + rename, color, description, sethome on any Crystal |
+| **Owner** | Full control, including disband, ownership transfer, Crystal promotion |
 
 ---
 
@@ -116,7 +160,11 @@ To form an alliance, both faction owners or leaders must agree:
 
 ### What is a Job?
 
-Each player can hold one of four jobs. Your job determines which daily quests you receive and how you contribute to your faction's XP. Job progress (level + XP) is personal; faction XP earned from quest rewards is shared.
+Each player can hold one of four jobs. Your job determines which daily quests you receive and how you contribute to your faction's XP.
+
+> **You must join a faction (via the faction NPC) before you can take a job.** Jobs require a faction-of-origin so that earned XP has somewhere to go.
+
+Job progress (level + XP) is personal; faction XP earned from quest rewards is shared.
 
 ### Available Jobs
 
@@ -144,6 +192,8 @@ Each quest contains **1 or 2 tasks** drawn randomly from your job's task pool, s
 | 3 | Hard | Larger amounts |
 | 4 | Hardcore | High amounts, tight time |
 
+Each task in `jobs.yml` carries a per-difficulty **`multiplier_exp`** field (`easy` / `normal` / `hard` / `hardcore`, default `1.0`) so server admins can tune the XP yield of every task individually per difficulty tier.
+
 Progress is tracked automatically as you play. An action bar message shows your current progress per task in real time. When all tasks in a quest are complete, rewards are granted automatically.
 
 ### Faction XP Reward Formula
@@ -169,7 +219,7 @@ Each task can provide item rewards that scale with difficulty. Items are placed 
 
 **Jokeyrini** is a special NPC available separately from the job system. Once per day, Jokeyrini offers a unique quest with 2–3 tasks at **Hard** (difficulty 3) or **Hardcore** (difficulty 4) level. There is a **15% chance** the daily offer is a **Legendary Special Quest** — 3 tasks all at difficulty 5.
 
-Upon completion, Jokeyrini rewards **Donjon Keys**, which are used to start a dungeon:
+Upon completion, Jokeyrini rewards **Donjon Keys**, used to start a dungeon:
 
 | Quest type | Keys rewarded |
 |---|---|
@@ -190,6 +240,10 @@ Interact directly with the job NPCs to access the job GUI. There are no chat com
 ### What is a Dungeon?
 
 Dungeons are pre-built structures placed in the world by an admin. Each dungeon cycles between **idle** and **active** states. When active, a player holding a **Donjon Key** can enter and start the dungeon. The dungeon then runs through a series of **waves** of enemies, ending with a **boss wave**.
+
+### Dungeon Activation
+
+Dungeons activate on a server-wide schedule. The **dungeon NPC at spawn** displays a live countdown to the next activation in its GUI, so you can plan ahead and farm Jokeyrini keys in time.
 
 ### Dungeon Types
 
@@ -233,16 +287,30 @@ Rarity multiplies the total EXP distributed at the end of the dungeon.
 
 A dungeon runs through a series of waves. Each wave must be fully cleared before the next one begins. After clearing a wave you have **5 seconds** before the next wave starts.
 
+**Wave kill rules:**
+- A mob killed without a player being responsible (fall damage, drowning, self-detonation) **respawns** instead of decrementing the wave counter.
+- A mob killed by another mob (e.g. a skeleton's arrow taking down a zombie) **does** count toward wave progression.
+
 The **final wave** is always a **Boss Wave**: fewer, far stronger enemies. A special sound and title announce the boss wave when it begins.
 
 If all players leave the dungeon (no one is detected inside), the dungeon resets automatically — progress and enemy kills are lost.
 
+### Dungeon Keys
+
+| Key | Source | Behavior |
+|---|---|---|
+| **Donjon Key** | Jokeyrini quests | Starts an *active* dungeon at the dungeon's currently rolled level and rarity |
+| **Sinister Donjon Key** | Special drops | Stamped at creation with a fixed **difficulty (50–99)** and **rarity (Epic+)**. Using it forces the dungeon to start at *exactly* the level and rarity printed on the key |
+| **Ominous Trial Key** | Epic+ dungeon completions | Force-activates an idle dungeon at Legendary, Mystic, or Goddess rarity |
+
 ### Starting a Dungeon
 
-1. Obtain a **Donjon Key** (from Jokeyrini quests)
-2. Find an **active** dungeon (announced server-wide when one activates)
-3. Enter the dungeon structure with the key in hand — right-clicking the trial spawner will start the dungeon
-4. Survive all waves and defeat the boss
+1. Obtain a **Donjon Key** (Jokeyrini quests) or a **Sinister Donjon Key** (special drops).
+2. Find an **active** dungeon (announced server-wide when one activates).
+3. Enter the dungeon structure with the key in hand — right-clicking the trial spawner starts the dungeon.
+4. Survive all waves and defeat the boss.
+
+A Sinister Key bypasses the random level/rarity roll and starts the dungeon at the values stamped on the key.
 
 ### EXP Distribution
 
@@ -260,15 +328,52 @@ Faction share = totalEXP × (faction's boss damage / total boss damage)
 
 This means multiple factions can participate in the same dungeon and each receive a proportional share of the rewards. The faction that dealt the most boss damage is announced as the clearing faction.
 
-### Ominous Trial Key Drop
+### Dungeon Rewards
 
-When a dungeon of **Epic rarity or higher** is completed, there is a chance that an enchanted **Ominous Trial Key** drops at the dungeon center. This key can be used to **force-activate** a dungeon, guaranteeing a Legendary, Mystic, or Goddess rarity activation.
+Beyond XP, dungeon completions can drop unique **siege rewards** that change how factions interact with each other's territory:
 
-The drop chance scales with rarity: rarer dungeons have a higher chance.
+| Reward | Effect |
+|---|---|
+| **Raider's Pickaxe** | Lets a faction member break **5–20 blocks** inside an **enemy faction's claims**. Use count is printed on the item; the pickaxe is consumed when uses run out |
+| **Creeper Egg** | Spawns a regular Creeper inside an enemy claim. **Three** creeper detonations within a **3-block radius** can shatter obsidian |
+| **Charged Creeper Egg** | Spawns a Charged Creeper. **One** charged detonation breaks obsidian within a 3-block radius |
+| **Teleportation Ward** | Quick-travel item to a specific dungeon. Persists correctly across server restarts; re-buyable from the **Smuggler NPC** at spawn |
+| **Ominous Trial Key** | See *Dungeon Keys* — force-activates a high-rarity dungeon |
 
 ### Ally System in Dungeons
 
 Allied factions fighting in the same dungeon do **not** deal damage to each other. This allows allied factions to cooperate inside a dungeon without risking friendly fire. Alliance status is checked at the time of each attack.
+
+---
+
+## Combat & PvP
+
+### 1.8-Style PvP
+
+The native 1.21.11 combat (sweep / attack-cooldown) is **disabled** in favor of a 1.8-style PvP plugin. There is no cooldown bar — every left-click registers a full hit.
+
+### Anti-Disconnect (Combat Log)
+
+When a player damages another player (melee or projectile), both attacker and victim are flagged as **in combat** for **20 seconds** (configurable in `combats.yml`).
+
+- Disconnecting while flagged **kills the player** and drops their full inventory + armor at their last location.
+- Each new hit refreshes the timer to the full duration.
+- Surviving the timer without further damage clears the flag — you can quit safely.
+- Active combat timers persist across server restarts (`combats-data.yml`); a clean restart by itself does **not** kill in-combat players.
+
+Action-bar notifications announce when you enter combat and when the timer expires.
+
+---
+
+## Safe Zones
+
+Safe Zones are admin-defined areas (e.g. spawn, the new **Rubis Ruins** zone teased for the next content update) that are protected from PvP and territorial actions. Players entering one are recorded in their visit history and can teleport back later.
+
+```
+/safezone tp <name>     — teleport to a safe zone you have already visited (op-bypassable countdown)
+```
+
+`/spawn` is a strict alias of `/safezone tp spawn`.
 
 ---
 
@@ -286,7 +391,8 @@ Set a named personal home and teleport back to it at any time.
 
 - Teleportation has a **5-second countdown**. Moving cancels the teleport.
 - There is a **30-second cooldown** between teleports.
-- Multiple named homes are supported.
+- `/sethome` is **blocked inside enemy claimed territory**.
+- The number of available homes is driven by the **Home** Skill Point (granted to every faction member when bought).
 
 ### /trade
 
@@ -314,19 +420,19 @@ Request to teleport to another player.
 
 ### /spawn
 
-Teleport to the world spawn point.
+Strict alias of `/safezone tp spawn`.
 
 ```
 /spawn
 ```
 
 - Starts a **10-second countdown**. Moving or taking damage cancels it.
-- Has a **30-second cooldown**.
-- Players within **64 blocks** of the spawn are protected from PvP.
+- Has a **30-second cooldown** (op-bypassed).
+- A previous bug that allowed players to skip the cooldown has been fixed.
 
 ### /rtp
 
-Randomly teleport to a safe location within 1024 blocks of the world spawn.
+Randomly teleport to a safe location near the world spawn.
 
 ```
 /rtp
@@ -334,4 +440,6 @@ Randomly teleport to a safe location within 1024 blocks of the world spawn.
 
 - Starts a **5-second countdown**. Moving cancels it.
 - Has a **30-second cooldown**.
+- Maximum radius is **1024 blocks**.
+- **Blocked in the Nether and the End** — use a portal instead.
 - The destination is always a safe solid-ground location with air above.

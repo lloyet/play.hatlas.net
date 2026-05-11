@@ -1,1333 +1,1542 @@
 # ============================================================
 # Donjon System
 # ============================================================
-donjon:
+# How often (in hours) the system automatically activates one idle donjon.
+activation_interval_hours: 4
+# After this many hours an active donjon becomes idle again (even if not completed).
+idle_timeout_hours: 12
+# Maximum number of donjons the scheduler can keep active simultaneously.
+max_active_donjons: 2
+# Cooldown (in seconds) between smuggler teleports for each player.
+smuggler_teleport_cooldown_seconds: 10
 
-  # How often (in hours) the system automatically activates one idle donjon.
-  activation_interval_hours: 4
-  # After this many hours an active donjon becomes idle again (even if not completed).
-  idle_timeout_hours: 12
-  # Maximum number of donjons the scheduler can keep active simultaneously.
-  max_active_donjons: 2
-  # Cooldown (in seconds) between smuggler teleports for each player.
-  smuggler_teleport_cooldown_seconds: 10
-  # Persisted at runtime — do not edit manually.
-  last_activation_time: 0
-  instances: {}
+# Difficulty level distribution.
+# Each range defines the min/max level and its selection weight (weights are relative).
+difficulty:
+  - min: 0
+    max: 9
+    weight: 66
+  - min: 10
+    max: 49
+    weight: 14
+  - min: 50
+    max: 74
+    weight: 10
+  - min: 75
+    max: 89
+    weight: 5
+  - min: 90
+    max: 94
+    weight: 3
+  - min: 95
+    max: 99
+    weight: 2
 
-  # Difficulty level distribution.
-  # Each range defines the min/max level and its selection weight (weights are relative).
-  difficulty:
-    - min: 0
-      max: 9
-      weight: 66
-    - min: 10
-      max: 49
-      weight: 14
+# Rarity selection weights (relative).
+rarity:
+  common: 66
+  rare: 14
+  epic: 10
+  legendary: 5
+  mystic: 3
+  goddess: 2
+
+# Ominous Trial Key weighted generation.
+# Controls the difficulty and rarity rolled when an ominous key is created without explicit params.
+ominous_key:
+  # Difficulty tier weights — each range defines min/max level and selection weight (relative).
+  difficulty_tiers:
     - min: 50
-      max: 74
+      max: 60
+      weight: 60
+    - min: 61
+      max: 75
+      weight: 25
+    - min: 76
+      max: 80
       weight: 10
-    - min: 75
-      max: 89
-      weight: 5
-    - min: 90
-      max: 94
-      weight: 3
-    - min: 95
+    - min: 81
       max: 99
-      weight: 2
-
-  # Rarity selection weights (relative).
-  rarity:
-    common: 66
-    rare: 14
-    epic: 10
-    legendary: 5
-    mystic: 3
-    goddess: 2
-
-  # Per-type configuration. Add a new section here for each new DonjonType enum value.
-  types:
-    trial:
-      display_name: Trial
-      # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
-      structure_filename: dark_forest_dungeon.nbt
-      # Words used to randomly generate the donjon's name.
-      name_adjectives:
-        - Ancient
-        - Forsaken
-        - Cursed
-        - Void
-        - Frozen
-        - Burning
-        - Forgotten
-        - Eternal
-        - Savage
-        - Twisted
-        - Crimson
-        - Shadow
-      name_nouns:
-        - Trial
-        - Ruins
-        - Depths
-        - Crypt
-        - Labyrinth
-        - Sanctum
-        - Chamber
-        - Vault
-        - Fortress
-        - Abyss
-        - Keep
-        - Dungeon
-
-      # Mob types that can appear in regular waves.
-      # Special values: BABY_ZOMBIE, CHICKEN_JOCKEY
-      mob_types:
-        - ZOMBIE
-        - BABY_ZOMBIE
-        - HUSK
-        - SKELETON
-        - STRAY
-        - BOGGED
-        - SPIDER
-        - CAVE_SPIDER
-        - SLIME
-        - SILVERFISH
-        - CHICKEN_JOCKEY
-
-      # Mob types used for the final boss wave.
-      boss_types:
-        - BREEZE
-
-      # Wave count range (scaled linearly by difficulty level).
-      min_waves: 3
-      max_waves: 10
-
-      # Mob count per regular wave (scaled linearly by difficulty level).
-      min_mobs_per_wave: 5
-      max_mobs_per_wave: 50
-
-      # HP multiplier range for regular mobs (scaled by difficulty level).
-      base_hp_multiplier: 1.0
-      max_hp_multiplier: 5.0
-
-      # Attack damage multiplier range for regular mobs.
-      base_attack_multiplier: 1.0
-      max_attack_multiplier: 3.0
-
-      # Boss-specific multipliers (applied on top of the regular wave multipliers).
-      boss_hp_multiplier: 10.0
-      boss_attack_multiplier: 2.0
-      boss_speed_multiplier: 0.5
-
-      # How many boss mobs spawn in the final wave.
-      boss_count_min: 1
-      boss_count_max: 3
-
-      # Experience awarded for completing the donjon (scaled by level & rarity).
-      min_exp_reward: 500
-      max_exp_reward: 10000
-
-      # Boss drop tables per rarity.
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: IRON_INGOT
-              amount: 4
-              chance: 0.5
-            - material: GOLD_INGOT
-              amount: 2
-              chance: 0.3
-            - material: DIAMOND
-              amount: 1
-              chance: 0.2
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: GOLD_INGOT
-              amount: 4
-              chance: 0.4
-            - material: DIAMOND
-              amount: 2
-              chance: 0.35
-            - material: IRON_SWORD
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: sharpness
-                  level: 2
-                - enchantment: unbreaking
-                  level: 2
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: DIAMOND
-              amount: 3
-              chance: 0.4
-            - material: EMERALD
-              amount: 2
-              chance: 0.35
-            - material: DIAMOND_SWORD
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: sharpness
-                  level: 3
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: looting
-                  level: 2
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: EMERALD
-              amount: 4
-              chance: 0.35
-            - material: NETHERITE_SCRAP
-              amount: 2
-              chance: 0.3
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: DIAMOND_SWORD
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: sharpness
-                  level: 4
-                - enchantment: fire_aspect
-                  level: 2
-                - enchantment: mending
-                  level: 1
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 3
-              chance: 0.35
-            - material: NETHERITE_INGOT
-              amount: 2
-              chance: 0.3
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: looting
-                  level: 3
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: NETHERITE_INGOT
-              amount: 3
-              chance: 0.3
-            - material: NETHER_STAR
-              amount: 2
-              chance: 0.25
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: smite
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: looting
-                  level: 3
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: blast_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-            - material: DRAGON_EGG
-              amount: 1
-              chance: 0.1
-            - material: TNT
-              amount: 1
-              chance: 0.15
-            - material: CREEPER_SPAWN_EGG
-              amount: 1
-              chance: 0.08
-
-    # ── Desert ───────────────────────────────────────────────────────────────
-    desert:
-      display_name: Desert
-      structure_filename: desert_dungeon.nbt
-      name_adjectives:
-        - Scorched
-        - Ancient
-        - Buried
-        - Forsaken
-        - Arid
-        - Crumbling
-        - Lost
-        - Cursed
-        - Gilded
-        - Sunken
-      name_nouns:
-        - Tomb
-        - Ruins
-        - Crypt
-        - Pyramid
-        - Vault
-        - Sanctum
-        - Oasis
-        - Temple
-        - Sepulcher
-        - Catacomb
-
-      mob_types:
-        - HUSK
-        - STRAY
-        - SPIDER
-        - SILVERFISH
-        - WITCH
-        - BOGGED
-
-      boss_types:
-        - VINDICATOR
-        - WITCH
-
-      min_waves: 3
-      max_waves: 10
-
-      min_mobs_per_wave: 5
-      max_mobs_per_wave: 45
-
-      base_hp_multiplier: 1.0
-      max_hp_multiplier: 5.0
-
-      base_attack_multiplier: 1.0
-      max_attack_multiplier: 3.0
-
-      boss_hp_multiplier: 10.0
-      boss_attack_multiplier: 2.0
-      boss_speed_multiplier: 0.5
-
-      boss_count_min: 1
-      boss_count_max: 3
-
-      min_exp_reward: 500
-      max_exp_reward: 10000
-
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: SAND
-              amount: 16
-              chance: 0.5
-            - material: GOLD_INGOT
-              amount: 3
-              chance: 0.35
-            - material: DIAMOND
-              amount: 1
-              chance: 0.2
-            - material: BONE
-              amount: 8
-              chance: 0.3
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: GOLD_INGOT
-              amount: 5
-              chance: 0.4
-            - material: DIAMOND
-              amount: 2
-              chance: 0.35
-            - material: IRON_SWORD
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: sharpness
-                  level: 2
-                - enchantment: unbreaking
-                  level: 2
-            - material: GOLDEN_APPLE
-              amount: 1
-              chance: 0.2
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: DIAMOND
-              amount: 3
-              chance: 0.4
-            - material: EMERALD
-              amount: 2
-              chance: 0.35
-            - material: GOLDEN_APPLE
-              amount: 2
-              chance: 0.3
-            - material: DIAMOND_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: sharpness
-                  level: 3
-                - enchantment: unbreaking
-                  level: 3
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: EMERALD
-              amount: 4
-              chance: 0.35
-            - material: ENCHANTED_GOLDEN_APPLE
-              amount: 1
-              chance: 0.15
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: TOTEM_OF_UNDYING
-              amount: 1
-              chance: 0.1
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 3
-              chance: 0.35
-            - material: ENCHANTED_GOLDEN_APPLE
-              amount: 2
-              chance: 0.25
-            - material: TOTEM_OF_UNDYING
-              amount: 1
-              chance: 0.2
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: NETHERITE_INGOT
-              amount: 3
-              chance: 0.3
-            - material: NETHER_STAR
-              amount: 1
-              chance: 0.2
-            - material: ENCHANTED_GOLDEN_APPLE
-              amount: 3
-              chance: 0.25
-            - material: TOTEM_OF_UNDYING
-              amount: 2
-              chance: 0.2
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-
-    # ── Nether Castle ────────────────────────────────────────────────────────
-    nether_castle:
-      display_name: Nether Castle
-      structure_filename: nether_castle_dungeon.nbt
-      name_adjectives:
-        - Infernal
-        - Blazing
-        - Crimson
-        - Forsaken
-        - Molten
-        - Charred
-        - Demonic
-        - Smoldering
-        - Hellish
-        - Cursed
-      name_nouns:
-        - Fortress
-        - Citadel
-        - Bastion
-        - Keep
-        - Stronghold
-        - Rampart
-        - Bulwark
-        - Hold
-        - Redoubt
-        - Spire
-
-      mob_types:
-        - PIGLIN
-        - PIGLIN_BRUTE
-        - WITHER_SKELETON
-        - BLAZE
-        - MAGMA_CUBE
-        - GHAST
-
-      boss_types:
-        - WITHER_SKELETON
-        - BLAZE
-
-      min_waves: 3
-      max_waves: 10
-
-      min_mobs_per_wave: 4
-      max_mobs_per_wave: 40
-
-      base_hp_multiplier: 1.2
-      max_hp_multiplier: 6.0
-
-      base_attack_multiplier: 1.2
-      max_attack_multiplier: 3.5
-
-      boss_hp_multiplier: 12.0
-      boss_attack_multiplier: 2.5
-      boss_speed_multiplier: 0.5
-
-      boss_count_min: 1
-      boss_count_max: 2
-
-      min_exp_reward: 600
-      max_exp_reward: 12000
-
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: BLAZE_ROD
-              amount: 4
-              chance: 0.5
-            - material: GOLD_INGOT
-              amount: 3
-              chance: 0.35
-            - material: NETHER_BRICK
-              amount: 8
-              chance: 0.3
-            - material: GHAST_TEAR
-              amount: 1
-              chance: 0.2
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: BLAZE_ROD
-              amount: 6
-              chance: 0.4
-            - material: GOLD_INGOT
-              amount: 6
-              chance: 0.35
-            - material: GHAST_TEAR
-              amount: 2
-              chance: 0.3
-            - material: IRON_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: fire_aspect
-                  level: 2
-                - enchantment: sharpness
-                  level: 2
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: BLAZE_ROD
-              amount: 8
-              chance: 0.4
-            - material: DIAMOND
-              amount: 3
-              chance: 0.35
-            - material: GHAST_TEAR
-              amount: 3
-              chance: 0.3
-            - material: DIAMOND_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: fire_aspect
-                  level: 2
-                - enchantment: sharpness
-                  level: 3
-                - enchantment: unbreaking
-                  level: 3
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: ANCIENT_DEBRIS
-              amount: 1
-              chance: 0.25
-            - material: NETHERITE_SCRAP
-              amount: 2
-              chance: 0.3
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: fire_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: WITHER_SKELETON_SKULL
-              amount: 1
-              chance: 0.15
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: ANCIENT_DEBRIS
-              amount: 2
-              chance: 0.3
-            - material: NETHERITE_SCRAP
-              amount: 4
-              chance: 0.35
-            - material: WITHER_SKELETON_SKULL
-              amount: 1
-              chance: 0.25
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: fire_aspect
-                  level: 2
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: ANCIENT_DEBRIS
-              amount: 3
-              chance: 0.3
-            - material: NETHERITE_INGOT
-              amount: 2
-              chance: 0.25
-            - material: NETHER_STAR
-              amount: 1
-              chance: 0.2
-            - material: WITHER_SKELETON_SKULL
-              amount: 2
-              chance: 0.2
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: fire_protection
-                  level: 4
-                - enchantment: blast_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-
-    # ── Plains ───────────────────────────────────────────────────────────────
-    plain:
-      display_name: Plains
-      structure_filename: plain_dungeon.nbt
-      name_adjectives:
-        - Abandoned
-        - Overrun
-        - Ravaged
-        - Pillaged
-        - Desolate
-        - Contested
-        - Fallen
-        - Blighted
-        - Ruined
-        - Siege
-      name_nouns:
-        - Outpost
-        - Watchtower
-        - Village
-        - Barracks
-        - Garrison
-        - Encampment
-        - Hamlet
-        - Fort
-        - Settlement
-        - Lookout
-
-      mob_types:
-        - ZOMBIE
-        - SKELETON
-        - SPIDER
-        - CREEPER
-        - WITCH
-        - PILLAGER
-        - VINDICATOR
-
-      boss_types:
-        - VINDICATOR
-        - PILLAGER
-
-      min_waves: 3
-      max_waves: 10
-
-      min_mobs_per_wave: 5
-      max_mobs_per_wave: 50
-
-      base_hp_multiplier: 1.0
-      max_hp_multiplier: 5.0
-
-      base_attack_multiplier: 1.0
-      max_attack_multiplier: 3.0
-
-      boss_hp_multiplier: 10.0
-      boss_attack_multiplier: 2.0
-      boss_speed_multiplier: 0.5
-
-      boss_count_min: 1
-      boss_count_max: 3
-
-      min_exp_reward: 400
-      max_exp_reward: 9000
-
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: IRON_INGOT
-              amount: 5
-              chance: 0.5
-            - material: ARROW
-              amount: 16
-              chance: 0.4
-            - material: BREAD
-              amount: 8
-              chance: 0.35
-            - material: CROSSBOW
-              amount: 1
-              chance: 0.15
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: IRON_INGOT
-              amount: 8
-              chance: 0.4
-            - material: DIAMOND
-              amount: 2
-              chance: 0.3
-            - material: CROSSBOW
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: quick_charge
-                  level: 2
-                - enchantment: unbreaking
-                  level: 2
-            - material: EMERALD
-              amount: 3
-              chance: 0.2
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: DIAMOND
-              amount: 3
-              chance: 0.4
-            - material: EMERALD
-              amount: 4
-              chance: 0.35
-            - material: IRON_CHESTPLATE
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: protection
-                  level: 3
-                - enchantment: unbreaking
-                  level: 2
-            - material: DIAMOND_SWORD
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: sharpness
-                  level: 3
-                - enchantment: unbreaking
-                  level: 2
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: EMERALD
-              amount: 6
-              chance: 0.35
-            - material: NETHERITE_SCRAP
-              amount: 2
-              chance: 0.25
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: TOTEM_OF_UNDYING
-              amount: 1
-              chance: 0.15
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 3
-              chance: 0.35
-            - material: NETHERITE_INGOT
-              amount: 1
-              chance: 0.25
-            - material: TOTEM_OF_UNDYING
-              amount: 1
-              chance: 0.2
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: NETHERITE_INGOT
-              amount: 3
-              chance: 0.3
-            - material: NETHER_STAR
-              amount: 1
-              chance: 0.2
-            - material: TOTEM_OF_UNDYING
-              amount: 2
-              chance: 0.2
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: blast_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-            - material: DRAGON_EGG
-              amount: 1
-              chance: 0.05
-
-    # ── Sky (Ender) ───────────────────────────────────────────────────────────
-    sky:
-      display_name: Sky
-      structure_filename: sky_dungeon.nbt
-      name_adjectives:
-        - Void
-        - Ethereal
-        - Endless
-        - Cosmic
-        - Astral
-        - Twilight
-        - Celestial
-        - Drifting
-        - Fractured
-        - Silent
-      name_nouns:
-        - Citadel
-        - Spire
-        - Pinnacle
-        - Observatory
-        - Sanctum
-        - Nexus
-        - Rift
-        - Apex
-        - Pylon
-        - Tower
-
-      mob_types:
-        - ENDERMAN
-        - ENDERMITE
-        - PHANTOM
-        - BLAZE
-
-      boss_types:
-        - PHANTOM
-        - SHULKER
-
-      min_waves: 3
-      max_waves: 9
-
-      min_mobs_per_wave: 4
-      max_mobs_per_wave: 35
-
-      base_hp_multiplier: 1.1
-      max_hp_multiplier: 5.5
-
-      base_attack_multiplier: 1.1
-      max_attack_multiplier: 3.2
-
-      boss_hp_multiplier: 11.0
-      boss_attack_multiplier: 2.2
-      boss_speed_multiplier: 0.5
-
-      boss_count_min: 1
-      boss_count_max: 3
-
-      min_exp_reward: 550
-      max_exp_reward: 11000
-
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: ENDER_PEARL
-              amount: 4
-              chance: 0.5
-            - material: PHANTOM_MEMBRANE
-              amount: 3
-              chance: 0.4
-            - material: CHORUS_FRUIT
-              amount: 8
-              chance: 0.35
-            - material: DIAMOND
-              amount: 1
-              chance: 0.2
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: ENDER_PEARL
-              amount: 6
-              chance: 0.4
-            - material: PHANTOM_MEMBRANE
-              amount: 5
-              chance: 0.35
-            - material: DIAMOND
-              amount: 2
-              chance: 0.3
-            - material: ELYTRA
-              amount: 1
-              chance: 0.05
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: DIAMOND
-              amount: 3
-              chance: 0.4
-            - material: EMERALD
-              amount: 3
-              chance: 0.35
-            - material: PHANTOM_MEMBRANE
-              amount: 8
-              chance: 0.3
-            - material: ELYTRA
-              amount: 1
-              chance: 0.08
-              enchantments:
-                - enchantment: unbreaking
-                  level: 3
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 2
-              chance: 0.3
-            - material: ELYTRA
-              amount: 1
-              chance: 0.12
-              enchantments:
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: DRAGON_BREATH
-              amount: 3
-              chance: 0.25
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 3
-              chance: 0.35
-            - material: NETHERITE_INGOT
-              amount: 1
-              chance: 0.25
-            - material: ELYTRA
-              amount: 1
-              chance: 0.18
-              enchantments:
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: DRAGON_BREATH
-              amount: 5
-              chance: 0.25
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: NETHERITE_INGOT
-              amount: 3
-              chance: 0.3
-            - material: NETHER_STAR
-              amount: 1
-              chance: 0.2
-            - material: ELYTRA
-              amount: 1
-              chance: 0.25
-              enchantments:
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: DRAGON_EGG
-              amount: 1
-              chance: 0.15
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: protection
-                  level: 4
-                - enchantment: blast_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
-
-    # ── Ocean ─────────────────────────────────────────────────────────────────
-    ocean:
-      display_name: Ocean
-      structure_filename: ocean_dungeon.nbt
-      name_adjectives:
-        - Sunken
-        - Abyssal
-        - Drowned
-        - Tidal
-        - Flooded
-        - Murky
-        - Ancient
-        - Brackish
-        - Forsaken
-        - Submerged
-      name_nouns:
-        - Temple
-        - Depths
-        - Ruin
-        - Monument
-        - Grotto
-        - Trench
-        - Vault
-        - Shrine
-        - Catacomb
-        - Sanctum
-
-      mob_types:
-        - DROWNED
-        - GUARDIAN
-        - WITCH
-        - SKELETON
-
-      boss_types:
-        - ELDER_GUARDIAN
-        - GUARDIAN
-
-      min_waves: 3
-      max_waves: 9
-
-      min_mobs_per_wave: 4
-      max_mobs_per_wave: 35
-
-      base_hp_multiplier: 1.1
-      max_hp_multiplier: 5.5
-
-      base_attack_multiplier: 1.0
-      max_attack_multiplier: 3.0
-
-      boss_hp_multiplier: 12.0
-      boss_attack_multiplier: 2.5
-      boss_speed_multiplier: 0.4
-
-      boss_count_min: 1
-      boss_count_max: 2
-
-      min_exp_reward: 550
-      max_exp_reward: 11000
-
-      boss_drops:
-        common:
-          min_items: 1
-          max_items: 2
-          items:
-            - material: PRISMARINE_SHARD
-              amount: 8
-              chance: 0.5
-            - material: COD
-              amount: 4
-              chance: 0.4
-            - material: INK_SAC
-              amount: 6
-              chance: 0.35
-            - material: GOLD_INGOT
-              amount: 2
-              chance: 0.25
-        rare:
-          min_items: 1
-          max_items: 3
-          items:
-            - material: PRISMARINE_CRYSTALS
-              amount: 6
-              chance: 0.4
-            - material: GOLD_INGOT
-              amount: 4
-              chance: 0.35
-            - material: DIAMOND
-              amount: 2
-              chance: 0.25
-            - material: SPONGE
-              amount: 2
-              chance: 0.2
-        epic:
-          min_items: 2
-          max_items: 4
-          items:
-            - material: DIAMOND
-              amount: 3
-              chance: 0.4
-            - material: EMERALD
-              amount: 3
-              chance: 0.35
-            - material: SEA_LANTERN
-              amount: 4
-              chance: 0.3
-            - material: IRON_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: aqua_affinity
-                  level: 1
-                - enchantment: respiration
-                  level: 3
-                - enchantment: protection
-                  level: 3
-                - enchantment: unbreaking
-                  level: 2
-        legendary:
-          min_items: 2
-          max_items: 5
-          items:
-            - material: EMERALD
-              amount: 5
-              chance: 0.35
-            - material: NETHERITE_SCRAP
-              amount: 2
-              chance: 0.25
-            - material: DIAMOND_CHESTPLATE
-              amount: 1
-              chance: 0.2
-              enchantments:
-                - enchantment: aqua_affinity
-                  level: 1
-                - enchantment: respiration
-                  level: 3
-                - enchantment: protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-            - material: HEART_OF_THE_SEA
-              amount: 1
-              chance: 0.15
-        mystic:
-          min_items: 3
-          max_items: 5
-          items:
-            - material: NETHERITE_SCRAP
-              amount: 3
-              chance: 0.35
-            - material: NETHERITE_INGOT
-              amount: 1
-              chance: 0.25
-            - material: HEART_OF_THE_SEA
-              amount: 1
-              chance: 0.3
-            - material: NETHERITE_SWORD
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: sharpness
-                  level: 5
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: looting
-                  level: 3
-        goddess:
-          min_items: 4
-          max_items: 6
-          items:
-            - material: NETHERITE_INGOT
-              amount: 3
-              chance: 0.3
-            - material: NETHER_STAR
-              amount: 1
-              chance: 0.2
-            - material: HEART_OF_THE_SEA
-              amount: 2
-              chance: 0.25
-            - material: CONDUIT
-              amount: 1
-              chance: 0.15
-            - material: NETHERITE_CHESTPLATE
-              amount: 1
-              chance: 0.15
-              enchantments:
-                - enchantment: aqua_affinity
-                  level: 1
-                - enchantment: respiration
-                  level: 3
-                - enchantment: protection
-                  level: 4
-                - enchantment: blast_protection
-                  level: 4
-                - enchantment: unbreaking
-                  level: 3
-                - enchantment: mending
-                  level: 1
-                - enchantment: thorns
-                  level: 3
+      weight: 5
+  # Rarity weights — only EPIC and above can appear on an ominous key (relative).
+  rarity_weights:
+    epic: 60
+    legendary: 25
+    mystic: 10
+    goddess: 5
+
+# Per-type configuration. Add a new section here for each new DonjonType enum value.
+types:
+  trial:
+    display_name: Trial
+    # Structure NBT file name — place the file at <plugin_folder>/structures/trial.nbt
+    # Words used to randomly generate the donjon's name.
+    # Mob types that can appear in regular waves.
+    # Special values: BABY_ZOMBIE, CHICKEN_JOCKEY
+    mob_types:
+      - ZOMBIE
+      - BABY_ZOMBIE
+      - HUSK
+      - SKELETON
+      - STRAY
+      - BOGGED
+      - SPIDER
+      - CAVE_SPIDER
+      - SLIME
+      - CHICKEN_JOCKEY
+
+    # Mob types used for the final boss wave.
+    boss_types:
+      - BREEZE
+
+    # Wave count range (scaled linearly by difficulty level).
+    min_waves: 3
+    max_waves: 10
+
+    # Mob count per regular wave (scaled linearly by difficulty level).
+    min_mobs_per_wave: 5
+    max_mobs_per_wave: 50
+
+    # HP multiplier range for regular mobs (scaled by difficulty level).
+    base_hp_multiplier: 1.0
+    max_hp_multiplier: 5.0
+
+    # Attack damage multiplier range for regular mobs.
+    base_attack_multiplier: 1.0
+    max_attack_multiplier: 3.0
+
+    # Boss-specific multipliers (applied on top of the regular wave multipliers).
+    boss_hp_multiplier: 10.0
+    boss_attack_multiplier: 2.0
+    boss_speed_multiplier: 0.5
+
+    # How many boss mobs spawn in the final wave.
+    boss_count_min: 1
+    boss_count_max: 3
+
+    # Experience awarded for completing the donjon (scaled by level & rarity).
+    min_exp_reward: 130
+    max_exp_reward: 800
+
+    # Boss drop tables per rarity.
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: IRON_INGOT
+            amount: 4
+            chance: 0.5
+          - material: GOLD_INGOT
+            amount: 2
+            chance: 0.3
+          - material: DIAMOND
+            amount: 1
+            chance: 0.2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.08
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: GOLD_INGOT
+            amount: 4
+            chance: 0.4
+          - material: DIAMOND
+            amount: 2
+            chance: 0.35
+          - material: IRON_SWORD
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: sharpness
+                level: 2
+              - enchantment: unbreaking
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.08
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: DIAMOND
+            amount: 3
+            chance: 0.4
+          - material: EMERALD
+            amount: 2
+            chance: 0.35
+          - material: IRON_SWORD
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: sharpness
+                level: 3
+              - enchantment: unbreaking
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: EMERALD
+            amount: 4
+            chance: 0.35
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: sharpness
+                level: 4
+              - enchantment: fire_aspect
+                level: 2
+              - enchantment: unbreaking
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: DIAMOND
+            amount: 5
+            chance: 0.4
+          - material: EMERALD
+            amount: 4
+            chance: 0.35
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: looting
+                level: 2
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.10
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: thorns
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 4
+        max_items: 6
+        items:
+          - material: DIAMOND
+            amount: 8
+            chance: 0.2
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.15
+          - material: NETHER_STAR
+            amount: 2
+            chance: 0.25
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: smite
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: looting
+                level: 3
+          - material: NETHERITE_CHESTPLATE
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: blast_protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+
+  desert:
+    display_name: Desert
+    mob_types:
+      - HUSK
+      - STRAY
+      - SPIDER
+      - CAVE_SPIDER
+      - CREEPER
+      - WITCH
+      - BOGGED
+      - PARCHED
+
+    boss_types:
+      - VINDICATOR
+      - WITCH
+
+    min_waves: 3
+    max_waves: 10
+
+    min_mobs_per_wave: 5
+    max_mobs_per_wave: 45
+
+    base_hp_multiplier: 1.0
+    max_hp_multiplier: 5.0
+
+    base_attack_multiplier: 1.0
+    max_attack_multiplier: 3.0
+
+    boss_hp_multiplier: 10.0
+    boss_attack_multiplier: 2.0
+    boss_speed_multiplier: 0.5
+
+    boss_count_min: 1
+    boss_count_max: 3
+
+    min_exp_reward: 130
+    max_exp_reward: 800
+
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: SAND
+            amount: 16
+            chance: 0.5
+          - material: GOLD_INGOT
+            amount: 3
+            chance: 0.35
+          - material: DIAMOND
+            amount: 1
+            chance: 0.25
+          - material: BONE
+            amount: 8
+            chance: 0.5
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: GOLD_INGOT
+            amount: 5
+            chance: 0.4
+          - material: DIAMOND
+            amount: 2
+            chance: 0.35
+          - material: IRON_SWORD
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: sharpness
+                level: 2
+              - enchantment: unbreaking
+                level: 1
+          - material: GOLDEN_APPLE
+            amount: 1
+            chance: 0.2
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: DIAMOND
+            amount: 3
+            chance: 0.4
+          - material: EMERALD
+            amount: 2
+            chance: 0.35
+          - material: GOLDEN_APPLE
+            amount: 2
+            chance: 0.3
+          - material: IRON_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: sharpness
+                level: 3
+              - enchantment: unbreaking
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: EMERALD
+            amount: 4
+            chance: 0.35
+          - material: ENCHANTED_GOLDEN_APPLE
+            amount: 1
+            chance: 0.15
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.1
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: ENCHANTED_GOLDEN_APPLE
+            amount: 1
+            chance: 0.25
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.2
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: DIAMOND
+            amount: 8
+            chance: 0.45
+          - material: EMERALD
+            amount: 6
+            chance: 0.4
+          - material: ENCHANTED_GOLDEN_APPLE
+            amount: 2
+            chance: 0.25
+          - material: TOTEM_OF_UNDYING
+            amount: 2
+            chance: 0.2
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+
+  nether_castle:
+    display_name: Nether Castle
+    mob_types:
+      - PIGLIN
+      - PIGLIN_BRUTE
+      - WITHER_SKELETON
+      - BLAZE
+      - MAGMA_CUBE
+      - GHAST
+      - HOGLIN
+
+    boss_types:
+      - WITHER_SKELETON
+      - BLAZE
+
+    min_waves: 3
+    max_waves: 10
+
+    min_mobs_per_wave: 4
+    max_mobs_per_wave: 40
+
+    base_hp_multiplier: 1.2
+    max_hp_multiplier: 6.0
+
+    base_attack_multiplier: 1.2
+    max_attack_multiplier: 3.5
+
+    boss_hp_multiplier: 13.0
+    boss_attack_multiplier: 1.5
+    boss_speed_multiplier: 0.5
+
+    boss_count_min: 1
+    boss_count_max: 2
+
+    min_exp_reward: 175
+    max_exp_reward: 1000
+
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: BLAZE_ROD
+            amount: 4
+            chance: 0.5
+          - material: GOLD_INGOT
+            amount: 4
+            chance: 0.35
+          - material: NETHER_BRICK
+            amount: 8
+            chance: 0.3
+          - material: GHAST_TEAR
+            amount: 1
+            chance: 0.2
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: BLAZE_ROD
+            amount: 6
+            chance: 0.4
+          - material: GOLD_INGOT
+            amount: 8
+            chance: 0.35
+          - material: GHAST_TEAR
+            amount: 2
+            chance: 0.3
+          - material: IRON_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: fire_aspect
+                level: 2
+              - enchantment: sharpness
+                level: 2
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: BLAZE_ROD
+            amount: 8
+            chance: 0.4
+          - material: DIAMOND
+            amount: 3
+            chance: 0.35
+          - material: GHAST_TEAR
+            amount: 3
+            chance: 0.3
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: fire_aspect
+                level: 2
+              - enchantment: sharpness
+                level: 3
+              - enchantment: unbreaking
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: NETHER_STAR
+            amount: 1
+            chance: 0.3
+          - material: ANCIENT_DEBRIS
+            amount: 1
+            chance: 0.3
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: fire_protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: WITHER_SKELETON_SKULL
+            amount: 1
+            chance: 0.15
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: NETHER_STAR
+            amount: 2
+            chance: 0.35
+          - material: ANCIENT_DEBRIS
+            amount: 2
+            chance: 0.35
+          - material: WITHER_SKELETON_SKULL
+            amount: 1
+            chance: 0.25
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: fire_aspect
+                level: 2
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 4
+        max_items: 6
+        items:
+          - material: NETHER_STAR
+            amount: 2
+            chance: 0.4
+          - material: ANCIENT_DEBRIS
+            amount: 4
+            chance: 0.3
+          - material: NETHERITE_INGOT
+            amount: 1
+            chance: 0.15
+          - material: WITHER_SKELETON_SKULL
+            amount: 2
+            chance: 0.2
+          - material: NETHERITE_CHESTPLATE
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: fire_protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+  plain:
+    display_name: Plains
+    mob_types:
+      - ZOMBIE
+      - BABY_ZOMBIE
+      - ZOMBIE_VILAGER
+      - SKELETON
+      - SPIDER
+      - CREEPER
+      - WITCH
+      - PILLAGER
+      - VINDICATOR
+      - VEX
+      - EVOKER
+
+    boss_types:
+      - VINDICATOR
+      - PILLAGER
+
+    min_waves: 3
+    max_waves: 10
+
+    min_mobs_per_wave: 5
+    max_mobs_per_wave: 50
+
+    base_hp_multiplier: 1.0
+    max_hp_multiplier: 5.0
+
+    base_attack_multiplier: 1.0
+    max_attack_multiplier: 3.0
+
+    boss_hp_multiplier: 10.0
+    boss_attack_multiplier: 2.0
+    boss_speed_multiplier: 0.5
+
+    boss_count_min: 1
+    boss_count_max: 3
+
+    min_exp_reward: 400
+    max_exp_reward: 9000
+
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: IRON_INGOT
+            amount: 5
+            chance: 0.5
+          - material: ARROW
+            amount: 16
+            chance: 0.4
+          - material: BREAD
+            amount: 8
+            chance: 0.35
+          - material: CROSSBOW
+            amount: 1
+            chance: 0.15
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: IRON_INGOT
+            amount: 8
+            chance: 0.4
+          - material: DIAMOND
+            amount: 2
+            chance: 0.3
+          - material: CROSSBOW
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: quick_charge
+                level: 2
+              - enchantment: unbreaking
+                level: 2
+          - material: EMERALD
+            amount: 3
+            chance: 0.2
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: DIAMOND
+            amount: 3
+            chance: 0.4
+          - material: EMERALD
+            amount: 4
+            chance: 0.35
+          - material: IRON_CHESTPLATE
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: protection
+                level: 3
+              - enchantment: unbreaking
+                level: 2
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: sharpness
+                level: 3
+              - enchantment: unbreaking
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: EMERALD
+            amount: 6
+            chance: 0.35
+          - material: NETHERITE_SCRAP
+            amount: 2
+            chance: 0.25
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.15
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: NETHERITE_SCRAP
+            amount: 3
+            chance: 0.35
+          - material: NETHERITE_INGOT
+            amount: 1
+            chance: 0.25
+          - material: TOTEM_OF_UNDYING
+            amount: 1
+            chance: 0.2
+          - material: NETHERITE_SWORD
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 4
+        max_items: 6
+        items:
+          - material: NETHERITE_INGOT
+            amount: 3
+            chance: 0.3
+          - material: NETHER_STAR
+            amount: 1
+            chance: 0.2
+          - material: TOTEM_OF_UNDYING
+            amount: 2
+            chance: 0.2
+          - material: NETHERITE_CHESTPLATE
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: blast_protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+  sky:
+    display_name: Sky
+    mob_types:
+      - ENDERMAN
+      - ENDERMITE
+      - PHANTOM
+      - BLAZE
+      - SHULKER
+
+    boss_types:
+      - PHANTOM
+      - ENDERMAN
+
+    min_waves: 3
+    max_waves: 9
+
+    min_mobs_per_wave: 4
+    max_mobs_per_wave: 35
+
+    base_hp_multiplier: 1.1
+    max_hp_multiplier: 5.5
+
+    base_attack_multiplier: 1.1
+    max_attack_multiplier: 3.2
+
+    boss_hp_multiplier: 8.0
+    boss_attack_multiplier: 2.2
+    boss_speed_multiplier: 0.5
+
+    boss_count_min: 1
+    boss_count_max: 3
+
+    min_exp_reward: 200
+    max_exp_reward: 1100
+
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: ENDER_PEARL
+            amount: 4
+            chance: 0.5
+          - material: PHANTOM_MEMBRANE
+            amount: 3
+            chance: 0.4
+          - material: CHORUS_FRUIT
+            amount: 8
+            chance: 0.35
+          - material: DIAMOND
+            amount: 1
+            chance: 0.2
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: ENDER_PEARL
+            amount: 6
+            chance: 0.4
+          - material: PHANTOM_MEMBRANE
+            amount: 5
+            chance: 0.35
+          - material: DIAMOND
+            amount: 2
+            chance: 0.3
+          - material: ELYTRA
+            amount: 1
+            chance: 0.05
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: DIAMOND
+            amount: 3
+            chance: 0.4
+          - material: EMERALD
+            amount: 3
+            chance: 0.35
+          - material: PHANTOM_MEMBRANE
+            amount: 8
+            chance: 0.3
+          - material: ELYTRA
+            amount: 1
+            chance: 0.08
+            enchantments:
+              - enchantment: unbreaking
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: ELYTRA
+            amount: 1
+            chance: 0.12
+            enchantments:
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: DRAGON_BREATH
+            amount: 3
+            chance: 0.25
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: ELYTRA
+            amount: 1
+            chance: 0.18
+            enchantments:
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: DRAGON_BREATH
+            amount: 5
+            chance: 0.25
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 4
+        max_items: 6
+        items:
+          - material: ELYTRA
+            amount: 1
+            chance: 0.25
+            enchantments:
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: DRAGON_EGG
+            amount: 1
+            chance: 0.15
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+  ocean:
+    display_name: Ocean
+    mob_types:
+      - DROWNED
+      - GUARDIAN
+      - WITCH
+      - SKELETON
+      - DROWNED
+
+    boss_types:
+      - ELDER_GUARDIAN
+      - GUARDIAN
+
+    min_waves: 3
+    max_waves: 9
+
+    min_mobs_per_wave: 4
+    max_mobs_per_wave: 35
+
+    base_hp_multiplier: 1.1
+    max_hp_multiplier: 5.5
+
+    base_attack_multiplier: 1.0
+    max_attack_multiplier: 3.0
+
+    boss_hp_multiplier: 12.0
+    boss_attack_multiplier: 2.5
+    boss_speed_multiplier: 0.4
+
+    boss_count_min: 1
+    boss_count_max: 2
+
+    min_exp_reward: 160
+    max_exp_reward: 850
+
+    boss_drops:
+      common:
+        min_items: 1
+        max_items: 2
+        items:
+          - material: PRISMARINE_SHARD
+            amount: 8
+            chance: 0.5
+          - material: COD
+            amount: 4
+            chance: 0.4
+          - material: INK_SAC
+            amount: 6
+            chance: 0.35
+          - material: GOLD_INGOT
+            amount: 2
+            chance: 0.25
+      rare:
+        min_items: 1
+        max_items: 3
+        items:
+          - material: PRISMARINE_CRYSTALS
+            amount: 6
+            chance: 0.4
+          - material: GOLD_INGOT
+            amount: 4
+            chance: 0.35
+          - material: DIAMOND
+            amount: 2
+            chance: 0.25
+          - material: SPONGE
+            amount: 2
+            chance: 0.2
+      epic:
+        min_items: 2
+        max_items: 4
+        items:
+          - material: DIAMOND
+            amount: 3
+            chance: 0.4
+          - material: EMERALD
+            amount: 3
+            chance: 0.35
+          - material: SEA_LANTERN
+            amount: 4
+            chance: 0.3
+          - material: IRON_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: aqua_affinity
+                level: 1
+              - enchantment: respiration
+                level: 3
+              - enchantment: protection
+                level: 3
+              - enchantment: unbreaking
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      legendary:
+        min_items: 2
+        max_items: 5
+        items:
+          - material: EMERALD
+            amount: 5
+            chance: 0.35
+          - material: DIAMOND_CHESTPLATE
+            amount: 1
+            chance: 0.2
+            enchantments:
+              - enchantment: aqua_affinity
+                level: 1
+              - enchantment: respiration
+                level: 3
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: mending
+                level: 1
+          - material: HEART_OF_THE_SEA
+            amount: 1
+            chance: 0.15
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      mystic:
+        min_items: 3
+        max_items: 5
+        items:
+          - material: HEART_OF_THE_SEA
+            amount: 1
+            chance: 0.3
+          - material: DIAMOND_SWORD
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: sharpness
+                level: 5
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: looting
+                level: 2
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2
+      goddess:
+        min_items: 4
+        max_items: 6
+        items:
+          - material: HEART_OF_THE_SEA
+            amount: 2
+            chance: 0.25
+          - material: CONDUIT
+            amount: 1
+            chance: 0.15
+          - material: DIAMOND_HELMET
+            amount: 1
+            chance: 0.15
+            enchantments:
+              - enchantment: aqua_affinity
+                level: 1
+              - enchantment: respiration
+                level: 3
+              - enchantment: protection
+                level: 4
+              - enchantment: unbreaking
+                level: 3
+              - enchantment: thorns
+                level: 3
+          - material: TNT
+            amount: 1
+            chance: 0.15
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.10
+          - material: CREEPER_SPAWN_EGG
+            amount: 1
+            chance: 0.8
+            enchantments:
+              - enchantment: powered
+                level: 2
+          - material: WOODEN_PICKAXE
+            amount: 1
+            chance: 0.05
+            enchantments:
+              - enchantment: raider
+                level: 2

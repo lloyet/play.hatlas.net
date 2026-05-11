@@ -1,11 +1,21 @@
 name: atlas
 version: '$version'
-
 main: org.minecraft.atlas.Atlas
-api-version: '1.21.11'
+api-version: '1.21'
 load: POSTWORLD
 
+# Optional — declare if you depend on other plugins:
+# dependencies:
+#   server:
+#     SomePlugin:
+#       load: BEFORE          # BEFORE | AFTER | OMIT
+#       required: true        # plugin won't load without it
+#       join-classpath: true  # share classes (rarely needed under isolated loaders)
+
 permissions:
+  atlas.quest:
+    description: Access to /quest
+    default: true
   atlas.job:
     description: Access to /job
     default: true
@@ -66,6 +76,9 @@ permissions:
   atlas.faction.home:
     description: Teleport to the faction home
     default: true
+  atlas.faction.sethome:
+    description: Set the home location for a faction crystal (leader/owner only)
+    default: true
   atlas.faction.upgrade:
     description: Apply upgrade bonuses to Atlas Crystals (owner/leader)
     default: true
@@ -74,6 +87,9 @@ permissions:
     default: op
   atlas.faction.admin.disband:
     description: Administratively disband any faction by name
+    default: op
+  atlas.faction.admin.join:
+    description: Force-join any player into any faction without invitation
     default: op
   atlas.crystal:
     description: Access to /crystal commands
@@ -96,6 +112,15 @@ permissions:
   atlas.spawn:
     description: Teleport to world spawn with a 10-second countdown
     default: true
+  atlas.spawn.admin:
+    description: Teleport to any safe zone with /spawn <name>, and set the world spawn with /spawn set
+    default: op
+  atlas.safezone.admin:
+    description: Create and manage safe zones via /safezone
+    default: op
+  atlas.safezone.tp:
+    description: Teleport to a safe zone's spawn via /safezone tp <name>
+    default: true
   atlas.tpa:
     description: Send and respond to teleport-to-player requests
     default: true
@@ -116,4 +141,10 @@ permissions:
     default: true
   atlas.faction.outpost:
     description: Create a faction outpost (leader/owner only)
+    default: true
+  atlas.faction.claim:
+    description: Claim the chunk you are standing in
+    default: true
+  atlas.faction.unclaim:
+    description: Unclaim a chunk (owner/leader only)
     default: true

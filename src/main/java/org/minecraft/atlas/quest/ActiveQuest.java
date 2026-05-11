@@ -1,4 +1,4 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import java.util.Collections;
 import java.util.HashMap;

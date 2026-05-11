@@ -18,6 +18,9 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.inventory.PrepareAnvilEvent;
+import org.bukkit.event.inventory.PrepareSmithingEvent;
+import org.bukkit.event.player.PlayerItemDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
@@ -29,39 +32,29 @@ import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
-import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.RaiderPickaxe;
 import org.minecraft.atlas.util.TitleUtil;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionClaimManager;
-import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.faction.RandomTeleportManager;
-import org.minecraft.atlas.faction.HomeManager;
-import org.minecraft.atlas.faction.HomeTeleportManager;
-import org.minecraft.atlas.faction.SpawnTeleportManager;
-import org.minecraft.atlas.faction.DeathTeleportCooldownManager;
-import org.minecraft.atlas.faction.TpaManager;
+import org.minecraft.atlas.teleport.RandomTeleportManager;
+import org.minecraft.atlas.teleport.HomeManager;
+import org.minecraft.atlas.safezone.SafeZoneTeleportManager;
+import org.minecraft.atlas.teleport.HomeTeleportManager;
+import org.minecraft.atlas.teleport.DeathTeleportCooldownManager;
+import org.minecraft.atlas.teleport.TeleportAtManager;
 import org.minecraft.atlas.util.TabListManager;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FactionListener implements Listener {
 
     private static final Map<UUID, Long> lastHitTime = new ConcurrentHashMap<>();
-
-    /** Players currently inside the spawn protection radius. */
-    private static final Set<UUID> inSpawnProtection = ConcurrentHashMap.newKeySet();
 
     // -------------------------------------------------------------------------
     // Crystal naming fallback on disconnect
@@ -83,12 +76,11 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
-        inSpawnProtection.remove(player.getUniqueId());
         AtlasCrystal pending = AtlasCrystalManager.getPendingNaming(player.getUniqueId());
         if (pending == null) return;
 
         AtlasCrystalManager.clearPendingNaming(player.getUniqueId());
-        String fallback = "Crystal_" + pending.getEntity().getUniqueId().toString().substring(0, 6);
+        String fallback = "Crystal_" + pending.getEntityUUID().toString().substring(0, 6);
         String candidate = fallback;
         int i = 1;
         while (AtlasCrystalManager.hasCrystalWithName(pending.getFactionName(), candidate)) {
@@ -113,13 +105,13 @@ public class FactionListener implements Listener {
         if (RandomTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
-        if (SpawnTeleportManager.cancelTeleport(player.getUniqueId())) {
-            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
-        }
-        if (TpaManager.cancelTeleport(player.getUniqueId())) {
+        if (TeleportAtManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
         if (HomeManager.cancelTeleport(player.getUniqueId())) {
+            TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
+        }
+        if (SafeZoneTeleportManager.cancelTeleport(player.getUniqueId())) {
             TitleUtil.notify(player, "Teleport cancelled — you took damage!", NamedTextColor.RED);
         }
     }
@@ -142,10 +134,56 @@ public class FactionListener implements Listener {
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
     public void onBlockBreak(BlockBreakEvent event) {
         Player player = event.getPlayer();
-        if (isAllowedInChunk(player, event.getBlock().getChunk())) return;
-        if (RaiderPickaxe.isRaiderPickaxe(player.getInventory().getItemInMainHand())) return;
-        event.setCancelled(true);
-        player.sendActionBar(Component.text("⚔ Enemy territory — can't break!", NamedTextColor.RED));
+        ItemStack hand = player.getInventory().getItemInMainHand();
+        boolean isRaider = RaiderPickaxe.isRaiderPickaxe(hand);
+
+        Chunk  chunk        = event.getBlock().getChunk();
+        String chunkOwner   = FactionClaimManager.getClaimingFaction(chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+        String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+        boolean isEnemyChunk = chunkOwner != null && !chunkOwner.equals(playerFaction);
+
+        if (isRaider) {
+            if (!isEnemyChunk) {
+                event.setCancelled(true);
+                player.sendActionBar(Component.text("⚔ Raider item only works in enemy territory!", NamedTextColor.RED));
+                return;
+            }
+            int remaining = RaiderPickaxe.decrementUses(hand);
+            if (remaining <= 0) {
+                player.getInventory().setItemInMainHand(null);
+                player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
+                player.sendActionBar(Component.text("⚔ Raider item exhausted!", NamedTextColor.GOLD));
+            } else {
+                player.getInventory().setItemInMainHand(hand);
+                player.sendActionBar(Component.text("⚔ " + remaining + " break" + (remaining == 1 ? "" : "s") + " remaining.", NamedTextColor.YELLOW));
+            }
+            return;
+        }
+
+        if (!isAllowedInChunk(player, chunk)) {
+            event.setCancelled(true);
+            player.sendActionBar(Component.text("⚔ Enemy territory — can't break!", NamedTextColor.RED));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
+    public void onItemDamage(PlayerItemDamageEvent event) {
+        if (RaiderPickaxe.isRaiderPickaxe(event.getItem())) event.setCancelled(true);
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onPrepareAnvil(PrepareAnvilEvent event) {
+        if (RaiderPickaxe.isRaiderPickaxe(event.getInventory().getFirstItem())
+                || RaiderPickaxe.isRaiderPickaxe(event.getInventory().getSecondItem())) {
+            event.setResult(null);
+        }
+    }
+
+    @EventHandler(priority = EventPriority.NORMAL)
+    public void onPrepareSmithing(PrepareSmithingEvent event) {
+        if (RaiderPickaxe.isRaiderPickaxe(event.getInventory().getItem(1))) {
+            event.setResult(null);
+        }
     }
 
     @EventHandler(priority = EventPriority.NORMAL, ignoreCancelled = true)
@@ -262,125 +300,59 @@ public class FactionListener implements Listener {
 
         // ── Crystal HP reached 0 ──────────────────────────────────────────────
         Faction faction = FactionManager.getFaction(crystalFaction);
-        int factionLevel = faction != null ? faction.getLevel() : 0;
 
-        if (factionLevel == 0) {
-            // Level 0: crystal is permanently destroyed — disband the faction
-            AtlasCrystalManager.remove(crystal.getUniqueId());
-            crystal.getWorld().playSound(
-                    crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);
-            crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
-            crystal.remove();
-
-            // Chat to faction members
-            FactionManager.broadcastToFaction(crystalFaction,
-                    Component.text("☠ Your faction has been destroyed by " + attackerFaction + "!", NamedTextColor.RED),
-                    null);
-
-            // Server-wide chat announcement
-            Component serverMsg = Component.text(
-                    "☠ [" + crystalFaction + "] was destroyed by [" + attackerFaction + "]!", NamedTextColor.RED);
-            for (Player online : Bukkit.getOnlinePlayers()) {
-                online.sendMessage(serverMsg);
-            }
-
-            FactionManager.disbandFaction(crystalFaction);
-
-        } else {
-            // Level > 0: drop to the previous upgrade level, restore crystal HP, grant dynamic immunity
-            int prevUpgrade = FactionLevelManager.getPreviousUpgrade(factionLevel);
-            int newLevel = Math.max(0, prevUpgrade); // -1 means drop to 0
-
-            // ── Escalating immunity ───────────────────────────────────────────
-            long nowMs = System.currentTimeMillis();
-            int curMul = faction.getDowngradeMul();
-            long windowEnd = faction.getDowngradeWindowEndMs();
-            if (windowEnd > 0 && nowMs < windowEnd) {
-                curMul *= AtlasCrystalManager.immunityMultiplierBase;
-            } else if (windowEnd > 0) {
-                curMul = AtlasCrystalManager.immunityMultiplierBase;
-            }
-            // else: first-ever defeat — keep curMul = 1
-            long immunityMs = AtlasCrystalManager.immunityBaseMs * curMul;
-            long newWindowEnd = nowMs + (long)(immunityMs * AtlasCrystalManager.immunityMultiplierBase * 1.5);
-            faction.setDowngradeMul(curMul);
-            faction.setDowngradeWindowEndMs(newWindowEnd);
-
-            faction.setLevel(newLevel);
-            faction.setExp(0);
-
-            // Shrink territory claims: keep only rings for upgrade levels ≤ newLevel
-            int targetRings = 0;
-            for (int cp : FactionLevelManager.getUpgradeLevels()) {
-                if (cp <= newLevel) targetRings++;
-                else break;
-            }
-            FactionClaimManager.shrinkClaimsTo(crystalFaction, targetRings);
-
-            // Drop and delete virtual chests whose index exceeds what newLevel allows
-            int allowedChests = FactionLevelManager.getAvailableChests(newLevel);
-            Map<Integer, ItemStack[]> chestMap = faction.getChestContentsMap();
-            List<ItemStack> itemsToDrop = new ArrayList<>();
-            Iterator<Map.Entry<Integer, ItemStack[]>> chestIter = chestMap.entrySet().iterator();
-            while (chestIter.hasNext()) {
-                Map.Entry<Integer, ItemStack[]> entry = chestIter.next();
-                if (entry.getKey() >= allowedChests) {
-                    ItemStack[] contents = entry.getValue();
-                    if (contents != null) {
-                        for (ItemStack stack : contents) {
-                            if (stack != null && stack.getType() != Material.AIR) {
-                                itemsToDrop.add(stack);
-                            }
-                        }
-                    }
-                    chestIter.remove();
-                }
-            }
-            // Delay the actual drop by 2 ticks so items spawn after the explosion resolves
-            if (!itemsToDrop.isEmpty()) {
-                org.bukkit.Location dropLoc = crystal.getLocation();
-                Bukkit.getScheduler().runTaskLater(Atlas.getPlugin(Atlas.class), () -> {
-                    for (ItemStack stack : itemsToDrop) {
-                        dropLoc.getWorld().dropItemNaturally(dropLoc, stack);
-                    }
-                }, 2L);
-            }
-
-            // Strip upgrade bonuses above newLevel from all named faction crystals
-            Map<Integer, Double> bonusMap = FactionLevelManager.getUpgradeBonusMap();
-            Collection<AtlasCrystal> allCrystals = AtlasCrystalManager.getFactionCrystals(crystalFaction);
-            for (AtlasCrystal fc : allCrystals) {
-                fc.stripUpgradesAbove(newLevel, bonusMap);
-                fc.updateNametag();
-                AtlasCrystalManager.persistCrystalState(fc);
-            }
-
-            // Restore the attacked crystal's HP to full and grant computed immunity
+        Long longestAvailable = atlasCrystal.getLongestAvailableProtection();
+        if (longestAvailable != null) {
+            // Consume the longest available protection — strongest shield absorbs the first
+            // defeat. The broken protection regenerates after its watch window (equal to the
+            // immunity duration) if the crystal takes no damage in the meantime; otherwise
+            // it is permanently lost.
+            long immunityMs = longestAvailable;
+            long nowMs2 = System.currentTimeMillis();
+            atlasCrystal.breakProtection(longestAvailable, nowMs2);
             atlasCrystal.setHp(atlasCrystal.getMaxHp());
             atlasCrystal.setImmuneFor(immunityMs);
             atlasCrystal.updateNametag();
             AtlasCrystalManager.persistCrystalState(atlasCrystal);
 
-            // Effects (smaller explosion, no fire)
-            crystal.getWorld().playSound(
-                    crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 0.5f);
+            crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 0.5f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 3.0f, false, false);
-
-            // Broadcast
-            String levelStr = newLevel == 0 ? "0 (last stand!)" : String.valueOf(newLevel);
-            long immunitySeconds = immunityMs / 1000L;
+            long immuneSecs = immunityMs / 1000L;
+            String immuneStr = immuneSecs >= 60 ? (immuneSecs / 60) + "m " + (immuneSecs % 60) + "s" : immuneSecs + "s";
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                    "⚠ Crystal weakened! LvL." + levelStr + ". Immune " + immunitySeconds + "s!",
-                    NamedTextColor.RED);
-            TitleUtil.notify(attacker,
-                    "Weakened " + crystalFaction + " to LvL." + newLevel
-                            + "! Immune " + immunitySeconds + "s.",
-                    NamedTextColor.YELLOW);
-
-            if (newLevel == 0) {
-                TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),
-                        "⚠ LvL.0! Next defeat disbands the faction!",
-                        NamedTextColor.DARK_RED);
+                    "⚠ Crystal protected! Immune for " + immuneStr + "!", NamedTextColor.RED);
+            TitleUtil.notify(attacker, "Crystal protected! Immune " + immuneStr + ".", NamedTextColor.YELLOW);
+        } else {
+            // No protection — crystal is permanently destroyed.
+            crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 1.0f);
+            crystal.getWorld().createExplosion(crystal.getLocation(), 6.0f, true, true);
+            String displayName2 = atlasCrystal.getName().isEmpty() ? "An Atlas Crystal" : "'" + atlasCrystal.getName() + "'";
+            FactionManager.broadcastToFaction(crystalFaction,
+                    Component.text("☠ " + displayName2 + " was destroyed by " + attackerFaction + "!", NamedTextColor.RED), null);
+            Component serverMsg = Component.text("☠ [" + crystalFaction + "] lost a crystal to [" + attackerFaction + "]!", NamedTextColor.RED);
+            Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(serverMsg));
+            // Detect the last-crystal case before destroyCrystal triggers the auto-disband
+            // so we can attribute the global disband broadcast to the attacker faction.
+            boolean willDisband = AtlasCrystalManager.getFactionCrystals(crystalFaction).size() <= 1;
+            Faction crystalFactionData = FactionManager.getFaction(crystalFaction);
+            Faction attackerFactionData = FactionManager.getFaction(attackerFaction);
+            // Drop this crystal's chests + remove its claims while the entity is still valid;
+            // other crystals of the same faction keep their own claims and chests.
+            AtlasCrystalManager.destroyCrystal(atlasCrystal.getEntityUUID());
+            crystal.remove(); // despawn the entity afterward
+            if (willDisband) {
+                NamedTextColor crystalColor  = crystalFactionData  != null ? crystalFactionData.getColor()  : NamedTextColor.WHITE;
+                NamedTextColor attackerColor = attackerFactionData != null ? attackerFactionData.getColor() : NamedTextColor.WHITE;
+                Component disbandMsg = Component.text("☠ Faction ", NamedTextColor.RED)
+                        .append(Component.text("[", NamedTextColor.GRAY))
+                        .append(Component.text(crystalFaction, crystalColor))
+                        .append(Component.text("]", NamedTextColor.GRAY))
+                        .append(Component.text(" has been disbanded by ", NamedTextColor.RED))
+                        .append(Component.text("[", NamedTextColor.GRAY))
+                        .append(Component.text(attackerFaction, attackerColor))
+                        .append(Component.text("]", NamedTextColor.GRAY))
+                        .append(Component.text(".", NamedTextColor.RED));
+                Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(disbandMsg));
             }
         }
     }
@@ -396,24 +368,14 @@ public class FactionListener implements Listener {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        boolean wasInSpawn = inSpawnProtection.contains(uuid);
-        boolean nowInSpawn = SpawnProtectionListener.isInSpawnProtection(to);
-
-        // Entering spawn protection — fires on radius crossing regardless of chunk boundary
-        if (!wasInSpawn && nowInSpawn) {
-            inSpawnProtection.add(uuid);
-            TitleUtil.alert(player, "Spawn Protection\nYou enter the protected zone", NamedTextColor.YELLOW);
-            return;
-        }
-
-        boolean leavingSpawn = wasInSpawn && !nowInSpawn;
-        if (leavingSpawn) inSpawnProtection.remove(uuid);
-
         int fromCX = from.getBlockX() >> 4, fromCZ = from.getBlockZ() >> 4;
         int toCX   = to.getBlockX()   >> 4, toCZ   = to.getBlockZ()   >> 4;
         boolean chunkChanged = fromCX != toCX || fromCZ != toCZ;
+        if (!chunkChanged) return;
 
-        if (!leavingSpawn && !chunkChanged) return;
+        boolean wasInSpawn = SafeZoneListener.isInSafeZone(from);
+        boolean nowInSpawn = SafeZoneListener.isInSafeZone(to);
+        boolean leavingSpawn = wasInSpawn && !nowInSpawn;
 
         String worldName = player.getWorld().getName();
         String fromFaction = FactionClaimManager.getClaimingFaction(worldName, fromCX, fromCZ);
@@ -447,10 +409,13 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (entity instanceof EnderCrystal crystal
-                    && crystal.getPersistentDataContainer()
-                    .has(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING)
-                    && !AtlasCrystalManager.isAtlasCrystal(crystal.getUniqueId())) {
+            if (!(entity instanceof EnderCrystal crystal)) continue;
+            if (!crystal.getPersistentDataContainer()
+                    .has(AtlasCrystalManager.getKeyFaction(), PersistentDataType.STRING)) continue;
+            // Restore if not registered at all, or registered only as an unloaded stub
+            org.minecraft.atlas.crystal.AtlasCrystal existing =
+                    AtlasCrystalManager.getCrystal(crystal.getUniqueId());
+            if (existing == null || !existing.isLoaded()) {
                 AtlasCrystalManager.restore(crystal);
             }
         }

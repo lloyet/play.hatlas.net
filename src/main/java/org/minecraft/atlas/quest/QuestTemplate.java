@@ -1,4 +1,4 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import org.bukkit.inventory.ItemStack;
 
@@ -39,10 +39,14 @@ public class QuestTemplate {
     }
 
     /**
-     * Faction XP awarded on completion.
-     * Formula: baseExpReward * sumDifficulty * sqrt(factionLevel + 1)
+     * Faction XP awarded on completion. Each task contributes {@code difficulty *
+     * expMultiplier}; the multiplier is configured per difficulty on the task template.
+     * Formula: baseExpReward * sum(difficulty_i * expMultiplier_i) * sqrt(factionLevel + 1)
      */
     public int calculateExpReward(int factionLevel, int baseExpReward) {
-        return (int) (baseExpReward * getSumDifficulty() * Math.sqrt(factionLevel + 1));
+        double weighted = tasks.stream()
+                .mapToDouble(t -> t.getDifficulty() * t.getExpMultiplier())
+                .sum();
+        return (int) (baseExpReward * weighted * Math.sqrt(factionLevel + 1));
     }
 }

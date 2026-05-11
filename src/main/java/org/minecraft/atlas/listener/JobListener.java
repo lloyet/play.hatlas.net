@@ -28,6 +28,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.UUID;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.gui.JobMainGui;
 import org.minecraft.atlas.gui.JokeyriniQuestGui;
 import org.minecraft.atlas.gui.NpcJobSwitchGui;
@@ -35,6 +36,7 @@ import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.job.JokeyriniManager;
 import org.minecraft.atlas.job.PlayerJobData;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.HashMap;
@@ -90,6 +92,7 @@ public class JobListener implements Listener {
                     .get(JokeyriniManager.getKeyNpc(), PersistentDataType.STRING);
             if ("JOKEYRINI".equals(tag)) {
                 event.setCancelled(true);
+                if (denyIfNoFaction(player)) return;
                 new JokeyriniQuestGui(player).open(player);
             }
             return;
@@ -102,6 +105,7 @@ public class JobListener implements Listener {
         if (jobName == null) return;
 
         event.setCancelled(true);
+        if (denyIfNoFaction(player)) return;
 
         Job npcJob;
         try { npcJob = Job.valueOf(jobName); }
@@ -129,6 +133,17 @@ public class JobListener implements Listener {
         }
 
         new NpcJobSwitchGui(player, npcJob, true).open(player);
+    }
+
+    /**
+     * Sends a "must be in a faction" message and returns true if the player has no faction.
+     * Caller is responsible for cancelling the event before invoking this.
+     */
+    static boolean denyIfNoFaction(Player player) {
+        if (FactionManager.getPlayerFaction(player.getUniqueId()) != null) return false;
+        player.sendMessage(Component.text(
+                "You must join a faction before talking to NPCs.", NamedTextColor.RED));
+        return true;
     }
 
     // ── Last-player-damager tracking (handles reflected projectiles) ──────────
@@ -179,7 +194,7 @@ public class JobListener implements Listener {
             if (isHarvest || isBreak) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
                 String actionType = isHarvest ? "harvest_crop" : "break_block";
-                JobManager.onTargetGathered(player.getUniqueId(), actionType, blockName, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), actionType, blockName, player);
             }
         }
 
@@ -209,7 +224,7 @@ public class JobListener implements Listener {
 
         if (data != null && (data.getJob() == Job.HUNTER || data.getJob() == Job.ALCHEMIST)) {
             JobManager.addProgress(killer.getUniqueId(), 1, killer);
-            JobManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
+            QuestManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
         }
 
         JokeyriniManager.onTargetGathered(killer.getUniqueId(), "kill_entity", entityType, killer);
@@ -235,7 +250,7 @@ public class JobListener implements Listener {
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
         if (data != null && data.getJob() == Job.ALCHEMIST) {
             JobManager.addProgress(player.getUniqueId(), 1, player);
-            JobManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
+            QuestManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
         }
 
         JokeyriniManager.onTargetGathered(player.getUniqueId(), "brew_potion", target, player);
@@ -257,7 +272,7 @@ public class JobListener implements Listener {
         PlayerJobData data = JobManager.getJobData(player.getUniqueId());
         if (data != null && data.getJob() == Job.ALCHEMIST) {
             JobManager.addProgress(player.getUniqueId(), amount, player);
-            JobManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
+            QuestManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
         }
 
         JokeyriniManager.onTargetGathered(player.getUniqueId(), "craft_item", target, amount, player);
@@ -310,7 +325,7 @@ public class JobListener implements Listener {
             PlayerJobData data = JobManager.getJobData(player.getUniqueId());
             if (data != null && data.getJob() == Job.FARMER) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
-                JobManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
             }
             JokeyriniManager.onTargetGathered(player.getUniqueId(), "harvest_crop", blockName, player);
             return;
@@ -323,7 +338,7 @@ public class JobListener implements Listener {
             PlayerJobData data = JobManager.getJobData(player.getUniqueId());
             if (data != null && data.getJob() == Job.FARMER) {
                 JobManager.addProgress(player.getUniqueId(), 1, player);
-                JobManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
+                QuestManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
             }
             JokeyriniManager.onTargetGathered(player.getUniqueId(), "harvest_crop", target, player);
         }

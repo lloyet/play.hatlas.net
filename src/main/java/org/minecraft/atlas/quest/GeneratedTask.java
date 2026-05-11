@@ -1,7 +1,8 @@
-package org.minecraft.atlas.job;
+package org.minecraft.atlas.quest;
 
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.job.Job;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -58,32 +59,35 @@ public class GeneratedTask {
     private final int          amount;
     private final long         timeLimitMs;
     private final List<ItemStack> rewards;
+    private final double       expMultiplier;
 
     public GeneratedTask(String taskId, String name, String description, String actionType,
                          List<String> targets, int difficulty, int amount,
-                         long timeLimitMs, List<ItemStack> rewards) {
-        this.taskId      = taskId;
-        this.name        = name;
-        this.description = description;
-        this.actionType  = actionType;
-        this.targets     = List.copyOf(targets);
-        this.difficulty  = difficulty;
-        this.amount      = amount;
-        this.timeLimitMs = timeLimitMs;
-        this.rewards     = List.copyOf(rewards);
+                         long timeLimitMs, List<ItemStack> rewards, double expMultiplier) {
+        this.taskId        = taskId;
+        this.name          = name;
+        this.description   = description;
+        this.actionType    = actionType;
+        this.targets       = List.copyOf(targets);
+        this.difficulty    = difficulty;
+        this.amount        = amount;
+        this.timeLimitMs   = timeLimitMs;
+        this.rewards       = List.copyOf(rewards);
+        this.expMultiplier = expMultiplier;
     }
 
     // ── Getters ───────────────────────────────────────────────────────────────
 
-    public String          getTaskId()      { return taskId; }
-    public String          getName()        { return name; }
-    public String          getDescription() { return description; }
-    public String          getActionType()  { return actionType; }
-    public List<String>    getTargets()     { return targets; }
-    public int             getDifficulty()  { return difficulty; }
-    public int             getAmount()      { return amount; }
-    public long            getTimeLimitMs() { return timeLimitMs; }
-    public List<ItemStack> getRewards()     { return rewards; }
+    public String          getTaskId()        { return taskId; }
+    public String          getName()          { return name; }
+    public String          getDescription()   { return description; }
+    public String          getActionType()    { return actionType; }
+    public List<String>    getTargets()       { return targets; }
+    public int             getDifficulty()    { return difficulty; }
+    public int             getAmount()        { return amount; }
+    public long            getTimeLimitMs()   { return timeLimitMs; }
+    public List<ItemStack> getRewards()       { return rewards; }
+    public double          getExpMultiplier() { return expMultiplier; }
 
     // ── Static factories ──────────────────────────────────────────────────────
 
@@ -98,10 +102,11 @@ public class GeneratedTask {
         int amount    = Math.max(1, (int)(rawAmount * getAmountMultiplier(job)));
         long timeLimit = TIME_LIMIT_MS[d];
         List<ItemStack> scaled = scaleRewards(template.getBaseItemRewards(), rawAmount, jobLevel, d, getRewardMultiplier(job));
+        double expMult = template.getExpMultiplier().forDifficulty(d);
         return new GeneratedTask(
             template.getId(), template.getName(), template.getDescription(),
             template.getActionType(), template.getTargets(),
-            d, amount, timeLimit, scaled
+            d, amount, timeLimit, scaled, expMult
         );
     }
 
@@ -117,6 +122,7 @@ public class GeneratedTask {
         map.put("difficulty",   difficulty);
         map.put("amount",       amount);
         map.put("time_limit_ms", timeLimitMs);
+        map.put("exp_multiplier", expMultiplier);
 
         List<Map<String, Object>> rewardList = new ArrayList<>();
         for (ItemStack r : rewards) {
@@ -138,6 +144,7 @@ public class GeneratedTask {
             int    difficulty  = ((Number) map.get("difficulty")).intValue();
             int    amount      = ((Number) map.get("amount")).intValue();
             long   timeLimit   = ((Number) map.get("time_limit_ms")).longValue();
+            double expMult     = map.get("exp_multiplier") instanceof Number n ? n.doubleValue() : 1.0;
 
             List<String> targets = new ArrayList<>();
             Object tObj = map.get("targets");
@@ -160,7 +167,7 @@ public class GeneratedTask {
             }
 
             return new GeneratedTask(taskId, name, description, actionType, targets,
-                    difficulty, amount, timeLimit, rewards);
+                    difficulty, amount, timeLimit, rewards, expMult);
         } catch (Exception e) {
             return null;
         }

@@ -12,6 +12,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.job.Job;
 import org.minecraft.atlas.job.JobManager;
 import org.minecraft.atlas.util.GuiUtil;
@@ -71,6 +72,13 @@ public class NpcJobSwitchGui implements AtlasGui {
         int slot = event.getRawSlot();
 
         if (GuiUtil.CONFIRM_GREEN.contains(slot)) {
+            // Require a faction to select or switch a job
+            if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
+                player.sendMessage(Component.text(
+                        "You must be in a faction before choosing a job!", NamedTextColor.RED));
+                player.closeInventory();
+                return;
+            }
             if (switching) {
                 JobManager.removeJob(player.getUniqueId());
                 JobManager.startJobResetCooldown(player.getUniqueId());

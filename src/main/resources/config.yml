@@ -1,35 +1,21 @@
 # Atlas plugin configuration
-# See also: factions.yml, donjons.yml, jobs.yml, tags.yml
-
-# Persisted at runtime — do not edit manually.
-# spawn: set via /setspawn in-game
-player_homes: { }
-
-# Spawn protection: players cannot PvP while either of them is within this radius of world spawn.
-spawn_protection:
-  pvp_radius: 64
-
-# Personal home command settings for /home
-home_teleport:
-  # Cooldown in seconds after a successful /home teleport
-  cooldown_seconds: 300
+# See also: homes.yml, safezones.yml, combats.yml, factions.yml, donjons.yml, jobs.yml, tags.yml
 
 # Teleport-to-player settings for /tpa
 tpa:
+  # Countdown delay in seconds before the requester is teleported after acceptance. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds after a completed /tpa teleport
   cooldown_seconds: 60
 
-# Spawn command settings for /spawn
-spawn_teleport:
-  # Cooldown in seconds after a successful teleport to spawn
-  cooldown_seconds: 30
-
 # Random teleport settings for /air tp
 random_teleport:
+  # Countdown delay in seconds before the player is teleported. Op bypasses.
+  teleport_delay_seconds: 10
   # Cooldown in seconds between uses
   cooldown_seconds: 30
   # Maximum distance in blocks from world spawn for the random destination
-  radius: 4096
+  radius: 1024
 
 # AFK auto-disconnect settings
 afk:
@@ -39,7 +25,7 @@ afk:
 # Death-based teleport penalty cooldown (applies to /home, /f home, /tpa — not /spawn)
 death_teleport_cooldown:
   # Base cooldown in seconds after the first death.
-  base_seconds: 20
+  base_seconds: 10
   # Escalation multiplier applied on each death within the active escalation window.
   # Also the value the multiplier resets to when the window expires.
   multiplier: 2

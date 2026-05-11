@@ -1,9 +1,10 @@
-package org.minecraft.atlas.faction;
+package org.minecraft.atlas.spawn;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.file.FileConfiguration;
+import org.minecraft.atlas.Atlas;
 
 public class SpawnManager {
 
@@ -12,7 +13,8 @@ public class SpawnManager {
     public static void loadConfig(FileConfiguration config) {
         if (!config.contains("spawn.world")) return;
         String worldName = config.getString("spawn.world");
-        World world = Bukkit.getWorld(worldName);
+        assert worldName != null;
+        World world = Atlas.instance.getServer().getWorld(worldName);
         if (world == null) return;
         double x = config.getDouble("spawn.x");
         double y = config.getDouble("spawn.y");

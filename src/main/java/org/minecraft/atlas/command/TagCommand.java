@@ -20,6 +20,9 @@ import java.util.List;
 @SuppressWarnings("UnstableApiUsage")
 public class TagCommand {
 
+    private static Component error(String msg)   { return Component.text(msg, NamedTextColor.RED); }
+    private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
+
     /** Suggests all currently registered tag names. */
     private static final SuggestionProvider<CommandSourceStack> TAG_NAMES =
             (ctx, builder) -> {
@@ -52,7 +55,7 @@ public class TagCommand {
                                             Entity executor = ctx.getSource().getExecutor();
                                             if (!(executor instanceof Player player)) {
                                                 ctx.getSource().getSender().sendMessage(
-                                                        Component.text("Only players can use this.", NamedTextColor.RED));
+                                                        error("Only players can use this."));
                                                 return Command.SINGLE_SUCCESS;
                                             }
 
@@ -60,8 +63,7 @@ public class TagCommand {
                                             String text = StringArgumentType.getString(ctx, "text");
 
                                             if (TagManager.tagExists(name)) {
-                                                player.sendMessage(Component.text(
-                                                        "A tag named '" + name + "' already exists.", NamedTextColor.RED));
+                                                player.sendMessage(error("A tag named '" + name + "' already exists."));
                                                 return Command.SINGLE_SUCCESS;
                                             }
 
@@ -69,11 +71,10 @@ public class TagCommand {
                                             org.bukkit.Location spawnLoc = player.getLocation().add(0, 1, 0);
                                             Tag tag = TagManager.createTag(name, spawnLoc, text);
 
-                                            TagManager.saveTags(Atlas.tagsConfig);
-                                            Atlas.saveTagsConfig();
+                                            TagManager.saveTags(Atlas.tagsDataConfig);
+                                            Atlas.saveTagsDataConfig();
 
-                                            player.sendMessage(Component.text(
-                                                    "Tag '" + name + "' created.", NamedTextColor.GREEN));
+                                            player.sendMessage(success("Tag '" + name + "' created."));
                                             return Command.SINGLE_SUCCESS;
                                         }))))
 
@@ -85,16 +86,14 @@ public class TagCommand {
                                     String name = StringArgumentType.getString(ctx, "name");
 
                                     if (!TagManager.deleteTag(name)) {
-                                        ctx.getSource().getSender().sendMessage(Component.text(
-                                                "Tag not found: " + name, NamedTextColor.RED));
+                                        ctx.getSource().getSender().sendMessage(error("Tag not found: " + name));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
                                     TagManager.saveTags(Atlas.instance.getConfig());
                                     Atlas.instance.saveConfig();
 
-                                    ctx.getSource().getSender().sendMessage(Component.text(
-                                            "Tag '" + name + "' deleted.", NamedTextColor.GREEN));
+                                    ctx.getSource().getSender().sendMessage(success("Tag '" + name + "' deleted."));
                                     return Command.SINGLE_SUCCESS;
                                 })))
 
@@ -108,18 +107,16 @@ public class TagCommand {
                                             String text = StringArgumentType.getString(ctx, "text");
 
                                             if (!TagManager.addLine(name, text)) {
-                                                ctx.getSource().getSender().sendMessage(Component.text(
-                                                        "Tag not found: " + name, NamedTextColor.RED));
+                                                ctx.getSource().getSender().sendMessage(error("Tag not found: " + name));
                                                 return Command.SINGLE_SUCCESS;
                                             }
 
-                                            TagManager.saveTags(Atlas.tagsConfig);
-                                            Atlas.saveTagsConfig();
+                                            TagManager.saveTags(Atlas.tagsDataConfig);
+                                            Atlas.saveTagsDataConfig();
 
                                             Tag tag = TagManager.getTag(name);
-                                            ctx.getSource().getSender().sendMessage(Component.text(
-                                                    "Line " + tag.getLines().size() + " added to tag '" + name + "'.",
-                                                    NamedTextColor.GREEN));
+                                            ctx.getSource().getSender().sendMessage(success(
+                                                    "Line " + tag.getLines().size() + " added to tag '" + name + "'."));
                                             return Command.SINGLE_SUCCESS;
                                         }))))
 
@@ -136,25 +133,22 @@ public class TagCommand {
 
                                                     Tag tag = TagManager.getTag(name);
                                                     if (tag == null) {
-                                                        ctx.getSource().getSender().sendMessage(Component.text(
-                                                                "Tag not found: " + name, NamedTextColor.RED));
+                                                        ctx.getSource().getSender().sendMessage(error("Tag not found: " + name));
                                                         return Command.SINGLE_SUCCESS;
                                                     }
 
                                                     if (!TagManager.editLine(name, line, text)) {
-                                                        ctx.getSource().getSender().sendMessage(Component.text(
+                                                        ctx.getSource().getSender().sendMessage(error(
                                                                 "Line " + line + " does not exist on tag '" + name
-                                                                        + "' (has " + tag.getLines().size() + " lines).",
-                                                                NamedTextColor.RED));
+                                                                        + "' (has " + tag.getLines().size() + " lines)."));
                                                         return Command.SINGLE_SUCCESS;
                                                     }
 
                                                     TagManager.saveTags(Atlas.instance.getConfig());
                                                     Atlas.instance.saveConfig();
 
-                                                    ctx.getSource().getSender().sendMessage(Component.text(
-                                                            "Line " + line + " of tag '" + name + "' updated.",
-                                                            NamedTextColor.GREEN));
+                                                    ctx.getSource().getSender().sendMessage(success(
+                                                            "Line " + line + " of tag '" + name + "' updated."));
                                                     return Command.SINGLE_SUCCESS;
                                                 })))))
 

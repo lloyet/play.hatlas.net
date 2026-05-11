@@ -13,11 +13,11 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionManager;
-import org.minecraft.atlas.job.ActiveQuest;
-import org.minecraft.atlas.job.GeneratedTask;
-import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.quest.ActiveQuest;
+import org.minecraft.atlas.quest.GeneratedTask;
 import org.minecraft.atlas.job.JokeyriniManager;
-import org.minecraft.atlas.job.QuestTemplate;
+import org.minecraft.atlas.quest.QuestTemplate;
+import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.util.GuiUtil;
 
 import java.util.ArrayList;
@@ -28,7 +28,6 @@ public class JobQuestListGui implements AtlasGui {
 
     private static final int[] QUEST_ITEM_SLOTS   = {11, 15};
     private static final int   SLOT_JOKEYRINI     = 13;
-    private static final int   SLOT_BACK          = 26;
 
     private final UUID playerUUID;
     private final Inventory inventory;
@@ -43,10 +42,10 @@ public class JobQuestListGui implements AtlasGui {
         Faction faction = factionName != null ? FactionManager.getFaction(factionName) : null;
         int factionLevel = faction != null ? faction.getLevel() : 0;
 
-        List<ActiveQuest> quests = JobManager.getActiveQuests(player.getUniqueId());
+        List<ActiveQuest> quests = QuestManager.getActiveQuests(player.getUniqueId());
         for (int i = 0; i < quests.size() && i < QUEST_ITEM_SLOTS.length; i++) {
             ActiveQuest aq = quests.get(i);
-            QuestTemplate qt = JobManager.resolveQuest(aq);
+            QuestTemplate qt = QuestManager.resolveQuest(aq);
             this.inventory.setItem(QUEST_ITEM_SLOTS[i], buildActiveQuestItem(aq, qt, factionLevel));
         }
 
@@ -55,8 +54,7 @@ public class JobQuestListGui implements AtlasGui {
             this.inventory.setItem(SLOT_JOKEYRINI, buildJokeyriniQuestItem(jokeyriniQuest));
         }
 
-        this.inventory.setItem(SLOT_BACK, GuiUtil.buildBackItem("Back"));
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -74,8 +72,8 @@ public class JobQuestListGui implements AtlasGui {
         ItemStack clicked = event.getCurrentItem();
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
-        if (event.getRawSlot() == SLOT_BACK) {
-            new JobMainGui(player).open(player);
+        if (event.getRawSlot() == inventory.getSize() - 1) {
+            GuiNavigator.back(player);
         }
     }
 
@@ -97,7 +95,7 @@ public class JobQuestListGui implements AtlasGui {
 
         List<Component> lore = new ArrayList<>();
         long remaining = aq.getExpiresAt() - System.currentTimeMillis();
-        int expReward = qt.calculateExpReward(factionLevel, JobManager.getBaseExpReward());
+        int expReward = qt.calculateExpReward(factionLevel, QuestManager.getBaseExpReward());
         lore.add(GuiUtil.label("Time remaining: ").append(GuiUtil.value(GuiUtil.formatTime(remaining))));
         lore.add(GuiUtil.label("Experience: ").append(GuiUtil.value(expReward + " XP")));
         lore.add(Component.empty());

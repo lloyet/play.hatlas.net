@@ -1,6 +1,7 @@
 package org.minecraft.atlas.command;
 
 import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.tree.LiteralCommandNode;
@@ -26,20 +27,22 @@ import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.EnderCrystal;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.faction.AtlasCrystal;
-import org.minecraft.atlas.faction.AtlasCrystalManager;
-import org.minecraft.atlas.faction.CrystalGui;
+import org.minecraft.atlas.crystal.AtlasCrystal;
+import org.minecraft.atlas.crystal.AtlasCrystalManager;
+import org.minecraft.atlas.gui.CrystalDisbandGui;
 import org.minecraft.atlas.faction.Faction;
+import org.minecraft.atlas.faction.FactionClaimBorderRenderer;
 import org.minecraft.atlas.faction.FactionClaimManager;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 import org.minecraft.atlas.faction.FactionRole;
-import org.minecraft.atlas.faction.HomeTeleportManager;
+import org.minecraft.atlas.teleport.HomeTeleportManager;
 import org.minecraft.atlas.donjon.DonjonManager;
-import org.minecraft.atlas.listener.SpawnProtectionListener;
+import org.minecraft.atlas.listener.SafeZoneListener;
 import org.minecraft.atlas.util.TabListManager;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -140,11 +143,67 @@ public class FactionCommand {
                         .append(Component.text("  " + name, NamedTextColor.WHITE));
             }
 
-            if (faction.hasPendingUpgrade()) {
+            // Skill points — shown only to own faction members
+            msg = msg.append(Component.newline())
+                    .append(Component.text("Skill Points: ", NamedTextColor.GRAY))
+                    .append(Component.text(String.valueOf(faction.getSkillPoints()), NamedTextColor.LIGHT_PURPLE));
+
+            // Territory info — only visible to own faction members
+            int totalClaims    = AtlasCrystalManager.getTotalClaimedChunks(faction.getName());
+            int totalCapacity  = AtlasCrystalManager.getTotalClaimCapacity(faction.getName());
+            msg = msg.append(Component.newline())
+                    .append(Component.text("Claims: ", NamedTextColor.GRAY))
+                    .append(Component.text(totalClaims + " / " + totalCapacity + " chunk(s)", NamedTextColor.GREEN));
+
+            // Crystal protections — header + per-crystal lists.
+            // Each crystal's protections are listed greatest-to-lowest duration with their
+            // current status (ready / active / regenerate). Regeneration is sequential:
+            // only the SHORTEST broken protection ("head") is currently regenerating;
+            // longer broken ones are queued behind it.
+            long now = System.currentTimeMillis();
+            boolean printedProtectionHeader = false;
+            for (AtlasCrystal crystal : AtlasCrystalManager.getFactionCrystals(faction.getName())) {
+                if (crystal.getPurchasedProtections().isEmpty()) continue;
+
+                if (!printedProtectionHeader) {
+                    msg = msg.append(Component.newline())
+                            .append(Component.text("Protection", NamedTextColor.GRAY));
+                    printedProtectionHeader = true;
+                }
+
+                String label = crystal.getName().isEmpty() ? "Crystal" : "'" + crystal.getName() + "'";
                 msg = msg.append(Component.newline())
-                        .append(Component.text("⚡ " + faction.getPendingUpgrades().size()
-                                + " upgrade(s) pending! Use /faction upgrade list to see them.",
-                                NamedTextColor.LIGHT_PURPLE));
+                        .append(Component.text(label + ":", NamedTextColor.GRAY));
+
+                Long regenHead = null;
+                for (Long d : crystal.getBrokenProtections().keySet()) {
+                    if (regenHead == null || d < regenHead) regenHead = d;
+                }
+
+                List<Long> sortedProtections = new ArrayList<>(crystal.getPurchasedProtections());
+                sortedProtections.sort(Comparator.reverseOrder());
+
+                for (Long d : sortedProtections) {
+                    Long brokenAt = crystal.getBrokenProtections().get(d);
+                    Component statusTag;
+                    if (brokenAt == null) {
+                        statusTag = Component.text(" [READY]", NamedTextColor.GREEN);
+                    } else if (now < brokenAt + d) {
+                        long remaining = (brokenAt + d) - now;
+                        statusTag = Component.text(" [ACTIVE — " + formatDuration(remaining) + " left]",
+                                NamedTextColor.AQUA);
+                    } else if (d.equals(regenHead)) {
+                        long regenAt = brokenAt + 2 * d;
+                        long remaining = Math.max(0, regenAt - now);
+                        statusTag = Component.text(" [REGENERATING — " + formatDuration(remaining) + " left]",
+                                NamedTextColor.YELLOW);
+                    } else {
+                        statusTag = Component.text(" [REGENERATING — queued]", NamedTextColor.YELLOW);
+                    }
+                    msg = msg.append(Component.newline())
+                            .append(Component.text("  " + formatDuration(d), NamedTextColor.WHITE))
+                            .append(statusTag);
+                }
             }
         } else {
             msg = msg.append(Component.newline())
@@ -162,6 +221,21 @@ public class FactionCommand {
             line = line.append(Component.text(" " + args, NamedTextColor.DARK_AQUA));
         }
         return line.append(Component.text(" - " + desc, NamedTextColor.YELLOW));
+    }
+
+    private static int usage(net.kyori.adventure.audience.Audience audience, String syntax) {
+        audience.sendMessage(Component.text("Usage: /faction " + syntax, NamedTextColor.RED));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private static String formatDuration(long ms) {
+        long secs = Math.max(0, ms) / 1000L;
+        long h = secs / 3600;
+        long m = (secs % 3600) / 60;
+        long s = secs % 60;
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
     }
 
     // -------------------------------------------------------------------------
@@ -252,9 +326,11 @@ public class FactionCommand {
                             .append(Component.newline()).append(helpEntry("list", "", "List all factions"))
                             .append(Component.newline()).append(helpEntry("members", "", "Show members of your faction"))
                             .append(Component.newline()).append(helpEntry("home", "[crystal]", "Teleport to faction home"))
-                            .append(Component.newline()).append(helpEntry("upgrade", "list", "List pending upgrade bonuses (owner/leader)"))
-                            .append(Component.newline()).append(helpEntry("upgrade", "apply <upgradeName> <crystal>", "Apply a pending upgrade bonus (owner/leader)"))
-                            .append(Component.newline()).append(helpEntry("outpost", "", "Place a second Atlas Crystal (level 21+, owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("claim", "", "Claim the chunk you are standing in (requires crystal capacity)"))
+                            .append(Component.newline()).append(helpEntry("showclaim", "<true|false>", "Toggle claim border particle visualization"))
+                            .append(Component.newline()).append(helpEntry("unclaim", "", "Unclaim the chunk you are standing in (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("sethome", "<crystal>", "Set the home for a crystal at your location (owner/leader)"))
+                            .append(Component.newline()).append(helpEntry("outpost", "", "Place a second Atlas Crystal (owner/leader)"))
                             .append(Component.newline()).append(helpEntry("ally", "<faction>", "Send an alliance request (owner/leader)"))
                             .append(Component.newline()).append(helpEntry("allyaccept", "<faction>", "Accept an alliance request (owner/leader)"))
                             .append(Component.newline()).append(helpEntry("allydeny", "<faction>", "Deny an alliance request (owner/leader)"))
@@ -264,11 +340,16 @@ public class FactionCommand {
                         help = help
                                 .append(Component.newline()).append(helpEntry("exp", "add <amount>", "[debug] Add exp to faction"))
                                 .append(Component.newline()).append(helpEntry("exp", "set <amount>", "[debug] Set faction exp"))
-                                .append(Component.newline()).append(helpEntry("level", "set <level>", "[debug] Set faction level (0-100)"));
+                                .append(Component.newline()).append(helpEntry("level", "set <level>", "[debug] Set faction level (0-100)"))
+                                .append(Component.newline()).append(helpEntry("skillpoints", "set <amount>", "[debug] Set faction skill points"));
                     }
                     if (sender.hasPermission("atlas.faction.admin.disband")) {
                         help = help
                                 .append(Component.newline()).append(helpEntry("disband", "<faction>", "[admin] Forcibly disband any faction"));
+                    }
+                    if (sender.hasPermission("atlas.faction.admin.join")) {
+                        help = help
+                                .append(Component.newline()).append(helpEntry("join", "<player> <faction>", "[admin] Force-join a player into a faction"));
                     }
 
                     sender.sendMessage(help);
@@ -277,6 +358,7 @@ public class FactionCommand {
                 // ----- create -----
                 .then(Commands.literal("create")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.create"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "create <name>"))
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -307,9 +389,8 @@ public class FactionCommand {
                                     }
 
                                     // Reject if inside spawn protection
-                                    if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
-                                        player.sendMessage(error("You cannot create a faction inside the spawn protection zone ("
-                                                + (int) SpawnProtectionListener.getRadius() + " blocks from spawn)."));
+                                    if (SafeZoneListener.isInSafeZone(player.getLocation())) {
+                                        player.sendMessage(error("You cannot create a faction inside the spawn protection zone."));
                                         return Command.SINGLE_SUCCESS;
                                     }
 
@@ -329,10 +410,10 @@ public class FactionCommand {
 
                                     int playerX = player.getLocation().getBlockX();
                                     int playerZ = player.getLocation().getBlockZ();
-                                    int highestY = player.getWorld().getHighestBlockYAt(playerX, playerZ);
+                                    int playerY = player.getLocation().getBlockY();
 
                                     Location spawnLoc = new Location(player.getWorld(),
-                                            playerX + 0.5, highestY + 2.0, playerZ + 0.5);
+                                            playerX + 0.5, playerY + 1.0, playerZ + 0.5);
 
                                     EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                                     crystalEntity.setShowingBottom(true);
@@ -343,22 +424,17 @@ public class FactionCommand {
                                     FactionClaimManager.initializeClaim(name,
                                             player.getWorld().getName(), chunk.getX(), chunk.getZ());
 
-                                    // Home set at the crystal's location (ground level beneath it)
-                                    Location home = spawnLoc.clone();
-                                    home.setY(highestY + 1.0);
-                                    home.setPitch(0);
-                                    atlasCrystal.setHome(home);
-                                    AtlasCrystalManager.saveHome(atlasCrystal);
-
                                     // Open naming dialog
                                     AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
                                     openNamingDialog(player, atlasCrystal, null);
+                                    player.sendMessage(info("Once named, use /faction sethome <crystal> to set the home location."));
 
                                     return Command.SINGLE_SUCCESS;
                                 })))
                 // ----- invite -----
                 .then(Commands.literal("invite")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.invite"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "invite <player>"))
                         .then(Commands.argument("player", ArgumentTypes.player())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -440,6 +516,7 @@ public class FactionCommand {
                 // ----- rename -----
                 .then(Commands.literal("rename")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.rename"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "rename <name>"))
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -514,6 +591,7 @@ public class FactionCommand {
                 // ----- color -----
                 .then(Commands.literal("color")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.color"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "color <color>"))
                         .then(Commands.argument("color", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
                                     NamedTextColor.NAMES.keys().forEach(builder::suggest);
@@ -555,6 +633,7 @@ public class FactionCommand {
                 // ----- promote -----
                 .then(Commands.literal("promote")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.promote"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "promote <player>"))
                         .then(Commands.argument("player", ArgumentTypes.player())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -589,6 +668,7 @@ public class FactionCommand {
                 // ----- demote -----
                 .then(Commands.literal("demote")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.demote"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "demote <player>"))
                         .then(Commands.argument("player", ArgumentTypes.player())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -623,6 +703,7 @@ public class FactionCommand {
                 // ----- transfer -----
                 .then(Commands.literal("transfer")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.transfer"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "transfer <player>"))
                         .then(Commands.argument("player", ArgumentTypes.player())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -655,6 +736,7 @@ public class FactionCommand {
                 // ----- kick -----
                 .then(Commands.literal("kick")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.kick"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "kick <player>"))
                         .then(Commands.argument("player", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
                                     Entity exec = ctx.getSource().getExecutor();
@@ -738,7 +820,7 @@ public class FactionCommand {
                                 return Command.SINGLE_SUCCESS;
                             }
 
-                            CrystalGui.openDisbandConfirmMenu(player, grpForDisband);
+                            CrystalDisbandGui.open(player, grpForDisband);
                             return Command.SINGLE_SUCCESS;
                         })
                         // ----- admin disband <faction> -----
@@ -760,10 +842,57 @@ public class FactionCommand {
                                     FactionManager.broadcastToFaction(targetFaction,
                                             error("Your faction has been forcibly disbanded by an administrator."),
                                             null);
+                                    Faction disbandedFaction = FactionManager.getFaction(targetFaction);
+                                    NamedTextColor disbandColor = disbandedFaction != null
+                                            ? disbandedFaction.getColor() : NamedTextColor.WHITE;
+                                    Component globalMsg = Component.text("☠ Faction ", NamedTextColor.RED)
+                                            .append(Component.text("[", NamedTextColor.GRAY))
+                                            .append(Component.text(targetFaction, disbandColor))
+                                            .append(Component.text("]", NamedTextColor.GRAY))
+                                            .append(Component.text(" has been disbanded by an administrator.",
+                                                    NamedTextColor.RED));
+                                    Bukkit.getOnlinePlayers().forEach(p -> p.sendMessage(globalMsg));
                                     FactionManager.disbandFaction(targetFaction);
                                     sender.sendMessage(success("Faction '" + targetFaction + "' has been disbanded."));
                                     return Command.SINGLE_SUCCESS;
                                 })))
+                // ----- admin join -----
+                .then(Commands.literal("join")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.admin.join"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "join <player> <faction>"))
+                        .then(Commands.argument("player", ArgumentTypes.player())
+                                .then(Commands.argument("faction", StringArgumentType.word())
+                                        .suggests((ctx, builder) -> {
+                                            FactionManager.getFactions().keySet().forEach(builder::suggest);
+                                            return builder.buildFuture();
+                                        })
+                                        .executes(ctx -> {
+                                            var sender = ctx.getSource().getSender();
+                                            PlayerSelectorArgumentResolver resolver = ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+                                            List<Player> resolved = resolver.resolve(ctx.getSource());
+                                            if (resolved.isEmpty()) {
+                                                sender.sendMessage(error("Player not found or not online."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            Player target = resolved.getFirst();
+                                            String targetFaction = StringArgumentType.getString(ctx, "faction");
+                                            if (FactionManager.getPlayerFaction(target.getUniqueId()) != null) {
+                                                sender.sendMessage(error(target.getName() + " is already in a faction."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            if (FactionManager.getFaction(targetFaction) == null) {
+                                                sender.sendMessage(error("Faction '" + targetFaction + "' does not exist."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            FactionManager.forceJoin(target.getUniqueId(), targetFaction);
+                                            sender.sendMessage(success("Force-joined " + target.getName() + " into '" + targetFaction + "'."));
+                                            target.sendMessage(info("An administrator added you to faction '" + targetFaction + "'."));
+                                            FactionManager.broadcastToFaction(targetFaction,
+                                                    info(target.getName() + " was added to the faction by an admin."),
+                                                    target.getUniqueId());
+                                            TabListManager.updatePlayer(target);
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
                 // ----- leave -----
                 .then(Commands.literal("leave")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.leave"))
@@ -865,52 +994,6 @@ public class FactionCommand {
                             player.sendMessage(list);
                             return Command.SINGLE_SUCCESS;
                         }))
-                // ----- members -----
-                .then(Commands.literal("members")
-                        .requires(src -> src.getSender().hasPermission("atlas.faction.members"))
-                        .executes(ctx -> {
-                            Entity executor = ctx.getSource().getExecutor();
-                            if (!(executor instanceof Player player)) {
-                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                                return Command.SINGLE_SUCCESS;
-                            }
-
-                            String factionNameForMembers = FactionManager.getPlayerFaction(player.getUniqueId());
-                            if (factionNameForMembers == null) {
-                                player.sendMessage(error("You are not in any faction."));
-                                return Command.SINGLE_SUCCESS;
-                            }
-
-                            Faction grp = FactionManager.getFaction(factionNameForMembers);
-                            List<UUID> memberUUIDs = FactionManager.getFactionPlayers(factionNameForMembers);
-
-                            Component list = Component.text("--- " + factionNameForMembers + " members ---", grp.getColor());
-                            for (UUID uuid : memberUUIDs) {
-                                boolean isOwner = uuid.equals(grp.getOwner());
-                                Player member = Bukkit.getPlayer(uuid);
-                                String name = member != null ? member.getName() : uuid.toString();
-                                boolean online = member != null;
-
-                                Component roleTag;
-                                if (isOwner) {
-                                    roleTag = Component.text(" [Owner]", NamedTextColor.YELLOW);
-                                } else {
-                                    FactionRole role = grp.getRole(uuid);
-                                    roleTag = switch (role) {
-                                        case LEADER -> Component.text(" [Leader]", NamedTextColor.GOLD);
-                                        case MODERATOR -> Component.text(" [Moderator]", NamedTextColor.AQUA);
-                                        case MEMBER -> Component.empty();
-                                    };
-                                }
-
-                                list = list.append(Component.newline())
-                                        .append(Component.text(name, online ? NamedTextColor.WHITE : NamedTextColor.DARK_GRAY))
-                                        .append(roleTag)
-                                        .append(Component.text(online ? "" : " (offline)", NamedTextColor.DARK_GRAY));
-                            }
-                            player.sendMessage(list);
-                            return Command.SINGLE_SUCCESS;
-                        }))
                 // ----- home -----
                 .then(Commands.literal("home")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.home"))
@@ -970,124 +1053,172 @@ public class FactionCommand {
                                     HomeTeleportManager.startTeleport(player, home, crystalName);
                                     return Command.SINGLE_SUCCESS;
                                 })))
-                // ----- upgrade -----
-                .then(Commands.literal("upgrade")
-                        .requires(src -> src.getSender().hasPermission("atlas.faction.upgrade"))
-                        .then(Commands.literal("list")
+                // ----- claim -----
+                .then(Commands.literal("claim")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.claim"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            org.bukkit.Chunk chunk = player.getLocation().getChunk();
+                            String worldName = player.getWorld().getName();
+                            int cx = chunk.getX(), cz = chunk.getZ();
+                            String existing = FactionClaimManager.getClaimingFaction(worldName, cx, cz);
+                            if (existing != null) {
+                                player.sendMessage(error("This chunk is already claimed by '" + existing + "'."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (DonjonManager.isChunkInDonjon(worldName, cx, cz)) {
+                                player.sendMessage(error("Cannot claim a chunk inside a donjon area."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (SafeZoneListener.isInSafeZone(player.getLocation())) {
+                                player.sendMessage(error("Cannot claim a chunk inside the spawn protection zone."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            if (!FactionClaimManager.hasAdjacentClaim(factionName, worldName, cx, cz)) {
+                                player.sendMessage(error("You can only claim chunks adjacent to your faction's existing territory."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            AtlasCrystal crystalForClaim = AtlasCrystalManager.findCrystalForClaim(factionName, worldName, cx, cz);
+                            if (crystalForClaim == null) {
+                                player.sendMessage(error("No crystal with available claim capacity. Purchase more claims via your atlas crystal."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String chunkKey = worldName + ":" + cx + ":" + cz;
+                            crystalForClaim.getClaimedChunks().add(chunkKey);
+                            FactionClaimManager.claimChunk(factionName, worldName, cx, cz);
+                            AtlasCrystalManager.saveCrystalData(org.minecraft.atlas.Atlas.factionsDataConfig);
+                            org.minecraft.atlas.Atlas.saveFactionsDataConfig();
+                            int used = AtlasCrystalManager.getTotalClaimedChunks(factionName);
+                            int cap  = AtlasCrystalManager.getTotalClaimCapacity(factionName);
+                            player.sendMessage(success("Chunk claimed! Claims used: " + used + " / " + cap + "."));
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                // ----- unclaim -----
+                .then(Commands.literal("unclaim")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.unclaim"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (factionName == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Faction faction = FactionManager.getFaction(factionName);
+                            boolean isOwner = faction.getOwner().equals(player.getUniqueId());
+                            boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                            if (!isOwner && !isLeader) {
+                                player.sendMessage(error("Only the Owner or a Leader can unclaim chunks."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            org.bukkit.Chunk chunk = player.getLocation().getChunk();
+                            String worldName = player.getWorld().getName();
+                            int cx = chunk.getX(), cz = chunk.getZ();
+                            String owner = FactionClaimManager.getClaimingFaction(worldName, cx, cz);
+                            if (!factionName.equals(owner)) {
+                                player.sendMessage(error("This chunk is not claimed by your faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String unclaimKey = worldName + ":" + cx + ":" + cz;
+                            // Block unclaiming the chunk that hosts an atlas crystal entity —
+                            // the crystal anchors that chunk and must be destroyed (not unclaimed) to free it.
+                            for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
+                                EnderCrystal ce = c.getEntity();
+                                if (ce == null) continue;
+                                Location cloc = ce.getLocation();
+                                if (cloc.getWorld() == null || !cloc.getWorld().getName().equals(worldName)) continue;
+                                if ((cloc.getBlockX() >> 4) == cx && (cloc.getBlockZ() >> 4) == cz) {
+                                    String label = c.getName().isEmpty() ? "atlas crystal" : "'" + c.getName() + "' crystal";
+                                    player.sendMessage(error("This chunk hosts the " + label + " — destroy the crystal to release it."));
+                                    return Command.SINGLE_SUCCESS;
+                                }
+                            }
+                            // Remove from the crystal that owns this chunk
+                            for (AtlasCrystal c : AtlasCrystalManager.getFactionCrystals(factionName)) {
+                                c.getClaimedChunks().remove(unclaimKey);
+                            }
+                            FactionClaimManager.unclaimChunk(worldName, cx, cz);
+                            AtlasCrystalManager.saveCrystalData(org.minecraft.atlas.Atlas.factionsDataConfig);
+                            org.minecraft.atlas.Atlas.saveFactionsDataConfig();
+                            int used2 = AtlasCrystalManager.getTotalClaimedChunks(factionName);
+                            int cap2  = AtlasCrystalManager.getTotalClaimCapacity(factionName);
+                            player.sendMessage(success("Chunk unclaimed. Claims used: " + used2 + " / " + cap2 + "."));
+                            return Command.SINGLE_SUCCESS;
+                        }))
+                // ----- sethome -----
+                .then(Commands.literal("sethome")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.sethome"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "sethome <crystal>"))
+                        .then(Commands.argument("crystal", StringArgumentType.word())
+                                .suggests((ctx, builder) -> {
+                                    Entity exec = ctx.getSource().getExecutor();
+                                    if (exec instanceof Player p) {
+                                        String fn = FactionManager.getPlayerFaction(p.getUniqueId());
+                                        if (fn != null) {
+                                            AtlasCrystalManager.getFactionCrystals(fn)
+                                                    .forEach(c -> builder.suggest(c.getName()));
+                                        }
+                                    }
+                                    return builder.buildFuture();
+                                })
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
                                     if (!(executor instanceof Player player)) {
                                         ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
                                         return Command.SINGLE_SUCCESS;
                                     }
-                                    String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-                                    if (fn == null) {
+                                    String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                    if (factionName == null) {
                                         player.sendMessage(error("You are not in any faction."));
                                         return Command.SINGLE_SUCCESS;
                                     }
-                                    Faction faction = FactionManager.getFaction(fn);
-                                    List<Integer> pending = faction.getPendingUpgrades();
-                                    if (pending.isEmpty()) {
-                                        player.sendMessage(info("No pending upgrades. Gain exp to reach an upgrade level!"));
+                                    Faction faction = FactionManager.getFaction(factionName);
+                                    boolean isOwner = faction.getOwner().equals(player.getUniqueId());
+                                    boolean isLeader = faction.getRole(player.getUniqueId()) == FactionRole.LEADER;
+                                    if (!isOwner && !isLeader) {
+                                        player.sendMessage(error("Only the Owner or a Leader can set a crystal home."));
                                         return Command.SINGLE_SUCCESS;
                                     }
-                                    Component msg = Component.text("--- Pending Upgrades ---", NamedTextColor.LIGHT_PURPLE);
-                                    for (int cp : pending) {
-                                        double bonus = FactionLevelManager.getUpgradeHp(cp);
-                                        msg = msg.append(Component.newline())
-                                                .append(Component.text("  Upgrade " + cp, NamedTextColor.GOLD))
-                                                .append(Component.text(" (upgrade LvL." + cp + ")", NamedTextColor.GRAY))
-                                                .append(Component.text(" → +" + (int) bonus + " max HP", NamedTextColor.GREEN));
+                                    Chunk hereChunk = player.getLocation().getChunk();
+                                    String hereOwner = FactionClaimManager.getClaimingFaction(
+                                            hereChunk.getWorld().getName(), hereChunk.getX(), hereChunk.getZ());
+                                    if (!factionName.equals(hereOwner)) {
+                                        player.sendMessage(error("You can only set a faction home inside your own claimed territory."));
+                                        return Command.SINGLE_SUCCESS;
                                     }
-                                    msg = msg.append(Component.newline())
-                                            .append(Component.text("Use /faction upgrade apply <upgradeName> <crystal> to apply.", NamedTextColor.GRAY));
-                                    player.sendMessage(msg);
+                                    String crystalName = StringArgumentType.getString(ctx, "crystal");
+                                    AtlasCrystal crystal = AtlasCrystalManager.getCrystalByName(factionName, crystalName);
+                                    if (crystal == null) {
+                                        player.sendMessage(error("No crystal named '" + crystalName + "' in your faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    crystal.setHome(player.getLocation());
+                                    AtlasCrystalManager.saveHome(crystal);
+                                    player.sendMessage(success("Home for crystal '" + crystalName + "' set to your current location."));
+                                    FactionManager.broadcastToFaction(factionName,
+                                            info(player.getName() + " set the home for crystal '" + crystalName + "'."),
+                                            player.getUniqueId());
                                     return Command.SINGLE_SUCCESS;
-                                }))
-                        .then(Commands.literal("apply")
-                                .then(Commands.argument("upgradeName", StringArgumentType.word())
-                                        .suggests((ctx, builder) -> {
-                                            Entity exec = ctx.getSource().getExecutor();
-                                            if (exec instanceof Player p) {
-                                                String fn = FactionManager.getPlayerFaction(p.getUniqueId());
-                                                if (fn != null) {
-                                                    Faction f = FactionManager.getFaction(fn);
-                                                    if (f != null) {
-                                                        f.getPendingUpgrades().forEach(cp -> builder.suggest(String.valueOf(cp)));
-                                                    }
-                                                }
-                                            }
-                                            return builder.buildFuture();
-                                        })
-                                        .then(Commands.argument("crystal", StringArgumentType.word())
-                                                .suggests((ctx, builder) -> {
-                                                    Entity exec = ctx.getSource().getExecutor();
-                                                    if (exec instanceof Player p) {
-                                                        String fn = FactionManager.getPlayerFaction(p.getUniqueId());
-                                                        if (fn != null) {
-                                                            AtlasCrystalManager.getFactionCrystals(fn)
-                                                                    .forEach(c -> builder.suggest(c.getName()));
-                                                        }
-                                                    }
-                                                    return builder.buildFuture();
-                                                })
-                                                .executes(ctx -> {
-                                                    Entity executor = ctx.getSource().getExecutor();
-                                                    if (!(executor instanceof Player player)) {
-                                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
-                                                        return Command.SINGLE_SUCCESS;
-                                                    }
-                                                    String upgradeNameStr = StringArgumentType.getString(ctx, "upgradeName");
-                                                    String crystalName = StringArgumentType.getString(ctx, "crystal");
-
-                                                    int upgradeLevel;
-                                                    try {
-                                                        upgradeLevel = Integer.parseInt(upgradeNameStr);
-                                                    } catch (NumberFormatException e) {
-                                                        player.sendMessage(error("Invalid upgrade name '" + upgradeNameStr + "'. Use the upgrade level number (e.g. 5)."));
-                                                        return Command.SINGLE_SUCCESS;
-                                                    }
-
-                                                    String fnForUpgrade = FactionManager.getPlayerFaction(player.getUniqueId());
-                                                    AtlasCrystal crystalForUpgrade = fnForUpgrade != null
-                                                            ? AtlasCrystalManager.getCrystalByName(fnForUpgrade, crystalName)
-                                                            : null;
-                                                    if (crystalForUpgrade == null) {
-                                                        player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
-                                                        return Command.SINGLE_SUCCESS;
-                                                    }
-
-                                                    FactionManager.ApplyUpgradeResult result =
-                                                            FactionManager.applyUpgrade(player.getUniqueId(), upgradeLevel, crystalForUpgrade.getEntity().getUniqueId());
-
-                                                    switch (result) {
-                                                        case SUCCESS -> {
-                                                            String fn = FactionManager.getPlayerFaction(player.getUniqueId());
-                                                            int newMax = (int) crystalForUpgrade.getMaxHp();
-                                                            player.sendMessage(success("Upgrade " + upgradeLevel + " applied to '" + crystalName + "'! New max HP: " + newMax));
-                                                            FactionManager.broadcastToFaction(fn,
-                                                                    info(player.getName() + " upgraded Atlas Crystal '" + crystalName + "'! New max HP: " + newMax),
-                                                                    player.getUniqueId());
-                                                            Faction f = FactionManager.getFaction(fn);
-                                                            if (f != null && f.hasPendingUpgrade()) {
-                                                                player.sendMessage(info(f.getPendingUpgrades().size() + " upgrade(s) still pending! Use /faction upgrade list."));
-                                                            }
-                                                        }
-                                                        case NOT_IN_FACTION ->
-                                                                player.sendMessage(error("You are not in any faction."));
-                                                        case NO_PERMISSION ->
-                                                                player.sendMessage(error("Only Owners and Leaders can apply upgrades."));
-                                                        case UPGRADE_NOT_PENDING ->
-                                                                player.sendMessage(error("Upgrade " + upgradeLevel + " is not pending. Use /faction upgrade list to see available upgrades."));
-                                                        case CRYSTAL_NOT_FOUND ->
-                                                                player.sendMessage(error("Crystal '" + crystalName + "' not found in your faction."));
-                                                    }
-                                                    return Command.SINGLE_SUCCESS;
-                                                })))))
+                                })))
+                // ----- upgrade -----
                 // ----- level (debug) -----
                 .then(Commands.literal("level")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.debug"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "level set <0-99>"))
                         .then(Commands.literal("set")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "level set <0-99>"))
                                 .then(Commands.argument("value", IntegerArgumentType.integer(0, FactionLevelManager.MAX_LEVEL))
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();
@@ -1113,7 +1244,9 @@ public class FactionCommand {
                 // ----- exp (debug) -----
                 .then(Commands.literal("exp")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.debug"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "exp set|add <amount>"))
                         .then(Commands.literal("set")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "exp set <amount>"))
                                 .then(Commands.argument("value", IntegerArgumentType.integer(0))
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();
@@ -1132,6 +1265,7 @@ public class FactionCommand {
                                             return Command.SINGLE_SUCCESS;
                                         })))
                         .then(Commands.literal("add")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "exp add <amount>"))
                                 .then(Commands.argument("value", IntegerArgumentType.integer(1))
                                         .executes(ctx -> {
                                             Entity executor = ctx.getSource().getExecutor();
@@ -1160,15 +1294,33 @@ public class FactionCommand {
 
                                             if (!reached.isEmpty()) {
                                                 FactionManager.broadcastToFaction(factionName,
-                                                        Component.text("Faction reached level " + currentLevel + "!", NamedTextColor.GOLD),
+                                                        Component.text("Faction reached level " + currentLevel + "! New skill points available.", NamedTextColor.GOLD),
                                                         null);
-                                                if (faction.hasPendingUpgrade()) {
-                                                    FactionManager.broadcastToFaction(factionName,
-                                                            Component.text("⚡ Upgrade level reached! An Owner or Leader can run /faction upgrade list then /faction upgrade apply <upgradeName> <crystal> to upgrade a crystal!", NamedTextColor.LIGHT_PURPLE),
-                                                            null);
-                                                }
                                             }
 
+                                            return Command.SINGLE_SUCCESS;
+                                        }))))
+                // ----- skillpoints (debug) -----
+                .then(Commands.literal("skillpoints")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.debug"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "skillpoints set <amount>"))
+                        .then(Commands.literal("set")
+                                .executes(ctx -> usage(ctx.getSource().getSender(), "skillpoints set <amount>"))
+                                .then(Commands.argument("value", IntegerArgumentType.integer(0))
+                                        .executes(ctx -> {
+                                            Entity executor = ctx.getSource().getExecutor();
+                                            if (!(executor instanceof Player player)) {
+                                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
+                                            if (factionName == null) {
+                                                player.sendMessage(error("You are not in any faction."));
+                                                return Command.SINGLE_SUCCESS;
+                                            }
+                                            int value = IntegerArgumentType.getInteger(ctx, "value");
+                                            FactionManager.getFaction(factionName).setSkillPoints(value);
+                                            player.sendMessage(success("[DEBUG] Faction skill points set to " + value + "."));
                                             return Command.SINGLE_SUCCESS;
                                         }))))
                 // ----- outpost -----
@@ -1192,8 +1344,8 @@ public class FactionCommand {
                                 player.sendMessage(error("Only the Owner or a Leader can place an outpost crystal."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (faction.getLevel() < 21) {
-                                player.sendMessage(error("Your faction must reach level 21 to place an outpost crystal."));
+                            if (!faction.isOutpostUnlocked()) {
+                                player.sendMessage(error("Your faction must unlock the Outpost skill in the Atlas Crystal skill menu first."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             if (AtlasCrystalManager.getFactionCrystals(factionName).size() >= 2) {
@@ -1212,29 +1364,26 @@ public class FactionCommand {
                                 player.sendMessage(error("Cannot place an outpost crystal inside a donjon area."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            if (SpawnProtectionListener.isInSpawnProtection(player.getLocation())) {
-                                player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone ("
-                                        + (int) SpawnProtectionListener.getRadius() + " blocks from spawn)."));
+                            if (SafeZoneListener.isInSafeZone(player.getLocation())) {
+                                player.sendMessage(error("You cannot place an outpost crystal inside the spawn protection zone."));
                                 return Command.SINGLE_SUCCESS;
                             }
-                            int centerX = chunk.getX() * 16 + 8;
-                            int centerZ = chunk.getZ() * 16 + 8;
-                            int highestY = player.getWorld().getHighestBlockYAt(centerX, centerZ);
+                            Location playerLoc = player.getLocation();
                             Location spawnLoc = new Location(player.getWorld(),
-                                    centerX + 0.5, highestY + 2.0, centerZ + 0.5);
+                                    playerLoc.getBlockX() + 0.5,
+                                    playerLoc.getBlockY() + 1.0,
+                                    playerLoc.getBlockZ() + 0.5);
+
                             EnderCrystal crystalEntity = spawnLoc.getWorld().spawn(spawnLoc, EnderCrystal.class);
                             crystalEntity.setShowingBottom(true);
                             AtlasCrystal atlasCrystal = AtlasCrystalManager.register(crystalEntity, factionName);
-                            FactionClaimManager.claimOutpostChunk(factionName,
+                            atlasCrystal.setOutpost(true);
+                            FactionClaimManager.claimChunk(factionName,
                                     player.getWorld().getName(), chunk.getX(), chunk.getZ());
-                            Location home = spawnLoc.clone();
-                            home.setY(highestY + 1.0);
-                            home.setPitch(0);
-                            atlasCrystal.setHome(home);
-                            AtlasCrystalManager.saveHome(atlasCrystal);
                             AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
                             openNamingDialog(player, atlasCrystal, null);
                             player.sendMessage(success("Outpost crystal placed! Name it to complete setup."));
+                            player.sendMessage(info("Once named, use /faction sethome <crystal> to set its home location."));
                             FactionManager.broadcastToFaction(factionName,
                                     info(player.getName() + " placed a faction outpost crystal!"),
                                     player.getUniqueId());
@@ -1243,6 +1392,7 @@ public class FactionCommand {
                 // ----- ally -----
                 .then(Commands.literal("ally")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "ally <faction>"))
                         .then(Commands.argument("faction", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
                                     FactionManager.getFactions().keySet().forEach(builder::suggest);
@@ -1306,6 +1456,7 @@ public class FactionCommand {
                 // ----- allyaccept -----
                 .then(Commands.literal("allyaccept")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "allyaccept <faction>"))
                         .then(Commands.argument("faction", StringArgumentType.word())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -1343,6 +1494,7 @@ public class FactionCommand {
                 // ----- allydeny -----
                 .then(Commands.literal("allydeny")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "allydeny <faction>"))
                         .then(Commands.argument("faction", StringArgumentType.word())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -1377,6 +1529,7 @@ public class FactionCommand {
                 // /faction msg <text>
                 .then(Commands.literal("msg")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.msg"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "msg <text>"))
                         .then(Commands.argument("text", StringArgumentType.greedyString())
                                 .executes(ctx -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -1402,6 +1555,7 @@ public class FactionCommand {
 
                 .then(Commands.literal("unally")
                         .requires(src -> src.getSender().hasPermission("atlas.faction.ally"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "unally <faction>"))
                         .then(Commands.argument("faction", StringArgumentType.word())
                                 .suggests((ctx, builder) -> {
                                     Entity executor = ctx.getSource().getExecutor();
@@ -1447,6 +1601,30 @@ public class FactionCommand {
                                     FactionManager.broadcastToFaction(targetName,
                                             info("Faction " + myFactionName + " has ended their alliance with you."),
                                             null);
+                                    return Command.SINGLE_SUCCESS;
+                                })))
+                // ----- showclaim -----
+                .then(Commands.literal("showclaim")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.claim"))
+                        .executes(ctx -> usage(ctx.getSource().getSender(), "showclaim <true|false>"))
+                        .then(Commands.argument("visible", BoolArgumentType.bool())
+                                .executes(ctx -> {
+                                    Entity executor = ctx.getSource().getExecutor();
+                                    if (!(executor instanceof Player player)) {
+                                        ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    if (FactionManager.getPlayerFaction(player.getUniqueId()) == null) {
+                                        player.sendMessage(error("You are not in any faction."));
+                                        return Command.SINGLE_SUCCESS;
+                                    }
+                                    boolean visible = BoolArgumentType.getBool(ctx, "visible");
+                                    FactionClaimBorderRenderer.setVisible(player.getUniqueId(), visible);
+                                    if (visible) {
+                                        player.sendMessage(success("Claim borders are now visible."));
+                                    } else {
+                                        player.sendMessage(info("Claim borders are now hidden."));
+                                    }
                                     return Command.SINGLE_SUCCESS;
                                 })))
                 .build();

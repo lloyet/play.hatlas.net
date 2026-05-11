@@ -38,13 +38,13 @@ public class CrystalColorGui implements AtlasGui {
         this.crystalEntityUUID = crystalEntityUUID;
 
         this.inventory = Atlas.instance.getServer().createInventory(this, 27,
-                Component.text(faction.getName() + " - Color", NamedTextColor.GOLD));
+                Component.text("Color - " + GuiUtil.truncateFactionName(faction.getName()), NamedTextColor.GOLD));
 
         for (int i = 0; i < ALL_COLORS.length; i++) {
             this.inventory.setItem(i, buildColorPickerItem(ALL_COLORS[i], ALL_COLORS[i].equals(faction.getColor())));
         }
 
-        GuiUtil.fillGray(this.inventory);
+        finishGui();
     }
 
     public void open(Player player) {
@@ -63,6 +63,7 @@ public class CrystalColorGui implements AtlasGui {
         if (clicked == null || clicked.getType() == Material.AIR) return;
 
         int slot = event.getRawSlot();
+        if (slot == inventory.getSize() - 1) { GuiNavigator.back(player); return; }
         if (slot < 0 || slot >= ALL_COLORS.length) return;
 
         if (!player.hasPermission("atlas.faction.color")) {

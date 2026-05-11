@@ -9,42 +9,72 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.Location;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.HomeManager;
+import org.minecraft.atlas.faction.FactionClaimManager;
+import org.minecraft.atlas.faction.FactionManager;
+import org.minecraft.atlas.teleport.HomeManager;
 
 public class HomeCommand {
+
+    private static Component error(String msg)   { return Component.text(msg, NamedTextColor.RED); }
+    private static Component success(String msg) { return Component.text(msg, NamedTextColor.GREEN); }
 
     public static LiteralCommandNode<CommandSourceStack> buildSetHome() {
         return Commands.literal("sethome")
                 .requires(src -> src.getSender().hasPermission("atlas.home.set"))
+                // /sethome — set the main home
+                .executes(ctx -> doSetHome(ctx, HomeManager.MAIN_HOME, true))
+                // /sethome <name> — set a named secondary home
                 .then(Commands.argument("name", StringArgumentType.word())
-                        .executes(ctx -> {
-                            Entity executor = ctx.getSource().getExecutor();
-                            if (!(executor instanceof Player player)) {
-                                ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
-                                return Command.SINGLE_SUCCESS;
-                            }
-                            String name = StringArgumentType.getString(ctx, "name");
-                            boolean alreadyExists = HomeManager.hasHome(player.getUniqueId(), name);
-
-                            if (!alreadyExists && HomeManager.hasAnyHome(player.getUniqueId())) {
-                                player.sendMessage(Component.text(
-                                        "You already have a home set. Delete it first or use the same name to update it.",
-                                        NamedTextColor.RED));
-                                return Command.SINGLE_SUCCESS;
-                            }
-
-                            HomeManager.setHome(player.getUniqueId(), name, player.getLocation());
-                            HomeManager.saveHomes(Atlas.instance.getConfig());
-                            Atlas.instance.saveConfig();
-
-                            player.sendMessage(Component.text(
-                                    (alreadyExists ? "Home updated" : "Home set") + ": '" + name + "'.",
-                                    NamedTextColor.GREEN));
-                            return Command.SINGLE_SUCCESS;
-                        }))
+                        .executes(ctx -> doSetHome(ctx, StringArgumentType.getString(ctx, "name"), false)))
                 .build();
+    }
+
+    private static int doSetHome(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx,
+                                 String name, boolean isMain) {
+        Entity executor = ctx.getSource().getExecutor();
+        if (!(executor instanceof Player player)) {
+            ctx.getSource().getSender().sendMessage(error("Only players can use this command."));
+            return Command.SINGLE_SUCCESS;
+        }
+        // The main slot is reserved — players cannot use "main" as a custom secondary name.
+        if (!isMain && name.equalsIgnoreCase(HomeManager.MAIN_HOME)) {
+            player.sendMessage(error("'" + HomeManager.MAIN_HOME
+                    + "' is reserved — use /sethome (no name) to set your main home."));
+            return Command.SINGLE_SUCCESS;
+        }
+
+        java.util.UUID uuid = player.getUniqueId();
+        boolean alreadyExists = HomeManager.hasHome(uuid, name);
+
+        // Cap check: only secondary homes count against the cap; main is always free.
+        if (!isMain && !alreadyExists) {
+            int limit = HomeManager.getHomeLimit(uuid);
+            int currentCount = HomeManager.getHomeNames(uuid).size();
+            if (currentCount >= limit) {
+                player.sendMessage(error("You have reached your home limit (" + limit
+                        + "). Buy the homes faction skill to unlock more, or delete a home first."));
+                return Command.SINGLE_SUCCESS;
+            }
+        }
+
+        // Block /sethome inside another faction's territory
+        Location loc = player.getLocation();
+        String claimOwner = FactionClaimManager.getClaimingFaction(
+                loc.getWorld().getName(), loc.getBlockX() >> 4, loc.getBlockZ() >> 4);
+        if (claimOwner != null && !claimOwner.equals(FactionManager.getPlayerFaction(uuid))) {
+            player.sendMessage(error("You cannot set a home in another faction's territory!"));
+            return Command.SINGLE_SUCCESS;
+        }
+
+        HomeManager.setHome(uuid, name, player.getLocation());
+        HomeManager.saveHomes(Atlas.homesDataConfig);
+        Atlas.saveHomesDataConfig();
+
+        String label = isMain ? "Main home" : "Home '" + name + "'";
+        player.sendMessage(success(label + (alreadyExists ? " updated." : " set.")));
+        return Command.SINGLE_SUCCESS;
     }
 
     public static LiteralCommandNode<CommandSourceStack> buildHome() {
@@ -56,7 +86,7 @@ public class HomeCommand {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
                         ctx.getSource().getSender().sendMessage(
-                                Component.text("Only players can use this command.", NamedTextColor.RED));
+                                error("Only players can use this command."));
                         return Command.SINGLE_SUCCESS;
                     }
                     HomeManager.startTeleport(player, null);
@@ -76,7 +106,7 @@ public class HomeCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
@@ -102,19 +132,17 @@ public class HomeCommand {
                             Entity executor = ctx.getSource().getExecutor();
                             if (!(executor instanceof Player player)) {
                                 ctx.getSource().getSender().sendMessage(
-                                        Component.text("Only players can use this command.", NamedTextColor.RED));
+                                        error("Only players can use this command."));
                                 return Command.SINGLE_SUCCESS;
                             }
                             String name = StringArgumentType.getString(ctx, "name");
                             boolean deleted = HomeManager.deleteHome(player.getUniqueId(), name);
                             if (deleted) {
-                                HomeManager.saveHomes(Atlas.instance.getConfig());
-                                Atlas.instance.saveConfig();
-                                player.sendMessage(Component.text(
-                                        "Home '" + name + "' deleted.", NamedTextColor.GREEN));
+                                HomeManager.saveHomes(Atlas.homesDataConfig);
+                                Atlas.saveHomesDataConfig();
+                                player.sendMessage(success("Home '" + name + "' deleted."));
                             } else {
-                                player.sendMessage(Component.text(
-                                        "Home '" + name + "' not found.", NamedTextColor.RED));
+                                player.sendMessage(error("Home '" + name + "' not found."));
                             }
                             return Command.SINGLE_SUCCESS;
                         }))

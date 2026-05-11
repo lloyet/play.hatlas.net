@@ -1,4 +1,4 @@
-package org.minecraft.atlas.command;
+package org.minecraft.atlas.quest;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.tree.LiteralCommandNode;
@@ -8,14 +8,14 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.faction.SpawnManager;
+import org.minecraft.atlas.gui.JobMainGui;
+import org.minecraft.atlas.job.JobManager;
 
-public class SetSpawnCommand {
+public class QuestCommand {
 
     public static LiteralCommandNode<CommandSourceStack> build() {
-        return Commands.literal("setspawn")
-                .requires(src -> src.getSender().hasPermission("atlas.spawn.admin"))
+        return Commands.literal("quest")
+                .requires(src -> src.getSender().hasPermission("atlas.quest"))
                 .executes(ctx -> {
                     Entity executor = ctx.getSource().getExecutor();
                     if (!(executor instanceof Player player)) {
@@ -23,15 +23,13 @@ public class SetSpawnCommand {
                                 Component.text("Only players can use this command.", NamedTextColor.RED));
                         return Command.SINGLE_SUCCESS;
                     }
-                    SpawnManager.setSpawn(player.getLocation());
-                    SpawnManager.saveSpawn(Atlas.instance.getConfig());
-                    Atlas.instance.saveConfig();
-                    player.sendMessage(Component.text(
-                            "Server spawn set to your location ("
-                                    + player.getLocation().getBlockX() + ", "
-                                    + player.getLocation().getBlockY() + ", "
-                                    + player.getLocation().getBlockZ() + ").",
-                            NamedTextColor.GREEN));
+                    if (!JobManager.hasJob(player.getUniqueId())) {
+                        player.sendMessage(Component.text(
+                                "You don't have a job yet. Visit a job NPC to get started.",
+                                NamedTextColor.RED));
+                        return Command.SINGLE_SUCCESS;
+                    }
+                    new JobMainGui(player).open(player);
                     return Command.SINGLE_SUCCESS;
                 })
                 .build();

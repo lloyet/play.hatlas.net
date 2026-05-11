@@ -25,7 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 public class BossDropConfig {
 
     public record EnchantmentEntry(Enchantment enchantment, int level) {}
-    public record Entry(Material material, int amount, double chance, List<EnchantmentEntry> enchantments) {}
+    public record Entry(Material material, int amount, double chance, List<EnchantmentEntry> enchantments, boolean poweredCreeperEgg, int raiderLevel) {}
 
     private final int minItems;
     private final int maxItems;
@@ -54,11 +54,25 @@ public class BossDropConfig {
             for (Entry entry : entries) {
                 cumulative += entry.chance();
                 if (roll < cumulative) {
-                    ItemStack stack = new ItemStack(entry.material(), entry.amount());
-                    for (EnchantmentEntry enc : entry.enchantments()) {
-                        stack.addUnsafeEnchantment(enc.enchantment(), enc.level());
+                    if (entry.poweredCreeperEgg()) {
+                        int count = Math.max(1, entry.amount());
+                        for (int j = 0; j < count; j++) {
+                            drops.add(ElectricalCreeperManager.createElectricalCreeperEgg());
+                        }
+                    } else if (entry.raiderLevel() > 0) {
+                        int count = Math.max(1, entry.amount());
+                        for (int j = 0; j < count; j++) {
+                            ItemStack raiderItem = new ItemStack(entry.material());
+                            RaiderPickaxe.applyToItem(raiderItem, entry.raiderLevel());
+                            drops.add(raiderItem);
+                        }
+                    } else {
+                        ItemStack stack = new ItemStack(entry.material(), entry.amount());
+                        for (EnchantmentEntry enc : entry.enchantments()) {
+                            stack.addUnsafeEnchantment(enc.enchantment(), enc.level());
+                        }
+                        drops.add(stack);
                     }
-                    drops.add(stack);
                     break;
                 }
             }
@@ -78,7 +92,9 @@ public class BossDropConfig {
             int    amount  = row.get("amount")  instanceof Number nm ? nm.intValue()    : 1;
             double chance  = row.get("chance")  instanceof Number nc ? nc.doubleValue() : 0.5;
 
-            // Parse optional enchantments list
+            // Parse optional enchantments list; detect powered creeper egg and raider pickaxe pseudo-enchantments
+            boolean isPoweredEgg = false;
+            int raiderLevel = 0;
             List<EnchantmentEntry> enchantments = new ArrayList<>();
             if (row.get("enchantments") instanceof List<?> encList) {
                 for (Object encObj : encList) {
@@ -86,15 +102,24 @@ public class BossDropConfig {
                     Object encName = encMap.get("enchantment");
                     int encLevel = encMap.get("level") instanceof Number nl ? nl.intValue() : 1;
                     if (encName == null) continue;
+                    String encStr = encName.toString().toLowerCase();
+                    if ("powered".equals(encStr) && "CREEPER_SPAWN_EGG".equals(matName) && encLevel >= 1) {
+                        isPoweredEgg = true;
+                        continue; // not a real Minecraft enchantment — handled as special flag
+                    }
+                    if ("raider".equals(encStr) && encLevel >= 1) {
+                        raiderLevel = encLevel;
+                        continue; // custom flag — handled as Raider enchantment on any item
+                    }
                     Enchantment enc = RegistryAccess.registryAccess()
                             .getRegistry(RegistryKey.ENCHANTMENT)
-                            .get(NamespacedKey.minecraft(encName.toString().toLowerCase()));
+                            .get(NamespacedKey.minecraft(encStr));
                     if (enc != null) enchantments.add(new EnchantmentEntry(enc, encLevel));
                 }
             }
 
             try {
-                entries.add(new Entry(Material.valueOf(matName), amount, chance, List.copyOf(enchantments)));
+                entries.add(new Entry(Material.valueOf(matName), amount, chance, List.copyOf(enchantments), isPoweredEgg, raiderLevel));
             } catch (IllegalArgumentException ignored) {
                 // Skip entries with invalid material names
             }

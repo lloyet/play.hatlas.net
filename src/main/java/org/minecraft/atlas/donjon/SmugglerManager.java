@@ -27,7 +27,7 @@ public class SmugglerManager {
     }
 
     public static void loadConfig(FileConfiguration config) {
-        cooldownMs = config.getLong("donjon.smuggler_teleport_cooldown_seconds", 10L) * 1000L;
+        cooldownMs = config.getLong("smuggler_teleport_cooldown_seconds", 10L) * 1000L;
     }
 
     public static NamespacedKey getKey() {

@@ -14,7 +14,25 @@
       "Bash(ls *.xml)",
       "Bash(cmd:*)",
       "Bash(./gradlew compileJava -q)",
-      "Bash(grep -E \"\\\\.java$\")"
+      "Bash(grep -E \"\\\\.java$\")",
+      "Bash(xargs -I {} basename {})",
+      "Bash(git worktree *)",
+      "Bash(git branch *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\lloyet\\\\Documents\\\\Projects\\\\lloyet\\\\play.mc.atlas\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(Remove-Item *)",
+      "Bash(./gradlew assemble *)",
+      "Bash(./gradlew clean *)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(Get-ChildItem *)",
+      "Bash(ls -la run/plugins/atlas/)",
+      "Bash(dir \"run\\\\plugins\\\\atlas\\\\\" 2>&1 | head -30)",
+      "Bash(git *)",
+      "Bash(./gradlew compileJava --quiet)",
+      "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")",
+      "Bash(./gradlew dependencies *)",
+      "Bash(./gradlew compileJava --console=plain)"
     ]
   }
 }

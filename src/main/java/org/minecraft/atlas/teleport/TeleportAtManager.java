@@ -1,4 +1,4 @@
-package org.minecraft.atlas.faction;
+package org.minecraft.atlas.teleport;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.event.ClickEvent;
@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
-public class TpaManager {
+public class TeleportAtManager {
 
     private record TpaRequest(UUID requesterUUID, UUID targetUUID, long expiryMs) {
     }
@@ -26,11 +26,12 @@ public class TpaManager {
     private static final Map<UUID, Long> cooldownExpiry = new HashMap<>();
 
     private static final long REQUEST_EXPIRY_MS = 30_000L;
-    private static final int COUNTDOWN_SECONDS = 10;
-    private static long cooldownMs = 60_000L;
+    private static int  countdownSeconds = 10;
+    private static long cooldownMs       = 60_000L;
 
     public static void loadConfig(FileConfiguration config) {
-        cooldownMs = config.getLong("tpa.cooldown_seconds", 60L) * 1000L;
+        cooldownMs       = config.getLong("tpa.cooldown_seconds",         60L) * 1000L;
+        countdownSeconds = config.getInt ("tpa.teleport_delay_seconds",   10);
     }
 
     public static boolean sendRequest(Player requester, Player target) {
@@ -121,7 +122,7 @@ public class TpaManager {
             requester.sendActionBar(Component.text("Teleported to " + target.getName() + "!", NamedTextColor.GREEN));
         } else {
             requester.sendMessage(Component.text(
-                    target.getName() + " accepted. Teleporting in " + COUNTDOWN_SECONDS + "s… Don't move!",
+                    target.getName() + " accepted. Teleporting in " + countdownSeconds + "s… Don't move!",
                     NamedTextColor.YELLOW));
             startCountdown(requester, target);
         }
@@ -152,7 +153,7 @@ public class TpaManager {
         Location startLocation = requester.getLocation().clone();
 
         BukkitRunnable task = new BukkitRunnable() {
-            int remaining = COUNTDOWN_SECONDS;
+            int remaining = countdownSeconds;
 
             @Override
             public void run() {
