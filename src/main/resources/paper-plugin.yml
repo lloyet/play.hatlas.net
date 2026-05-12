@@ -148,3 +148,6 @@ permissions:
   atlas.faction.unclaim:
     description: Unclaim a chunk (owner/leader only)
     default: true
+  atlas.ruby.admin:
+    description: Give ruby items via /ruby give <player> <ruby|ruby_block|ruby_ore> <amount>
+    default: op

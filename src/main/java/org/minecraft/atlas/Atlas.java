@@ -19,6 +19,7 @@ import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
+import org.minecraft.atlas.command.RubyCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
@@ -52,7 +53,8 @@ import org.minecraft.atlas.quest.QuestCommand;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
-import org.minecraft.atlas.item.RubyItems;
+import org.minecraft.atlas.customItem.AmethystCustomItems;
+import org.minecraft.atlas.customItem.RubyCustomItems;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 import org.minecraft.atlas.util.NpcLookHelper;
@@ -201,8 +203,10 @@ public final class Atlas extends JavaPlugin {
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
-        RubyItems.init();
-        RubyItems.registerRecipes();
+        RubyCustomItems.init();
+        RubyCustomItems.registerRecipes();
+        AmethystCustomItems.init();
+        AmethystCustomItems.registerRecipes();
         ResourcePackManager.loadConfig(configFile);
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
@@ -256,6 +260,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
                         event.registrar().register(HomeCommand.buildDelHome());
+                        event.registrar().register(RubyCommand.build());
                     }
                 }
         );
