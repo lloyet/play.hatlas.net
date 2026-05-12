@@ -1,0 +1,14 @@
+{
+  "layers": {
+    "humanoid": [
+      {
+        "texture": "hatlas:amethyst"
+      }
+    ],
+    "humanoid_leggings": [
+      {
+        "texture": "hatlas:amethyst"
+      }
+    ]
+  }
+}
