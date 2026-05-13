@@ -33,7 +33,25 @@
       "Bash(grep -E \"error|\\\\\\\\.java:[0-9]\")",
       "Bash(./gradlew dependencies *)",
       "Bash(./gradlew compileJava --console=plain)",
-      "Bash(unzip -p \"/c/Users/lloyet/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api/1.21.11-R0.1-SNAPSHOT/a3a811fd1e99bce749c4e6db9991e45294438d00/paper-api-1.21.11-R0.1-SNAPSHOT-sources.jar\" org/bukkit/Material.java)"
+      "Bash(unzip -p \"/c/Users/lloyet/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api/1.21.11-R0.1-SNAPSHOT/a3a811fd1e99bce749c4e6db9991e45294438d00/paper-api-1.21.11-R0.1-SNAPSHOT-sources.jar\" org/bukkit/Material.java)",
+      "Bash(./gradlew build *)",
+      "Bash(unzip -l resourcepack/hatlas.zip)",
+      "Bash(unzip *)",
+      "WebSearch",
+      "WebFetch(domain:minecraft.wiki)",
+      "WebFetch(domain:www.spigotmc.org)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:misode.github.io)",
+      "Bash(javap -p)",
+      "Bash(cd /tmp)",
+      "Bash(javap -p /tmp/org/bukkit/Instrument.class)",
+      "Bash(\"/c/Program Files/Java/jdk-21/bin/javap.exe\" -p /tmp/org/bukkit/Instrument.class)",
+      "PowerShell(Remove-Item *)",
+      "Bash(python -c \"import json,sys; json.load\\(open\\('resourcepack/assets/minecraft/blockstates/note_block.json'\\)\\); print\\('JSON OK'\\)\")",
+      "Bash(python *)",
+      "Bash(mkdir -p block)",
+      "Bash(mv item/ruby_block.png item/ruby_ore.png item/deepslate_ruby_ore.png block/)",
+      "Read(//c/c/Users/lloyet/Documents/Projects/lloyet/play.mc.atlas/resourcepack/assets/hatlas/textures/**)"
     ]
   }
 }

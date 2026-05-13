@@ -1,6 +1,3 @@
 {
-  "parent": "minecraft:item/generated",
-  "textures": {
-    "layer0": "hatlas:item/ruby_ore"
-  }
+  "parent": "hatlas:block/ruby_ore"
 }

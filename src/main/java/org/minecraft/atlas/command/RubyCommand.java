@@ -19,7 +19,7 @@ import java.util.List;
 
 public final class RubyCommand {
 
-    private static final List<String> ITEMS = List.of("ruby", "ruby_block", "ruby_ore");
+    private static final List<String> ITEMS = List.of("ruby", "ruby_block", "ruby_ore", "deepslate_ruby_ore");
 
     private RubyCommand() {
     }
@@ -37,7 +37,8 @@ public final class RubyCommand {
                 .requires(src -> src.getSender().hasPermission("atlas.ruby.admin"))
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendMessage(
-                            Component.text("Usage: /ruby give <player> <ruby|ruby_block|ruby_ore> <amount>",
+                            Component.text("Usage: /ruby give <player> <"
+                                    + String.join("|", ITEMS) + "> [amount]",
                                     NamedTextColor.GOLD));
                     return Command.SINGLE_SUCCESS;
                 })
@@ -48,26 +49,30 @@ public final class RubyCommand {
                                             ITEMS.forEach(builder::suggest);
                                             return builder.buildFuture();
                                         })
+                                        .executes(ctx -> runGive(ctx, 1))
                                         .then(Commands.argument("amount", IntegerArgumentType.integer(1, 6400))
-                                                .executes(ctx -> {
-                                                    CommandSender sender = ctx.getSource().getSender();
-                                                    PlayerSelectorArgumentResolver resolver =
-                                                            ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
-                                                    Player target = resolver.resolve(ctx.getSource()).getFirst();
-                                                    String item = StringArgumentType.getString(ctx, "item").toLowerCase();
-                                                    int amount = IntegerArgumentType.getInteger(ctx, "amount");
-
-                                                    if (!ITEMS.contains(item)) {
-                                                        sender.sendMessage(error("Unknown ruby item '" + item
-                                                                + "'. Allowed: ruby, ruby_block, ruby_ore."));
-                                                        return Command.SINGLE_SUCCESS;
-                                                    }
-
-                                                    giveRuby(sender, target, item, amount);
-                                                    return Command.SINGLE_SUCCESS;
-                                                }))))
+                                                .executes(ctx -> runGive(ctx,
+                                                        IntegerArgumentType.getInteger(ctx, "amount"))))))
                 )
                 .build();
+    }
+
+    private static int runGive(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, int amount)
+            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+        CommandSender sender = ctx.getSource().getSender();
+        PlayerSelectorArgumentResolver resolver =
+                ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
+        Player target = resolver.resolve(ctx.getSource()).getFirst();
+        String item = StringArgumentType.getString(ctx, "item").toLowerCase();
+
+        if (!ITEMS.contains(item)) {
+            sender.sendMessage(error("Unknown ruby item '" + item + "'. Allowed: "
+                    + String.join(", ", ITEMS) + "."));
+            return Command.SINGLE_SUCCESS;
+        }
+
+        giveRuby(sender, target, item, amount);
+        return Command.SINGLE_SUCCESS;
     }
 
     private static void giveRuby(CommandSender sender, Player target, String item, int amount) {

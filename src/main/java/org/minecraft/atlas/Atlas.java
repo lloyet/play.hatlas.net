@@ -53,8 +53,10 @@ import org.minecraft.atlas.quest.QuestCommand;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
+import org.minecraft.atlas.customBlock.CustomBlockManager;
 import org.minecraft.atlas.customItem.AmethystCustomItems;
 import org.minecraft.atlas.customItem.RubyCustomItems;
+import org.minecraft.atlas.listener.CustomBlockListener;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 import org.minecraft.atlas.util.NpcLookHelper;
@@ -106,6 +108,9 @@ public final class Atlas extends JavaPlugin {
 
     public static YamlConfiguration combatsDataConfig;
     public static File combatsDataFile;
+
+    public static YamlConfiguration customBlocksDataConfig;
+    public static File customBlocksDataFile;
 
     @Override
     public void onEnable() {
@@ -168,6 +173,9 @@ public final class Atlas extends JavaPlugin {
         combatsDataFile = new File(getDataFolder(), "combats-data.yml");
         combatsDataConfig = YamlConfiguration.loadConfiguration(combatsDataFile);
 
+        customBlocksDataFile = new File(getDataFolder(), "custom-blocks-data.yml");
+        customBlocksDataConfig = YamlConfiguration.loadConfiguration(customBlocksDataFile);
+
         // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
         SafeZoneManager.loadConfig(safezonesDataConfig);
@@ -207,6 +215,8 @@ public final class Atlas extends JavaPlugin {
         RubyCustomItems.registerRecipes();
         AmethystCustomItems.init();
         AmethystCustomItems.registerRecipes();
+        CustomBlockManager.init();
+        CustomBlockManager.loadConfig(customBlocksDataConfig);
         ResourcePackManager.loadConfig(configFile);
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
@@ -224,6 +234,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SafeZoneListener(), this);
         getServer().getPluginManager().registerEvents(new SafeZoneNpcListener(), this);
+        getServer().getPluginManager().registerEvents(new CustomBlockListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
         getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
@@ -311,6 +322,10 @@ public final class Atlas extends JavaPlugin {
         CombatLogManager.saveCombatData(combatsDataConfig);
         saveCombatsDataConfig();
 
+        // Save to custom-blocks-data.yml
+        CustomBlockManager.saveConfig(customBlocksDataConfig);
+        saveCustomBlocksDataConfig();
+
         getLogger().info("Atlas disabled.");
     }
 
@@ -319,6 +334,14 @@ public final class Atlas extends JavaPlugin {
             combatsDataConfig.save(combatsDataFile);
         } catch (IOException e) {
             instance.getLogger().severe("Could not save combats-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveCustomBlocksDataConfig() {
+        try {
+            customBlocksDataConfig.save(customBlocksDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save custom-blocks-data.yml: " + e.getMessage());
         }
     }
 
