@@ -1,13 +1,19 @@
 package org.minecraft.atlas.listener;
 
+import io.papermc.paper.event.player.PlayerPickBlockEvent;
+import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Effect;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.SoundGroup;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockBreakEvent;
@@ -20,9 +26,14 @@ import org.bukkit.event.block.BlockRedstoneEvent;
 import org.bukkit.event.block.NotePlayEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.customBlock.CustomBlockManager;
+import org.minecraft.atlas.customItem.RubyCustomItems;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -39,12 +50,40 @@ public final class CustomBlockListener implements Listener {
             Material.NETHERITE_PICKAXE
     );
 
+    private static final BlockFace[] NEIGHBOR_FACES = {
+            BlockFace.UP, BlockFace.DOWN,
+            BlockFace.NORTH, BlockFace.SOUTH,
+            BlockFace.EAST, BlockFace.WEST
+    };
+
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         ItemStack inHand = event.getItemInHand();
         String customId = CustomBlockManager.customBlockIdForItem(inHand);
         if (customId == null) return;
         CustomBlockManager.placeAt(event.getBlockPlaced(), customId);
+    }
+
+    /**
+     * Re-assert state on any tracked custom block adjacent to a newly placed block.
+     * Specifically: placing a vanilla note block (or any block that changes the
+     * note-block instrument tag of the neighbor below/above) triggers vanilla's
+     * NoteBlock#updateShape on the adjacent tracked block, which recomputes the
+     * instrument away from {@code pling} — flipping the variant key off our custom
+     * model. Paper's BlockPhysicsEvent cancellation does not fully suppress this
+     * recompute in every path, so we re-assert one tick later (after vanilla's
+     * post-place flow has finished).
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlaceNeighborRefresh(BlockPlaceEvent event) {
+        Block placed = event.getBlock();
+        for (BlockFace face : NEIGHBOR_FACES) {
+            Block neighbor = placed.getRelative(face);
+            String id = CustomBlockManager.getCustomIdAt(neighbor);
+            if (id == null) continue;
+            Bukkit.getScheduler().runTask(Atlas.instance, () ->
+                    CustomBlockManager.ensureState(neighbor, id));
+        }
     }
 
     @EventHandler(ignoreCancelled = true)
@@ -61,7 +100,7 @@ public final class CustomBlockListener implements Listener {
 
         Location loc = block.getLocation();
         block.setType(Material.AIR, false);
-        block.getWorld().playEffect(loc, Effect.STEP_SOUND, Material.STONE);
+        block.getWorld().playEffect(loc, Effect.STEP_SOUND, breakEffectMaterial(id));
 
         ItemStack tool = event.getPlayer().getInventory().getItemInMainHand();
         if (!ACCEPTED_PICKAXES.contains(tool.getType())) return;
@@ -70,10 +109,34 @@ public final class CustomBlockListener implements Listener {
                 CustomBlockManager.dropFor(id));
     }
 
+    private static Material breakEffectMaterial(String id) {
+        return switch (id) {
+            case "ruby_block" -> Material.REDSTONE_BLOCK;
+            case "deepslate_ruby_ore" -> Material.DEEPSLATE;
+            default -> Material.STONE;
+        };
+    }
+
+    /** Twin of {@link #onPlaceNeighborRefresh} for the break path. */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onBreakNeighborRefresh(BlockBreakEvent event) {
+        Block broken = event.getBlock();
+        for (BlockFace face : NEIGHBOR_FACES) {
+            Block neighbor = broken.getRelative(face);
+            String id = CustomBlockManager.getCustomIdAt(neighbor);
+            if (id == null) continue;
+            Bukkit.getScheduler().runTask(Atlas.instance, () ->
+                    CustomBlockManager.ensureState(neighbor, id));
+        }
+    }
+
     /**
      * Right-clicking a tracked note block normally triggers vanilla's pitch cycle.
-     * Cancel that, and if the player is holding another ruby custom block, treat the
-     * click as a placement against the clicked face.
+     * Cancel that and, if the player is holding a block item, place it against the
+     * clicked face — vanilla does not fall through to item placement once the note
+     * block "consumes" the interaction (no sneak fallback), so we do the placement
+     * ourselves for both custom ruby items and vanilla blocks. Directional blocks
+     * use their default state.
      */
     @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
@@ -82,13 +145,10 @@ public final class CustomBlockListener implements Listener {
         if (clicked == null) return;
         if (!CustomBlockManager.isTrackedNoteBlock(clicked)) return;
 
-        // Always cancel the vanilla pitch-cycle interaction.
         event.setCancelled(true);
 
         ItemStack hand = event.getItem();
-        if (hand == null) return;
-        String heldId = CustomBlockManager.customBlockIdForItem(hand);
-        if (heldId == null) return;
+        if (hand == null || hand.isEmpty()) return;
 
         Block target = clicked.getRelative(event.getBlockFace());
         if (!target.getType().isAir()) return;
@@ -96,9 +156,19 @@ public final class CustomBlockListener implements Listener {
         Player player = event.getPlayer();
         if (target.getBoundingBox().overlaps(player.getBoundingBox())) return;
 
-        CustomBlockManager.placeAt(target, heldId);
-        target.getWorld().playSound(target.getLocation().toCenterLocation(),
-                Sound.BLOCK_STONE_PLACE, 1.0f, 1.0f);
+        String heldId = CustomBlockManager.customBlockIdForItem(hand);
+        if (heldId != null) {
+            CustomBlockManager.placeAt(target, heldId);
+            target.getWorld().playSound(target.getLocation().toCenterLocation(),
+                    Sound.BLOCK_STONE_PLACE, 1.0f, 1.0f);
+        } else {
+            Material handType = hand.getType();
+            if (!handType.isBlock() || handType.isAir()) return;
+            target.setType(handType);
+            SoundGroup sg = target.getBlockData().getSoundGroup();
+            target.getWorld().playSound(target.getLocation().toCenterLocation(),
+                    sg.getPlaceSound(), sg.getVolume(), sg.getPitch());
+        }
 
         if (player.getGameMode() != GameMode.CREATIVE) {
             hand.setAmount(hand.getAmount() - 1);
@@ -154,6 +224,21 @@ public final class CustomBlockListener implements Listener {
         }
     }
 
+    /**
+     * Re-assert custom-block state on chunk load. Vanilla's note-block instrument can
+     * drift between save and reload via paths that don't fire BlockPhysicsEvent; if
+     * the variant key falls off {@code instrument=pling}, the resource pack renders
+     * the vanilla note-block model instead of the custom one.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onChunkLoad(ChunkLoadEvent event) {
+        Chunk chunk = event.getChunk();
+        for (Map.Entry<Location, String> entry :
+                CustomBlockManager.trackedInChunk(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
+            CustomBlockManager.ensureState(entry.getKey().getBlock(), entry.getValue());
+        }
+    }
+
     @EventHandler(ignoreCancelled = true)
     public void onEntityExplode(EntityExplodeEvent event) {
         handleExplosion(event.blockList());
@@ -162,6 +247,51 @@ public final class CustomBlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onBlockExplode(BlockExplodeEvent event) {
         handleExplosion(event.blockList());
+    }
+
+    /**
+     * Middle-click pick-block on a tracked custom block: replace vanilla's default
+     * (which would spawn a plain {@code NOTE_BLOCK}) with the custom item. Only acts
+     * for creative-mode players, matching vanilla pick-block semantics.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onPickBlock(PlayerPickBlockEvent event) {
+        Player player = event.getPlayer();
+        if (player.getGameMode() != GameMode.CREATIVE) return;
+        String id = CustomBlockManager.getCustomIdAt(event.getBlock());
+        if (id == null) return;
+
+        event.setCancelled(true);
+        int slot = event.getTargetSlot();
+        player.getInventory().setItem(slot, RubyCustomItems.get(id));
+        player.getInventory().setHeldItemSlot(slot);
+    }
+
+    /**
+     * Play a per-material step sound when a player crosses a horizontal block
+     * boundary while standing on a tracked custom block. Note: vanilla's note-block
+     * "wood" footstep still plays client-side; ours layers on top, so the perceived
+     * sound is dominated by whichever is louder. Volume is matched to vanilla
+     * footstep volume (0.15).
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onMove(PlayerMoveEvent event) {
+        Location from = event.getFrom();
+        Location to = event.getTo();
+        if (from.getBlockX() == to.getBlockX() && from.getBlockZ() == to.getBlockZ()) return;
+        Player player = event.getPlayer();
+        if (player.isFlying() || player.isGliding() || player.isSwimming()) return;
+
+        Block below = to.getBlock().getRelative(BlockFace.DOWN);
+        String id = CustomBlockManager.getCustomIdAt(below);
+        if (id == null) return;
+
+        Sound step = switch (id) {
+            case "ruby_block" -> Sound.BLOCK_METAL_STEP;
+            case "deepslate_ruby_ore" -> Sound.BLOCK_DEEPSLATE_STEP;
+            default -> Sound.BLOCK_STONE_STEP;
+        };
+        player.getWorld().playSound(to, step, 0.15f, 1.0f);
     }
 
     private void handleExplosion(java.util.List<Block> blocks) {

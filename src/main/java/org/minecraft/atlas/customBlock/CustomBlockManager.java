@@ -14,7 +14,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.customItem.RubyCustomItems;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -117,6 +119,44 @@ public final class CustomBlockManager {
 
     public static boolean isTrackedNoteBlock(Block block) {
         return block.getType() == Material.NOTE_BLOCK && PLACED.containsKey(block.getLocation());
+    }
+
+    /**
+     * Returns the tracked custom-block locations within the given chunk.
+     */
+    public static List<Map.Entry<Location, String>> trackedInChunk(World world, int chunkX, int chunkZ) {
+        List<Map.Entry<Location, String>> out = new ArrayList<>();
+        for (Map.Entry<Location, String> e : PLACED.entrySet()) {
+            Location loc = e.getKey();
+            if (loc.getWorld() != world) continue;
+            if (loc.getBlockX() >> 4 != chunkX) continue;
+            if (loc.getBlockZ() >> 4 != chunkZ) continue;
+            out.add(e);
+        }
+        return out;
+    }
+
+    /**
+     * Re-asserts the expected (instrument, note, powered) state for a tracked block.
+     * Used after chunk load: vanilla can mutate the note block's instrument behind our
+     * BlockPhysicsEvent suppression (the property is dynamically re-derived from the
+     * block above/below in some paths), which flips the variant key off our custom
+     * model. This forces it back if it has drifted.
+     */
+    public static void ensureState(Block block, String id) {
+        BlockSpec spec = SPECS.get(id);
+        if (spec == null) return;
+        if (block.getType() != Material.NOTE_BLOCK) return;
+        NoteBlock data = (NoteBlock) block.getBlockData();
+        if (data.getInstrument() == spec.instrument()
+                && data.getNote().getId() == spec.note()
+                && !data.isPowered()) {
+            return;
+        }
+        data.setInstrument(spec.instrument());
+        data.setNote(new org.bukkit.Note(spec.note()));
+        data.setPowered(false);
+        block.setBlockData(data, false);
     }
 
     // ── Persistence ─────────────────────────────────────────────────────────────

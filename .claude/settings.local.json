@@ -51,7 +51,8 @@
       "Bash(python *)",
       "Bash(mkdir -p block)",
       "Bash(mv item/ruby_block.png item/ruby_ore.png item/deepslate_ruby_ore.png block/)",
-      "Read(//c/c/Users/lloyet/Documents/Projects/lloyet/play.mc.atlas/resourcepack/assets/hatlas/textures/**)"
+      "Read(//c/c/Users/lloyet/Documents/Projects/lloyet/play.mc.atlas/resourcepack/assets/hatlas/textures/**)",
+      "Bash(jar -tf \"/c/Users/lloyet/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api/1.21.11-R0.1-SNAPSHOT/20961a0e95ea65d0af88dffc9b1a90421b4dfeca/paper-api-1.21.11-R0.1-SNAPSHOT.jar\")"
     ]
   }
 }
