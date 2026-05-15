@@ -148,6 +148,15 @@ permissions:
   atlas.faction.unclaim:
     description: Unclaim a chunk (owner/leader only)
     default: true
-  atlas.ruby.admin:
-    description: Give ruby items via /ruby give <player> <ruby|ruby_block|ruby_ore> <amount>
+  atlas.faction.balance:
+    description: Show the ruby-gem balance of your faction's vault
+    default: true
+  atlas.item.admin:
+    description: Give Atlas custom items (ruby and amethyst) via /item give <player> <item> [amount]
+    default: op
+  atlas.auction:
+    description: Use the auction system (sell, browse market, view own listings)
+    default: true
+  atlas.auction.npc:
+    description: Spawn the auctioneer NPC via /auction npc spawn
     default: op

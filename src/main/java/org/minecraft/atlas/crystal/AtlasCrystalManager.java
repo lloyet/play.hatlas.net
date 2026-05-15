@@ -129,9 +129,6 @@ public class AtlasCrystalManager {
      */
     private static final Map<String, Map<UUID, AtlasCrystal>> factionCrystals = new HashMap<>();
 
-    /** playerUUID → AtlasCrystal awaiting a name from the naming dialog. */
-    private static final Map<UUID, AtlasCrystal> pendingNaming = new ConcurrentHashMap<>();
-
     // ── Register ──────────────────────────────────────────────────────────────
 
     /** Registers a newly spawned atlas crystal with base HP and max HP. */
@@ -702,6 +699,33 @@ public class AtlasCrystalManager {
     }
 
     /**
+     * Purchases a single vault-skill tier for a faction. Each tier index is a one-shot
+     * purchase that resizes the faction's ruby-only shared vault to {@code tier.size()}.
+     * Cost is attributed to the crystal that performed the purchase, mirroring the homes/outpost
+     * skills — destroying that crystal refunds the cost as a level downgrade.
+     */
+    public static boolean purchaseVaultUpgrade(String factionName, UUID crystalUUID,
+                                               FactionLevelManager.VaultTier tier, int tierIndex) {
+        Faction faction = FactionManager.getFaction(factionName);
+        AtlasCrystal crystal = crystals.get(crystalUUID);
+        if (faction == null || crystal == null) return false;
+        if (faction.hasPurchasedVaultTier(tierIndex)) return false;
+        if (!faction.spendSkillPoints(tier.cost())) return false;
+        if (!faction.addPurchasedVaultTier(tierIndex)) {
+            faction.addSkillPoints(tier.cost());
+            return false;
+        }
+        // Expand to the tier's size only if it actually grows the vault. Tiers may be bought
+        // out of order (a player who somehow buys tier 4 first should not shrink back to tier 3).
+        if (tier.size() > faction.getVaultSize()) faction.setVaultSize(tier.size());
+        crystal.addSpentSkillPoints(tier.cost());
+        persistCrystalState(crystal);
+        saveCrystalData(Atlas.factionsDataConfig);
+        Atlas.saveFactionsDataConfig();
+        return true;
+    }
+
+    /**
      * Purchases the outpost skill for a faction (one-time, faction-level unlock).
      * The cost is attributed to the crystal that performed the purchase so it counts
      * toward {@link AtlasCrystal#getSpentSkillPoints()} — destroying that crystal will
@@ -804,6 +828,13 @@ public class AtlasCrystalManager {
         //      buy the outpost skill again and place a fresh outpost crystal.
         Map<UUID, AtlasCrystal> remaining = factionCrystals.get(factionName);
         if (remaining == null || remaining.isEmpty()) {
+            // The faction is about to be disbanded — scatter every remaining vault gem at the
+            // captured location. Drop happens BEFORE disbandFaction so the faction object is
+            // still live to read vault contents from; the explosion already fired upstream so
+            // items spawned now survive.
+            if (faction != null && dropLoc != null && dropLoc.getWorld() != null) {
+                org.minecraft.atlas.faction.FactionVault.dropAll(faction, dropLoc);
+            }
             FactionManager.disbandFaction(factionName);
         } else {
             if (wasMain) {
@@ -962,12 +993,6 @@ public class AtlasCrystalManager {
         }
         return null;
     }
-
-    // ── Pending naming ────────────────────────────────────────────────────────
-
-    public static void setPendingNaming(UUID playerUUID, AtlasCrystal crystal) { pendingNaming.put(playerUUID, crystal); }
-    public static AtlasCrystal getPendingNaming(UUID playerUUID)               { return pendingNaming.get(playerUUID); }
-    public static void clearPendingNaming(UUID playerUUID)                     { pendingNaming.remove(playerUUID); }
 
     // ── Mutations ─────────────────────────────────────────────────────────────
 

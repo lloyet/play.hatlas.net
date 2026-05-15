@@ -11,6 +11,7 @@ import org.bukkit.Sound;
 import org.bukkit.SoundGroup;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -30,8 +31,8 @@ import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.Atlas;
-import org.minecraft.atlas.customBlock.CustomBlockManager;
-import org.minecraft.atlas.customItem.RubyCustomItems;
+import org.minecraft.atlas.block.RubyBlockManager;
+import org.minecraft.atlas.Item.RubyItem;
 
 import java.util.Map;
 import java.util.Set;
@@ -42,7 +43,7 @@ import java.util.Set;
  * on break, and suppresses note play / redstone / physics / piston interactions
  * for tracked locations.
  */
-public final class CustomBlockListener implements Listener {
+public final class BlockListener implements Listener {
 
     private static final Set<Material> ACCEPTED_PICKAXES = Set.of(
             Material.IRON_PICKAXE,
@@ -59,9 +60,9 @@ public final class CustomBlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPlace(BlockPlaceEvent event) {
         ItemStack inHand = event.getItemInHand();
-        String customId = CustomBlockManager.customBlockIdForItem(inHand);
+        String customId = RubyBlockManager.customBlockIdForItem(inHand);
         if (customId == null) return;
-        CustomBlockManager.placeAt(event.getBlockPlaced(), customId);
+        RubyBlockManager.placeAt(event.getBlockPlaced(), customId);
     }
 
     /**
@@ -79,34 +80,41 @@ public final class CustomBlockListener implements Listener {
         Block placed = event.getBlock();
         for (BlockFace face : NEIGHBOR_FACES) {
             Block neighbor = placed.getRelative(face);
-            String id = CustomBlockManager.getCustomIdAt(neighbor);
+            String id = RubyBlockManager.getCustomIdAt(neighbor);
             if (id == null) continue;
             Bukkit.getScheduler().runTask(Atlas.instance, () ->
-                    CustomBlockManager.ensureState(neighbor, id));
+                    RubyBlockManager.ensureState(neighbor, id));
         }
     }
 
     @EventHandler(ignoreCancelled = true)
     public void onBreak(BlockBreakEvent event) {
         Block block = event.getBlock();
-        String id = CustomBlockManager.getCustomIdAt(block);
+        String id = RubyBlockManager.getCustomIdAt(block);
         if (id == null) return;
 
         // Take full control of the break so we can play stone effects instead of the
         // note-block ones — vanilla captures the destroy state before our handler can
         // mutate it, so swapping the type mid-event doesn't change the sound.
         event.setCancelled(true);
-        CustomBlockManager.removeAt(block);
+        RubyBlockManager.removeAt(block);
 
         Location loc = block.getLocation();
         block.setType(Material.AIR, false);
         block.getWorld().playEffect(loc, Effect.STEP_SOUND, breakEffectMaterial(id));
 
-        ItemStack tool = event.getPlayer().getInventory().getItemInMainHand();
+        Player breaker = event.getPlayer();
+        ItemStack tool = breaker.getInventory().getItemInMainHand();
+        // Apply durability damage like vanilla — Paper's damage() honors Unbreaking
+        // and is a no-op in creative mode. We damage even when the tool isn't a
+        // valid pickaxe, matching vanilla's "any tool takes 1 use on block break".
+        if (tool != null && !tool.isEmpty()) {
+            tool.damage(1, breaker);
+        }
         if (!ACCEPTED_PICKAXES.contains(tool.getType())) return;
 
         block.getWorld().dropItemNaturally(loc.toCenterLocation(),
-                CustomBlockManager.dropFor(id));
+                RubyBlockManager.dropFor(id));
     }
 
     private static Material breakEffectMaterial(String id) {
@@ -123,27 +131,30 @@ public final class CustomBlockListener implements Listener {
         Block broken = event.getBlock();
         for (BlockFace face : NEIGHBOR_FACES) {
             Block neighbor = broken.getRelative(face);
-            String id = CustomBlockManager.getCustomIdAt(neighbor);
+            String id = RubyBlockManager.getCustomIdAt(neighbor);
             if (id == null) continue;
             Bukkit.getScheduler().runTask(Atlas.instance, () ->
-                    CustomBlockManager.ensureState(neighbor, id));
+                    RubyBlockManager.ensureState(neighbor, id));
         }
     }
 
     /**
      * Right-clicking a tracked note block normally triggers vanilla's pitch cycle.
-     * Cancel that and, if the player is holding a block item, place it against the
-     * clicked face — vanilla does not fall through to item placement once the note
-     * block "consumes" the interaction (no sneak fallback), so we do the placement
-     * ourselves for both custom ruby items and vanilla blocks. Directional blocks
-     * use their default state.
+     * Cancel that and, if the player is holding a usable item, dispatch:
+     * <ul>
+     *   <li>spawn egg → spawn the entity at the targeted face</li>
+     *   <li>custom ruby item → place via {@link RubyBlockManager}</li>
+     *   <li>other vanilla block → set the target type directly (default state)</li>
+     * </ul>
+     * Vanilla does not fall through to the item action once the note block "consumes"
+     * the right-click, so we drive it manually.
      */
     @EventHandler(ignoreCancelled = true)
     public void onInteract(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
         Block clicked = event.getClickedBlock();
         if (clicked == null) return;
-        if (!CustomBlockManager.isTrackedNoteBlock(clicked)) return;
+        if (!RubyBlockManager.isTrackedNoteBlock(clicked)) return;
 
         event.setCancelled(true);
 
@@ -156,13 +167,24 @@ public final class CustomBlockListener implements Listener {
         Player player = event.getPlayer();
         if (target.getBoundingBox().overlaps(player.getBoundingBox())) return;
 
-        String heldId = CustomBlockManager.customBlockIdForItem(hand);
+        Material handType = hand.getType();
+
+        EntityType eggType = entityFromSpawnEgg(handType);
+        if (eggType != null) {
+            Location spawnLoc = target.getLocation().add(0.5, 0, 0.5);
+            target.getWorld().spawnEntity(spawnLoc, eggType);
+            if (player.getGameMode() != GameMode.CREATIVE) {
+                hand.setAmount(hand.getAmount() - 1);
+            }
+            return;
+        }
+
+        String heldId = RubyBlockManager.customBlockIdForItem(hand);
         if (heldId != null) {
-            CustomBlockManager.placeAt(target, heldId);
+            RubyBlockManager.placeAt(target, heldId);
             target.getWorld().playSound(target.getLocation().toCenterLocation(),
                     Sound.BLOCK_STONE_PLACE, 1.0f, 1.0f);
         } else {
-            Material handType = hand.getType();
             if (!handType.isBlock() || handType.isAir()) return;
             target.setType(handType);
             SoundGroup sg = target.getBlockData().getSoundGroup();
@@ -175,10 +197,25 @@ public final class CustomBlockListener implements Listener {
         }
     }
 
+    /**
+     * Returns the {@link EntityType} that a spawn egg material spawns, or null if the
+     * material isn't a spawn egg. Relies on the vanilla naming convention
+     * {@code <ENTITY>_SPAWN_EGG} which is consistent across all 1.21 spawn eggs.
+     */
+    private static EntityType entityFromSpawnEgg(Material material) {
+        String name = material.name();
+        if (!name.endsWith("_SPAWN_EGG")) return null;
+        try {
+            return EntityType.valueOf(name.substring(0, name.length() - "_SPAWN_EGG".length()));
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
     /** Suppress note playback (and the implicit redstone-triggered animation). */
     @EventHandler(ignoreCancelled = true)
     public void onNotePlay(NotePlayEvent event) {
-        if (CustomBlockManager.isTrackedNoteBlock(event.getBlock())) {
+        if (RubyBlockManager.isTrackedNoteBlock(event.getBlock())) {
             event.setCancelled(true);
         }
     }
@@ -191,7 +228,7 @@ public final class CustomBlockListener implements Listener {
     public void onPhysics(BlockPhysicsEvent event) {
         Block block = event.getBlock();
         if (block.getType() != Material.NOTE_BLOCK) return;
-        if (CustomBlockManager.isTrackedNoteBlock(block)) {
+        if (RubyBlockManager.isTrackedNoteBlock(block)) {
             event.setCancelled(true);
         }
     }
@@ -199,7 +236,7 @@ public final class CustomBlockListener implements Listener {
     /** Suppress redstone power changes — note blocks fire on any signal. */
     @EventHandler
     public void onRedstone(BlockRedstoneEvent event) {
-        if (CustomBlockManager.isTrackedNoteBlock(event.getBlock())) {
+        if (RubyBlockManager.isTrackedNoteBlock(event.getBlock())) {
             event.setNewCurrent(event.getOldCurrent());
         }
     }
@@ -207,7 +244,7 @@ public final class CustomBlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPistonExtend(BlockPistonExtendEvent event) {
         for (Block b : event.getBlocks()) {
-            if (CustomBlockManager.isTrackedNoteBlock(b)) {
+            if (RubyBlockManager.isTrackedNoteBlock(b)) {
                 event.setCancelled(true);
                 return;
             }
@@ -217,7 +254,7 @@ public final class CustomBlockListener implements Listener {
     @EventHandler(ignoreCancelled = true)
     public void onPistonRetract(BlockPistonRetractEvent event) {
         for (Block b : event.getBlocks()) {
-            if (CustomBlockManager.isTrackedNoteBlock(b)) {
+            if (RubyBlockManager.isTrackedNoteBlock(b)) {
                 event.setCancelled(true);
                 return;
             }
@@ -234,8 +271,8 @@ public final class CustomBlockListener implements Listener {
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
         for (Map.Entry<Location, String> entry :
-                CustomBlockManager.trackedInChunk(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
-            CustomBlockManager.ensureState(entry.getKey().getBlock(), entry.getValue());
+                RubyBlockManager.trackedInChunk(chunk.getWorld(), chunk.getX(), chunk.getZ())) {
+            RubyBlockManager.ensureState(entry.getKey().getBlock(), entry.getValue());
         }
     }
 
@@ -258,12 +295,12 @@ public final class CustomBlockListener implements Listener {
     public void onPickBlock(PlayerPickBlockEvent event) {
         Player player = event.getPlayer();
         if (player.getGameMode() != GameMode.CREATIVE) return;
-        String id = CustomBlockManager.getCustomIdAt(event.getBlock());
+        String id = RubyBlockManager.getCustomIdAt(event.getBlock());
         if (id == null) return;
 
         event.setCancelled(true);
         int slot = event.getTargetSlot();
-        player.getInventory().setItem(slot, RubyCustomItems.get(id));
+        player.getInventory().setItem(slot, RubyItem.get(id));
         player.getInventory().setHeldItemSlot(slot);
     }
 
@@ -283,7 +320,7 @@ public final class CustomBlockListener implements Listener {
         if (player.isFlying() || player.isGliding() || player.isSwimming()) return;
 
         Block below = to.getBlock().getRelative(BlockFace.DOWN);
-        String id = CustomBlockManager.getCustomIdAt(below);
+        String id = RubyBlockManager.getCustomIdAt(below);
         if (id == null) return;
 
         Sound step = switch (id) {
@@ -298,11 +335,11 @@ public final class CustomBlockListener implements Listener {
         java.util.Iterator<Block> it = blocks.iterator();
         while (it.hasNext()) {
             Block b = it.next();
-            String id = CustomBlockManager.getCustomIdAt(b);
+            String id = RubyBlockManager.getCustomIdAt(b);
             if (id == null) continue;
-            CustomBlockManager.removeAt(b);
+            RubyBlockManager.removeAt(b);
             b.getWorld().dropItemNaturally(b.getLocation().add(0.5, 0.5, 0.5),
-                    CustomBlockManager.dropFor(id));
+                    RubyBlockManager.dropFor(id));
             b.setType(Material.AIR, false);
             it.remove();
         }

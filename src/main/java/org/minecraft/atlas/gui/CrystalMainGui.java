@@ -38,12 +38,13 @@ import java.util.UUID;
 
 public class CrystalMainGui implements AtlasGui {
 
-    private static final int SLOT_CRYSTAL_LIST = 11;
-    private static final int SLOT_FACTION_INFO = 13;
-    private static final int SLOT_COLOR_INFO   = 15;
-    private static final int SLOT_CHEST_BTN    = 29;
-    private static final int SLOT_UPGRADES_BTN = 31;
-    private static final int SLOT_QUESTS_BTN   = 33;
+    private static final int SLOT_CRYSTAL_LIST = 10; // row 1, col 1
+    private static final int SLOT_FACTION_INFO = 13; // row 1, col 4 (center)
+    private static final int SLOT_COLOR_INFO   = 16; // row 1, col 7
+    private static final int SLOT_CHEST_BTN    = 28; // row 3, col 1
+    private static final int SLOT_UPGRADES_BTN = 30; // row 3, col 3
+    private static final int SLOT_VAULT_BTN    = 32; // row 3, col 5
+    private static final int SLOT_QUESTS_BTN   = 34; // row 3, col 7
 
     private final UUID playerUUID;
     private final String factionName;
@@ -62,6 +63,7 @@ public class CrystalMainGui implements AtlasGui {
         this.inventory.setItem(SLOT_COLOR_INFO,   buildColorItem(faction));
         this.inventory.setItem(SLOT_CHEST_BTN,    buildChestButton(faction));
         this.inventory.setItem(SLOT_UPGRADES_BTN, buildUpgradesButton(faction));
+        this.inventory.setItem(SLOT_VAULT_BTN,    buildVaultButton(faction));
         this.inventory.setItem(SLOT_QUESTS_BTN,   buildQuestsButton(player));
         finishGui();
     }
@@ -161,6 +163,13 @@ public class CrystalMainGui implements AtlasGui {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.0f);
             GuiNavigator.push(player.getUniqueId(), this);
             new CrystalSkillListGui(player, faction, crystalEntityUUID).open(player);
+        }
+
+        if (slot == SLOT_VAULT_BTN) {
+            player.playSound(player.getLocation(), Sound.BLOCK_CHEST_OPEN, 1.0f, 1.0f);
+            GuiNavigator.push(player.getUniqueId(), this);
+            CrystalVaultGui.open(player, faction);
+            return;
         }
 
         if (slot == SLOT_QUESTS_BTN) {
@@ -373,6 +382,30 @@ public class CrystalMainGui implements AtlasGui {
                 sp > 0 ? NamedTextColor.LIGHT_PURPLE : NamedTextColor.GRAY));
         lore.add(Component.empty());
         lore.add(Component.text("  Click to spend skill points on upgrades", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
+    }
+
+    private static ItemStack buildVaultButton(Faction faction) {
+        ItemStack item = org.minecraft.atlas.Item.RubyItem.get("ruby");
+        ItemMeta meta = item.getItemMeta();
+        meta.displayName(Component.text("Faction Vault", NamedTextColor.RED)
+                .decoration(TextDecoration.ITALIC, false));
+
+        int gems = org.minecraft.atlas.faction.FactionVault.countGems(faction);
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(GuiUtil.loreLine("Size", faction.getVaultSize() + " slots", NamedTextColor.YELLOW));
+        lore.add(GuiUtil.loreLine("Ruby Balance", gems + (gems == 1 ? " gem" : " gems"),
+                gems > 0 ? NamedTextColor.RED : NamedTextColor.GRAY));
+        lore.add(Component.empty());
+        lore.add(Component.text("  Stores ruby gems only.", NamedTextColor.GRAY)
+                .decoration(TextDecoration.ITALIC, false));
+        lore.add(Component.text("  Click to open", NamedTextColor.GRAY)
                 .decoration(TextDecoration.ITALIC, false));
 
         meta.lore(lore);

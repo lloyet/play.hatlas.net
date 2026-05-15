@@ -9,6 +9,11 @@
       {
         "texture": "hatlas:amethyst"
       }
+    ],
+    "horse_body": [
+      {
+        "texture": "hatlas:amethyst"
+      }
     ]
   }
 }

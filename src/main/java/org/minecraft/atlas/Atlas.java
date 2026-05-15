@@ -19,7 +19,7 @@ import org.minecraft.atlas.command.TpaCommand;
 import org.minecraft.atlas.command.CrystalCommand;
 import org.minecraft.atlas.command.DonjonCommand;
 import org.minecraft.atlas.command.FactionCommand;
-import org.minecraft.atlas.command.RubyCommand;
+import org.minecraft.atlas.command.ItemCommand;
 import org.minecraft.atlas.command.TagCommand;
 import org.minecraft.atlas.donjon.DonjonManager;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
@@ -53,10 +53,14 @@ import org.minecraft.atlas.quest.QuestCommand;
 import org.minecraft.atlas.quest.QuestManager;
 import org.minecraft.atlas.listener.GuiListener;
 import org.minecraft.atlas.listener.JobListener;
-import org.minecraft.atlas.customBlock.CustomBlockManager;
-import org.minecraft.atlas.customItem.AmethystCustomItems;
-import org.minecraft.atlas.customItem.RubyCustomItems;
-import org.minecraft.atlas.listener.CustomBlockListener;
+import org.minecraft.atlas.block.RubyBlockManager;
+import org.minecraft.atlas.Item.AmethystItem;
+import org.minecraft.atlas.Item.RubyItem;
+import org.minecraft.atlas.listener.BlockListener;
+import org.minecraft.atlas.listener.RubyRestrictionListener;
+import org.minecraft.atlas.listener.AuctionNpcListener;
+import org.minecraft.atlas.auction.AuctionManager;
+import org.minecraft.atlas.command.AuctionCommand;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 import org.minecraft.atlas.util.NpcLookHelper;
@@ -109,8 +113,14 @@ public final class Atlas extends JavaPlugin {
     public static YamlConfiguration combatsDataConfig;
     public static File combatsDataFile;
 
-    public static YamlConfiguration customBlocksDataConfig;
-    public static File customBlocksDataFile;
+    public static YamlConfiguration blocksDataConfig;
+    public static File blocksDataFile;
+
+    public static YamlConfiguration auctionsConfig;
+    public static File auctionsFile;
+
+    public static YamlConfiguration auctionsDataConfig;
+    public static File auctionsDataFile;
 
     @Override
     public void onEnable() {
@@ -173,8 +183,16 @@ public final class Atlas extends JavaPlugin {
         combatsDataFile = new File(getDataFolder(), "combats-data.yml");
         combatsDataConfig = YamlConfiguration.loadConfiguration(combatsDataFile);
 
-        customBlocksDataFile = new File(getDataFolder(), "custom-blocks-data.yml");
-        customBlocksDataConfig = YamlConfiguration.loadConfiguration(customBlocksDataFile);
+        blocksDataFile = new File(getDataFolder(), "blocks-data.yml");
+        blocksDataConfig = YamlConfiguration.loadConfiguration(blocksDataFile);
+
+        // auctions.yml — auction-system tuning (max listings per player, …)
+        auctionsFile = new File(getDataFolder(), "auctions.yml");
+        if (!auctionsFile.exists()) saveResource("auctions.yml", false);
+        auctionsConfig = YamlConfiguration.loadConfiguration(auctionsFile);
+
+        auctionsDataFile = new File(getDataFolder(), "auctions-data.yml");
+        auctionsDataConfig = YamlConfiguration.loadConfiguration(auctionsDataFile);
 
         // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
@@ -211,12 +229,14 @@ public final class Atlas extends JavaPlugin {
         ElectricalCreeperManager.init();
         SmugglerManager.init();
         RaiderPickaxe.init();
-        RubyCustomItems.init();
-        RubyCustomItems.registerRecipes();
-        AmethystCustomItems.init();
-        AmethystCustomItems.registerRecipes();
-        CustomBlockManager.init();
-        CustomBlockManager.loadConfig(customBlocksDataConfig);
+        RubyItem.init();
+        RubyItem.registerRecipes();
+        AmethystItem.init();
+        AmethystItem.registerRecipes();
+        RubyBlockManager.init();
+        RubyBlockManager.loadConfig(blocksDataConfig);
+        AuctionManager.loadConfig(auctionsConfig);
+        AuctionManager.loadData(auctionsDataConfig);
         ResourcePackManager.loadConfig(configFile);
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
@@ -234,7 +254,9 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new GuiListener(), this);
         getServer().getPluginManager().registerEvents(new SafeZoneListener(), this);
         getServer().getPluginManager().registerEvents(new SafeZoneNpcListener(), this);
-        getServer().getPluginManager().registerEvents(new CustomBlockListener(), this);
+        getServer().getPluginManager().registerEvents(new BlockListener(), this);
+        getServer().getPluginManager().registerEvents(new RubyRestrictionListener(), this);
+        getServer().getPluginManager().registerEvents(new AuctionNpcListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
         getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
@@ -271,7 +293,8 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(HomeCommand.buildSetHome());
                         event.registrar().register(HomeCommand.buildHome());
                         event.registrar().register(HomeCommand.buildDelHome());
-                        event.registrar().register(RubyCommand.build());
+                        event.registrar().register(ItemCommand.build());
+                        event.registrar().register(AuctionCommand.build());
                     }
                 }
         );
@@ -322,9 +345,13 @@ public final class Atlas extends JavaPlugin {
         CombatLogManager.saveCombatData(combatsDataConfig);
         saveCombatsDataConfig();
 
-        // Save to custom-blocks-data.yml
-        CustomBlockManager.saveConfig(customBlocksDataConfig);
-        saveCustomBlocksDataConfig();
+        // Save to blocks-data.yml
+        RubyBlockManager.saveConfig(blocksDataConfig);
+        saveBlocksDataConfig();
+
+        // Save to auctions-data.yml
+        AuctionManager.saveData(auctionsDataConfig);
+        saveAuctionsDataConfig();
 
         getLogger().info("Atlas disabled.");
     }
@@ -337,11 +364,19 @@ public final class Atlas extends JavaPlugin {
         }
     }
 
-    public static void saveCustomBlocksDataConfig() {
+    public static void saveBlocksDataConfig() {
         try {
-            customBlocksDataConfig.save(customBlocksDataFile);
+            blocksDataConfig.save(blocksDataFile);
         } catch (IOException e) {
-            instance.getLogger().severe("Could not save custom-blocks-data.yml: " + e.getMessage());
+            instance.getLogger().severe("Could not save blocks-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveAuctionsDataConfig() {
+        try {
+            auctionsDataConfig.save(auctionsDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save auctions-data.yml: " + e.getMessage());
         }
     }
 

@@ -3,6 +3,8 @@ package org.minecraft.atlas.command;
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
@@ -13,15 +15,19 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.minecraft.atlas.customItem.RubyCustomItems;
+import org.minecraft.atlas.Item.AmethystItem;
+import org.minecraft.atlas.Item.RubyItem;
 
+import java.util.ArrayList;
 import java.util.List;
 
-public final class RubyCommand {
+/**
+ * Admin command that hands out any registered Atlas custom item: ruby gem/block/ores
+ * and the full amethyst gear set. Replaces the old /ruby give command.
+ */
+public final class ItemCommand {
 
-    private static final List<String> ITEMS = List.of("ruby", "ruby_block", "ruby_ore", "deepslate_ruby_ore");
-
-    private RubyCommand() {
+    private ItemCommand() {
     }
 
     private static Component error(String msg) {
@@ -32,13 +38,25 @@ public final class RubyCommand {
         return Component.text(msg, NamedTextColor.GREEN);
     }
 
+    private static List<String> allIds() {
+        List<String> ids = new ArrayList<>();
+        ids.addAll(RubyItem.ids());
+        ids.addAll(AmethystItem.ids());
+        return ids;
+    }
+
+    private static ItemStack templateFor(String id) {
+        if (RubyItem.ids().contains(id)) return RubyItem.get(id);
+        if (AmethystItem.ids().contains(id)) return AmethystItem.get(id);
+        return null;
+    }
+
     public static LiteralCommandNode<CommandSourceStack> build() {
-        return Commands.literal("ruby")
-                .requires(src -> src.getSender().hasPermission("atlas.ruby.admin"))
+        return Commands.literal("item")
+                .requires(src -> src.getSender().hasPermission("atlas.item.admin"))
                 .executes(ctx -> {
                     ctx.getSource().getSender().sendMessage(
-                            Component.text("Usage: /ruby give <player> <"
-                                    + String.join("|", ITEMS) + "> [amount]",
+                            Component.text("Usage: /item give <player> <item> [amount]",
                                     NamedTextColor.GOLD));
                     return Command.SINGLE_SUCCESS;
                 })
@@ -46,7 +64,7 @@ public final class RubyCommand {
                         .then(Commands.argument("player", ArgumentTypes.player())
                                 .then(Commands.argument("item", StringArgumentType.word())
                                         .suggests((ctx, builder) -> {
-                                            ITEMS.forEach(builder::suggest);
+                                            allIds().forEach(builder::suggest);
                                             return builder.buildFuture();
                                         })
                                         .executes(ctx -> runGive(ctx, 1))
@@ -57,26 +75,27 @@ public final class RubyCommand {
                 .build();
     }
 
-    private static int runGive(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, int amount)
-            throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+    private static int runGive(CommandContext<CommandSourceStack> ctx, int amount)
+            throws CommandSyntaxException {
         CommandSender sender = ctx.getSource().getSender();
         PlayerSelectorArgumentResolver resolver =
                 ctx.getArgument("player", PlayerSelectorArgumentResolver.class);
         Player target = resolver.resolve(ctx.getSource()).getFirst();
         String item = StringArgumentType.getString(ctx, "item").toLowerCase();
 
-        if (!ITEMS.contains(item)) {
-            sender.sendMessage(error("Unknown ruby item '" + item + "'. Allowed: "
-                    + String.join(", ", ITEMS) + "."));
+        ItemStack template = templateFor(item);
+        if (template == null) {
+            sender.sendMessage(error("Unknown item '" + item + "'. Allowed: "
+                    + String.join(", ", allIds()) + "."));
             return Command.SINGLE_SUCCESS;
         }
 
-        giveRuby(sender, target, item, amount);
+        give(sender, target, item, template, amount);
         return Command.SINGLE_SUCCESS;
     }
 
-    private static void giveRuby(CommandSender sender, Player target, String item, int amount) {
-        ItemStack template = RubyCustomItems.get(item);
+    private static void give(CommandSender sender, Player target, String id,
+                             ItemStack template, int amount) {
         int maxStack = template.getMaxStackSize();
         int remaining = amount;
         while (remaining > 0) {
@@ -89,7 +108,7 @@ public final class RubyCommand {
             }
             remaining -= n;
         }
-        sender.sendMessage(success("Gave " + amount + "× " + item + " to " + target.getName() + "."));
-        target.sendMessage(success("You received " + amount + "× " + item + "."));
+        sender.sendMessage(success("Gave " + amount + "× " + id + " to " + target.getName() + "."));
+        target.sendMessage(success("You received " + amount + "× " + id + "."));
     }
 }

@@ -1,4 +1,4 @@
-package org.minecraft.atlas.customItem;
+package org.minecraft.atlas.Item;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.ItemLore;
@@ -20,16 +20,16 @@ import java.util.Map;
 
 /**
  * Raw ruby materials: gem, block, and ores. Gear (sword/pickaxe/armor/…) lives in
- * {@link AmethystCustomItems} since the gear set was migrated from ruby to amethyst.
+ * {@link AmethystItem} since the gear set was migrated from ruby to amethyst.
  */
 @SuppressWarnings("UnstableApiUsage")
-public final class RubyCustomItems {
+public final class RubyItem {
 
     public static final String NAMESPACE = "hatlas";
 
     private static final Map<String, ItemStack> REGISTRY = new LinkedHashMap<>();
 
-    private RubyCustomItems() {
+    private RubyItem() {
     }
 
     // ── Entry points ───────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ public final class RubyCustomItems {
     }
 
     public static void registerRecipes() {
-        // Block ↔ gem compaction
+        // Block ↔ gem compaction (the only place ruby_block is permitted in an inventory).
         shaped("ruby_block_from_rubies", get("ruby_block"), new String[]{"RRR","RRR","RRR"},
                 Map.of('R', ingredient("ruby")));
         shaped("rubies_from_ruby_block", with(get("ruby"), 9), new String[]{"B"},
@@ -58,6 +58,54 @@ public final class RubyCustomItems {
 
     public static List<String> ids() {
         return List.copyOf(REGISTRY.keySet());
+    }
+
+    /** True iff {@code stack} carries the {@code hatlas:ruby} item model — i.e. the raw ruby gem. */
+    public static boolean isRubyGem(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        Key model = stack.getData(DataComponentTypes.ITEM_MODEL);
+        return model != null && NAMESPACE.equals(model.namespace()) && "ruby".equals(model.value());
+    }
+
+    /** Total ruby gems in {@code player}'s 36 storage slots (excludes armor / offhand / cursor). */
+    public static int countPlayerGems(org.bukkit.entity.Player player) {
+        int total = 0;
+        for (ItemStack s : player.getInventory().getStorageContents()) {
+            if (isRubyGem(s)) total += s.getAmount();
+        }
+        return total;
+    }
+
+    /**
+     * Removes up to {@code count} ruby gems from {@code player}'s 36 storage slots.
+     * Returns true iff the full amount was consumed. On false, partial removal may have
+     * occurred — call {@link #countPlayerGems(org.bukkit.entity.Player)} first if a check
+     * without mutation is needed.
+     */
+    public static boolean consumePlayerGems(org.bukkit.entity.Player player, int count) {
+        if (count <= 0) return true;
+        ItemStack[] contents = player.getInventory().getStorageContents();
+        int remaining = count;
+        for (int i = 0; i < contents.length && remaining > 0; i++) {
+            ItemStack s = contents[i];
+            if (!isRubyGem(s)) continue;
+            int take = Math.min(s.getAmount(), remaining);
+            int left = s.getAmount() - take;
+            if (left <= 0) contents[i] = null;
+            else s.setAmount(left);
+            remaining -= take;
+        }
+        player.getInventory().setStorageContents(contents);
+        return remaining == 0;
+    }
+
+    /** True iff {@code stack} carries one of the ruby block-item models (block / ore / deepslate ore). */
+    public static boolean isRubyBlockOrOre(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        Key model = stack.getData(DataComponentTypes.ITEM_MODEL);
+        if (model == null || !NAMESPACE.equals(model.namespace())) return false;
+        String id = model.value();
+        return "ruby_block".equals(id) || "ruby_ore".equals(id) || "deepslate_ruby_ore".equals(id);
     }
 
     // ── Factories ──────────────────────────────────────────────────────────────

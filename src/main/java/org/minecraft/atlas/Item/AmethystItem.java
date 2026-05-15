@@ -1,4 +1,4 @@
-package org.minecraft.atlas.customItem;
+package org.minecraft.atlas.Item;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import io.papermc.paper.datacomponent.item.Equippable;
@@ -27,14 +27,14 @@ import java.util.Map;
  * (hatlas:item/amethyst_*); armor pieces reference equipment asset hatlas:amethyst.
  */
 @SuppressWarnings("UnstableApiUsage")
-public final class AmethystCustomItems {
+public final class AmethystItem {
 
     public static final String NAMESPACE = "hatlas";
     public static final String EQUIPMENT_ASSET = "amethyst";
 
     private static final Map<String, ItemStack> REGISTRY = new LinkedHashMap<>();
 
-    private AmethystCustomItems() {
+    private AmethystItem() {
     }
 
     // ── Entry points ───────────────────────────────────────────────────────────
@@ -51,6 +51,7 @@ public final class AmethystCustomItems {
         register("amethyst_chestplate", buildArmor(Material.NETHERITE_CHESTPLATE, EquipmentSlot.CHEST, "amethyst_chestplate", "Amethyst Chestplate"));
         register("amethyst_leggings", buildArmor(Material.NETHERITE_LEGGINGS, EquipmentSlot.LEGS, "amethyst_leggings", "Amethyst Leggings"));
         register("amethyst_boots", buildArmor(Material.NETHERITE_BOOTS, EquipmentSlot.FEET, "amethyst_boots", "Amethyst Boots"));
+        register("amethyst_rod", buildRod());
         register("amethyst_horse_armor", buildHorseArmor());
     }
 
@@ -77,7 +78,6 @@ public final class AmethystCustomItems {
         shaped("amethyst_chestplate", get("amethyst_chestplate"), new String[]{"A A", "AAA", "AAA"}, Map.of('A', shard));
         shaped("amethyst_leggings", get("amethyst_leggings"), new String[]{"AAA", "A A", "A A"}, Map.of('A', shard));
         shaped("amethyst_boots", get("amethyst_boots"), new String[]{"A A", "A A"}, Map.of('A', shard));
-        shaped("amethyst_horse_armor", get("amethyst_horse_armor"), new String[]{"  A", "AAA", "A A"}, Map.of('A', shard));
     }
 
     public static ItemStack get(String id) {
@@ -120,12 +120,18 @@ public final class AmethystCustomItems {
         return item;
     }
 
+    private static ItemStack buildRod() {
+        ItemStack item = new ItemStack(Material.BLAZE_ROD);
+        applyCommon(item, "amethyst_rod", "Amethyst Rod", "A focused conduit of amethyst energy.");
+        return item;
+    }
+
     private static ItemStack buildHorseArmor() {
         ItemStack item = new ItemStack(Material.NETHERITE_HORSE_ARMOR);
         applyCommon(item, "amethyst_horse_armor", "Amethyst Horse Armor", "Plated barding for your steed.");
         item.setData(DataComponentTypes.EQUIPPABLE,
                 Equippable.equippable(EquipmentSlot.BODY)
-                        .assetId(Key.key(NAMESPACE, EQUIPMENT_ASSET + "_horse"))
+                        .assetId(Key.key(NAMESPACE, EQUIPMENT_ASSET))
                         .build());
         return item;
     }

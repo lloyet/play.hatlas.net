@@ -1,4 +1,4 @@
-package org.minecraft.atlas.customBlock;
+package org.minecraft.atlas.block;
 
 import io.papermc.paper.datacomponent.DataComponentTypes;
 import net.kyori.adventure.key.Key;
@@ -12,7 +12,7 @@ import org.bukkit.block.data.type.NoteBlock;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
-import org.minecraft.atlas.customItem.RubyCustomItems;
+import org.minecraft.atlas.Item.RubyItem;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * not by blockstate — so collisions with player-placed note blocks are tolerated.
  */
 @SuppressWarnings("UnstableApiUsage")
-public final class CustomBlockManager {
+public final class RubyBlockManager {
 
     public record BlockSpec(String id, Instrument instrument, int note) {}
 
@@ -37,7 +37,7 @@ public final class CustomBlockManager {
     /** All placed custom blocks, keyed by their world location. */
     private static final Map<Location, String> PLACED = new ConcurrentHashMap<>();
 
-    private CustomBlockManager() {
+    private RubyBlockManager() {
     }
 
     public static void init() {
@@ -62,7 +62,7 @@ public final class CustomBlockManager {
         if (stack == null || stack.isEmpty()) return null;
         Key model = stack.getData(DataComponentTypes.ITEM_MODEL);
         if (model == null) return null;
-        if (!RubyCustomItems.NAMESPACE.equals(model.namespace())) return null;
+        if (!RubyItem.NAMESPACE.equals(model.namespace())) return null;
         String id = model.value();
         return SPECS.containsKey(id) ? id : null;
     }
@@ -108,9 +108,9 @@ public final class CustomBlockManager {
      */
     public static ItemStack dropFor(String id) {
         if ("ruby_ore".equals(id) || "deepslate_ruby_ore".equals(id)) {
-            return RubyCustomItems.get("ruby");
+            return RubyItem.get("ruby");
         }
-        return RubyCustomItems.get(id);
+        return RubyItem.get(id);
     }
 
     public static void removeAt(Block block) {
