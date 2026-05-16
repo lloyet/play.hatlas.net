@@ -37,6 +37,7 @@ public final class AuctionNpcManager {
             v.setSilent(true);
             v.setRemoveWhenFarAway(false);
             v.setPersistent(true);
+            v.setVillagerType(Villager.Type.SAVANNA);
             v.setProfession(Villager.Profession.LIBRARIAN);
             v.customName(Component.text("Auctioneer", NamedTextColor.GOLD)
                     .decoration(TextDecoration.ITALIC, false));
