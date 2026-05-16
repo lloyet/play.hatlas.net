@@ -33,10 +33,9 @@ public class AuctionMainGui implements AtlasGui {
         this.inventory = Atlas.instance.getServer().createInventory(this, 54,
                 Component.text("Auction House", NamedTextColor.GOLD));
 
-        int ownCount    = AuctionManager.getBySeller(player.getUniqueId()).size();
-        int marketCount = AuctionManager.getAllExcept(player.getUniqueId()).size();
+        int marketCount = AuctionManager.getMarketListings(player.getUniqueId()).size();
 
-        this.inventory.setItem(SLOT_OWN_LISTINGS, buildSellListButton(ownCount));
+        this.inventory.setItem(SLOT_OWN_LISTINGS, buildSellListButton());
         this.inventory.setItem(SLOT_MARKET,       buildMarketButton(marketCount));
         finishGui();
     }
@@ -71,20 +70,13 @@ public class AuctionMainGui implements AtlasGui {
         }
     }
 
-    private static ItemStack buildSellListButton(int count) {
+    private static ItemStack buildSellListButton() {
+        // No custom lore — vanilla bundle UI shows its own contents tooltip, and the user
+        // wants the button surface kept minimal (display name only).
         ItemStack item = new ItemStack(Material.BUNDLE);
         ItemMeta meta = item.getItemMeta();
         meta.displayName(Component.text("My Listings", NamedTextColor.AQUA)
                 .decoration(TextDecoration.ITALIC, false));
-        List<Component> lore = new ArrayList<>();
-        lore.add(Component.empty());
-        lore.add(Component.text("  Active listings: ", NamedTextColor.GRAY)
-                .append(Component.text(count, NamedTextColor.YELLOW))
-                .decoration(TextDecoration.ITALIC, false));
-        lore.add(Component.empty());
-        lore.add(Component.text("  Click to view & retrieve", NamedTextColor.GRAY)
-                .decoration(TextDecoration.ITALIC, false));
-        meta.lore(lore);
         item.setItemMeta(meta);
         return item;
     }

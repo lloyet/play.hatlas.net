@@ -9,12 +9,6 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Projectile;
-import org.bukkit.event.EventHandler;
-import org.bukkit.event.EventPriority;
-import org.bukkit.event.Listener;
-import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 import org.bukkit.plugin.Plugin;
@@ -26,12 +20,14 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Combat-log protection: when a player is hit by another player (melee or projectile),
- * both attacker and victim are flagged for {@code timeoutSeconds}. If they disconnect
- * before the timer expires, they are killed and their inventory is dropped at their
- * last location — preventing escape from PvP via /quit.
+ * Combat-log state + tick scheduler. Per-player flags live here; the actual event
+ * handlers (player-hit, player-quit) sit in {@code listener.CombatLogListener} which
+ * drives this manager via {@link #mark(Player)} and {@link #applyCombatLogoutPenalty(Player)}.
+ *
+ * <p>Flagged players get a chat notice when entering combat; another chat notice when
+ * their combat timer expires (via the per-second {@link #tick()}).
  */
-public class CombatLogManager implements Listener {
+public class CombatLogManager {
 
     private static int timeoutSeconds = 20;
     private static final Map<UUID, Long> combatUntil = new ConcurrentHashMap<>();
@@ -82,10 +78,6 @@ public class CombatLogManager implements Listener {
         shuttingDown = value;
     }
 
-    public static int getTimeoutSeconds() {
-        return timeoutSeconds;
-    }
-
     public static boolean isInCombat(UUID uuid) {
         Long until = combatUntil.get(uuid);
         if (until == null) return false;
@@ -106,43 +98,35 @@ public class CombatLogManager implements Listener {
             it.remove();
             Player player = Bukkit.getPlayer(entry.getKey());
             if (player != null && player.isOnline()) {
-                player.sendActionBar(Component.text(
-                        "Combat ended — safe to disconnect.", NamedTextColor.GREEN));
+                player.sendMessage(Component.text(
+                        "Combat has ended — you can safely disconnect now.",
+                        NamedTextColor.GREEN));
             }
         }
     }
 
-    private static void mark(Player player) {
+    /**
+     * Flags {@code player} as in-combat for {@code timeoutSeconds}, extending the timer
+     * if they were already flagged. Sends a chat notice the first time the flag is set
+     * (i.e. transition from out-of-combat → in-combat).
+     */
+    public static void mark(Player player) {
         boolean wasInCombat = isInCombat(player.getUniqueId());
         combatUntil.put(player.getUniqueId(), System.currentTimeMillis() + timeoutSeconds * 1000L);
         if (!wasInCombat) {
-            player.sendActionBar(Component.text(
-                    "In combat — disconnecting for " + timeoutSeconds + "s will kill you.",
+            player.sendMessage(Component.text(
+                    "You have entered combat — disconnecting in the next "
+                            + timeoutSeconds + "s will kill you.",
                     NamedTextColor.RED));
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerHit(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Player victim)) return;
-
-        Player attacker = null;
-        if (event.getDamager() instanceof Player p) {
-            attacker = p;
-        } else if (event.getDamager() instanceof Projectile proj
-                && proj.getShooter() instanceof Player shooter) {
-            attacker = shooter;
-        }
-        if (attacker == null) return;
-        if (attacker.getUniqueId().equals(victim.getUniqueId())) return;
-
-        mark(attacker);
-        mark(victim);
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void onCombatLogout(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
+    /**
+     * Penalty for disconnecting while in combat: drops the full inventory at the player's
+     * location and kills them. Skipped during a clean server shutdown so timers persist
+     * to the data file instead. No-op if the player isn't in combat.
+     */
+    public static void applyCombatLogoutPenalty(Player player) {
         UUID uuid = player.getUniqueId();
         if (!isInCombat(uuid)) return;
         // Server is stopping — preserve combat state in the file, do not penalise the player.

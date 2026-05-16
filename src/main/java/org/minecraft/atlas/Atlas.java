@@ -259,7 +259,7 @@ public final class Atlas extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new AuctionNpcListener(), this);
         AfkManager afkManager = new AfkManager();
         getServer().getPluginManager().registerEvents(afkManager, this);
-        getServer().getPluginManager().registerEvents(new CombatLogManager(), this);
+        getServer().getPluginManager().registerEvents(new org.minecraft.atlas.listener.CombatLogListener(), this);
         getServer().getPluginManager().registerEvents(new ResourcePackManager(), this);
         ResourcePackManager.sendToAll();
 

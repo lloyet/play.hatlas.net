@@ -12,6 +12,7 @@ import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
+import org.minecraft.atlas.Item.RubyItem;
 import org.minecraft.atlas.auction.AuctionListing;
 import org.minecraft.atlas.auction.AuctionManager;
 import org.minecraft.atlas.auction.AuctionNpcManager;
@@ -97,7 +98,7 @@ public final class AuctionCommand {
         // Seller must be in a faction — payout target is their faction vault.
         String factionName = FactionManager.getPlayerFaction(player.getUniqueId());
         if (factionName == null) {
-            player.sendMessage(error("You must be in a faction to list — payment goes to your faction vault."));
+            player.sendMessage(error("You must be in a faction to sell — payment goes to your faction vault."));
             return Command.SINGLE_SUCCESS;
         }
         Faction faction = FactionManager.getFaction(factionName);
@@ -124,12 +125,19 @@ public final class AuctionCommand {
             player.sendMessage(error("Hold the item you want to sell in your main hand."));
             return Command.SINGLE_SUCCESS;
         }
+        // Ruby items are the auction's currency and faction-economy backbone — they
+        // cannot themselves be auctioned (would let players bypass the vault flow).
+        if (RubyItem.isRubyGem(inHand) || RubyItem.isRubyBlockOrOre(inHand)) {
+            player.sendMessage(error("Ruby items cannot be listed on the market."));
+            return Command.SINGLE_SUCCESS;
+        }
 
         // Take the entire main-hand stack — copy first, then clear the slot.
         ItemStack sold = inHand.clone();
         player.getInventory().setItemInMainHand(null);
 
-        AuctionListing listing = AuctionListing.create(player.getUniqueId(), sold, price, description);
+        AuctionListing listing = AuctionListing.create(
+                player.getUniqueId(), factionName, sold, price, description);
         AuctionManager.addListing(listing);
 
         Component msg = success("Listed ")

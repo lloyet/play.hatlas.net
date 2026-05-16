@@ -67,38 +67,6 @@ public final class RubyItem {
         return model != null && NAMESPACE.equals(model.namespace()) && "ruby".equals(model.value());
     }
 
-    /** Total ruby gems in {@code player}'s 36 storage slots (excludes armor / offhand / cursor). */
-    public static int countPlayerGems(org.bukkit.entity.Player player) {
-        int total = 0;
-        for (ItemStack s : player.getInventory().getStorageContents()) {
-            if (isRubyGem(s)) total += s.getAmount();
-        }
-        return total;
-    }
-
-    /**
-     * Removes up to {@code count} ruby gems from {@code player}'s 36 storage slots.
-     * Returns true iff the full amount was consumed. On false, partial removal may have
-     * occurred — call {@link #countPlayerGems(org.bukkit.entity.Player)} first if a check
-     * without mutation is needed.
-     */
-    public static boolean consumePlayerGems(org.bukkit.entity.Player player, int count) {
-        if (count <= 0) return true;
-        ItemStack[] contents = player.getInventory().getStorageContents();
-        int remaining = count;
-        for (int i = 0; i < contents.length && remaining > 0; i++) {
-            ItemStack s = contents[i];
-            if (!isRubyGem(s)) continue;
-            int take = Math.min(s.getAmount(), remaining);
-            int left = s.getAmount() - take;
-            if (left <= 0) contents[i] = null;
-            else s.setAmount(left);
-            remaining -= take;
-        }
-        player.getInventory().setStorageContents(contents);
-        return remaining == 0;
-    }
-
     /** True iff {@code stack} carries one of the ruby block-item models (block / ore / deepslate ore). */
     public static boolean isRubyBlockOrOre(ItemStack stack) {
         if (stack == null || stack.isEmpty()) return false;

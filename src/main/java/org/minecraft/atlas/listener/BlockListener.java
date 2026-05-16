@@ -30,9 +30,12 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.entity.Creeper;
+import org.bukkit.persistence.PersistentDataType;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.block.RubyBlockManager;
 import org.minecraft.atlas.Item.RubyItem;
+import org.minecraft.atlas.donjon.ElectricalCreeperManager;
 
 import java.util.Map;
 import java.util.Set;
@@ -172,7 +175,20 @@ public final class BlockListener implements Listener {
         EntityType eggType = entityFromSpawnEgg(handType);
         if (eggType != null) {
             Location spawnLoc = target.getLocation().add(0.5, 0, 0.5);
-            target.getWorld().spawnEntity(spawnLoc, eggType);
+            // Detect the donjon "powered creeper egg" — a CREEPER_SPAWN_EGG carrying our
+            // PDC marker. If present, mirror DonjonListener.onElectricalEggUse: setPowered
+            // + tag the spawned entity so it counts as an electrical creeper at runtime.
+            if (eggType == EntityType.CREEPER
+                    && ElectricalCreeperManager.isElectricalCreeperEgg(hand)) {
+                target.getWorld().spawn(spawnLoc, Creeper.class, creeper -> {
+                    creeper.setPowered(true);
+                    creeper.getPersistentDataContainer().set(
+                            ElectricalCreeperManager.getElectricalCreeperKey(),
+                            PersistentDataType.BYTE, (byte) 1);
+                });
+            } else {
+                target.getWorld().spawnEntity(spawnLoc, eggType);
+            }
             if (player.getGameMode() != GameMode.CREATIVE) {
                 hand.setAmount(hand.getAmount() - 1);
             }

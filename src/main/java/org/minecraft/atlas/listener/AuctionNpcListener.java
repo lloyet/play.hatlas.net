@@ -19,6 +19,8 @@ public class AuctionNpcListener implements Listener {
 
         event.setCancelled(true);
         Player player = event.getPlayer();
+        // Anyone can browse the auction house. Faction-gated actions (buy, sell) enforce
+        // their own checks at action time and surface the relevant error in chat.
         new AuctionMainGui(player).open(player);
     }
 

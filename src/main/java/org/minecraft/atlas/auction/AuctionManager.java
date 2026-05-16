@@ -4,6 +4,7 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.inventory.ItemStack;
 import org.minecraft.atlas.Atlas;
+import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -63,13 +64,25 @@ public final class AuctionManager {
         return out;
     }
 
-    /** All listings NOT owned by {@code viewer}, in insertion order. */
-    public static List<AuctionListing> getAllExcept(UUID viewer) {
+    /**
+     * Market view: every listing whose owning faction still exists, excluding
+     * the viewer's own listings. Disbanded-faction listings are hidden here but
+     * remain visible (and retrievable) in the seller's own sales view.
+     */
+    public static List<AuctionListing> getMarketListings(UUID viewer) {
         List<AuctionListing> out = new ArrayList<>();
         for (AuctionListing l : listings.values()) {
-            if (!l.seller().equals(viewer)) out.add(l);
+            if (l.seller().equals(viewer)) continue;
+            if (!isFactionAlive(l)) continue;
+            out.add(l);
         }
         return out;
+    }
+
+    /** True iff {@code listing}'s owning faction still exists. */
+    public static boolean isFactionAlive(AuctionListing listing) {
+        return !listing.factionName().isEmpty()
+                && FactionManager.getFaction(listing.factionName()) != null;
     }
 
     public static List<AuctionListing> getAll() {
@@ -86,6 +99,7 @@ public final class AuctionManager {
         for (AuctionListing l : listings.values()) {
             ConfigurationSection s = root.createSection(l.id().toString());
             s.set("seller", l.seller().toString());
+            if (!l.factionName().isEmpty()) s.set("faction", l.factionName());
             s.set("item", l.item());
             s.set("price", l.price());
             if (!l.description().isEmpty()) s.set("description", l.description());
@@ -108,7 +122,16 @@ public final class AuctionManager {
                 int price = s.getInt("price", 0);
                 String description = s.getString("description", "");
                 long createdAt = s.getLong("created_at", System.currentTimeMillis());
-                listings.put(id, new AuctionListing(id, seller, item, price, description, createdAt));
+                // Migration: pre-faction-field listings fall back to the seller's CURRENT
+                // faction at load time. If none, the listing loads as orphan ("") — hidden
+                // from market, but still retrievable via /auction sales.
+                String factionName = s.getString("faction", "");
+                if (factionName.isEmpty()) {
+                    String currentFaction = FactionManager.getPlayerFaction(seller);
+                    if (currentFaction != null) factionName = currentFaction;
+                }
+                listings.put(id, new AuctionListing(id, seller, factionName, item, price,
+                        description, createdAt));
             } catch (IllegalArgumentException ignored) {}
         }
     }

@@ -77,11 +77,22 @@ public class AuctionConfirmGui implements AtlasGui {
                 player.closeInventory();
                 return;
             }
-            switch (mode) {
+            boolean success = switch (mode) {
                 case REMOVE -> handleRemove(player, listing);
                 case BUY    -> handleBuy(player, listing);
+            };
+            if (!success) {
+                // Failure: close the confirm GUI; the player's chat already shows the reason.
+                player.closeInventory();
+                return;
             }
-            player.closeInventory();
+            // Success: discard the cached parent (which has stale page data — the
+            // listing was just removed) and reopen a fresh page of the same kind.
+            GuiNavigator.pop(player.getUniqueId());
+            switch (mode) {
+                case REMOVE -> new AuctionSellListGui(player).open(player);
+                case BUY    -> new AuctionMarketListGui(player).open(player);
+            }
         } else if (org.minecraft.atlas.util.GuiUtil.CONFIRM_RED.contains(slot)) {
             player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
             GuiNavigator.back(player);
@@ -90,16 +101,17 @@ public class AuctionConfirmGui implements AtlasGui {
 
     // ── Action handlers ───────────────────────────────────────────────────────
 
-    /** Seller cancels their own listing; item returns to them. */
-    private static void handleRemove(Player player, AuctionListing listing) {
+    /** Seller cancels their own listing; item returns to them. Returns true on success. */
+    private static boolean handleRemove(Player player, AuctionListing listing) {
         if (!listing.seller().equals(player.getUniqueId())) {
             player.sendMessage(Component.text("This is not your listing.", NamedTextColor.RED));
-            return;
+            return false;
         }
         AuctionManager.removeListing(listing.id());
         giveOrDrop(player, listing.item().clone());
         player.playSound(player.getLocation(), Sound.ITEM_BUNDLE_DROP_CONTENTS, 1.0f, 1.0f);
         player.sendMessage(Component.text("Listing cancelled — item returned.", NamedTextColor.GREEN));
+        return true;
     }
 
     /**
@@ -107,11 +119,12 @@ public class AuctionConfirmGui implements AtlasGui {
      * payment is withdrawn from the BUYER's faction vault and deposited into the
      * SELLER's faction vault. Atomic: balance checks pass before any state mutation.
      * Overflow into the seller's full vault drops at the buyer's location.
+     * Returns true iff the purchase succeeded (item delivered, payment moved).
      */
-    private static void handleBuy(Player player, AuctionListing listing) {
+    private static boolean handleBuy(Player player, AuctionListing listing) {
         if (listing.seller().equals(player.getUniqueId())) {
             player.sendMessage(Component.text("You can't buy your own listing.", NamedTextColor.RED));
-            return;
+            return false;
         }
         String buyerFactionName = FactionManager.getPlayerFaction(player.getUniqueId());
         Faction buyerFaction = buyerFactionName == null ? null : FactionManager.getFaction(buyerFactionName);
@@ -119,40 +132,43 @@ public class AuctionConfirmGui implements AtlasGui {
             player.sendMessage(Component.text(
                     "You must be in a faction to buy — payment comes from your faction vault.",
                     NamedTextColor.RED));
-            return;
+            return false;
         }
         if (!AuctionCommand.isLeaderOrOwner(buyerFaction, player.getUniqueId())) {
             player.sendMessage(Component.text(
                     "Only the faction owner or a leader can spend from the vault.",
                     NamedTextColor.RED));
-            return;
+            return false;
         }
         int balance = FactionVault.countGems(buyerFaction);
         if (balance < listing.price()) {
             player.sendMessage(Component.text(
                     "Your faction vault has " + balance + " rubies — need " + listing.price() + ".",
                     NamedTextColor.RED));
-            return;
+            return false;
         }
-        String sellerFactionName = FactionManager.getPlayerFaction(listing.seller());
-        Faction sellerFaction = sellerFactionName == null ? null : FactionManager.getFaction(sellerFactionName);
+        // Payment is routed to the listing's RECORDED faction (locked at creation).
+        // If that faction has been disbanded, the listing is orphaned — hidden from
+        // market display by getMarketListings, and any stray buy attempt fails here.
+        Faction sellerFaction = listing.factionName().isEmpty()
+                ? null : FactionManager.getFaction(listing.factionName());
         if (sellerFaction == null) {
             player.sendMessage(Component.text(
-                    "The seller no longer has a faction — purchase cannot complete.",
+                    "The seller's faction was disbanded — this listing cannot be bought.",
                     NamedTextColor.RED));
-            return;
+            return false;
         }
         // Re-check the listing wasn't removed/bought concurrently.
         if (AuctionManager.removeListing(listing.id()) == null) {
             player.sendMessage(Component.text("Listing was just taken — try another.", NamedTextColor.RED));
-            return;
+            return false;
         }
 
         if (!FactionVault.withdraw(buyerFaction, listing.price())) {
             // Race-safety refund: re-list (best-effort) and bail.
             AuctionManager.addListing(listing);
             player.sendMessage(Component.text("Payment failed — listing restored.", NamedTextColor.RED));
-            return;
+            return false;
         }
 
         int overflow = FactionVault.deposit(sellerFaction, listing.price());
@@ -173,6 +189,7 @@ public class AuctionConfirmGui implements AtlasGui {
         player.sendMessage(Component.text(
                 "Purchased for " + listing.price() + " ruby (paid from your faction vault).",
                 NamedTextColor.GREEN));
+        return true;
     }
 
     /** Main-hand → first free slot → drop at player feet. */

@@ -24,7 +24,6 @@ import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class AtlasCrystalManager {
 
