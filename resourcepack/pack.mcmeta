@@ -1,0 +1,8 @@
+{
+  "pack": {
+    "description": "Hatlas textures for Paper 1.21.11",
+    "_comment_": "Pack format for 1.21.11 is 75. Since 1.21.9 (format 69.0) the format now includes minor versions and uses min_format/max_format. Bump both when targeting a newer MC release.",
+    "min_format": 75,
+    "max_format": 75
+  }
+}

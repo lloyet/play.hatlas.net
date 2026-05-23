@@ -1,0 +1,19 @@
+# ============================================================
+# Ore Zone System
+# ============================================================
+# How often (in hours) the system automatically re-fills every ore zone
+# with a fresh randomised distribution of ores.
+interval_reset_hours: 1
+
+# Default relative weights used when a new ore zone is created.
+# Each ore is rolled independently per block — higher weight = more common.
+# These are *relative* values: scaling them up or down has no effect unless
+# the ratio between ores changes.
+default_ore_weights:
+  diamond: 3
+  gold:    8
+  emerald: 2
+  iron:    25
+  copper:  20
+  coal:    35
+  ruby:    7

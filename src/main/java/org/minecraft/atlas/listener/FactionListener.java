@@ -27,7 +27,6 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.Material;
 import org.bukkit.inventory.ItemStack;
@@ -68,25 +67,6 @@ public class FactionListener implements Listener {
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         DeathTeleportCooldownManager.onPlayerDeath(event.getEntity().getUniqueId());
-    }
-
-    /**
-     * If a player disconnects while the naming dialog is open, assign a generated fallback name.
-     */
-    @EventHandler
-    public void onPlayerQuit(PlayerQuitEvent event) {
-        Player player = event.getPlayer();
-        AtlasCrystal pending = AtlasCrystalManager.getPendingNaming(player.getUniqueId());
-        if (pending == null) return;
-
-        AtlasCrystalManager.clearPendingNaming(player.getUniqueId());
-        String fallback = "Crystal_" + pending.getEntityUUID().toString().substring(0, 6);
-        String candidate = fallback;
-        int i = 1;
-        while (AtlasCrystalManager.hasCrystalWithName(pending.getFactionName(), candidate)) {
-            candidate = fallback + "_" + i++;
-        }
-        AtlasCrystalManager.assignName(pending, candidate);
     }
 
     // -------------------------------------------------------------------------
@@ -317,6 +297,19 @@ public class FactionListener implements Listener {
 
             crystal.getWorld().playSound(crystal.getLocation(), Sound.BLOCK_BEACON_DEACTIVATE, SoundCategory.BLOCKS, 1.0f, 0.5f);
             crystal.getWorld().createExplosion(crystal.getLocation(), 3.0f, false, false);
+
+            // Scatter a slice of the vault rubies at the crystal location. Items are dropped
+            // AFTER the explosion so the blast can't destroy them. The drop is mutating: the
+            // faction's vault is decremented in-place and persisted to factions-data.yml.
+            if (faction != null) {
+                int dropCount = org.minecraft.atlas.faction.FactionVault.computeProtectionBreakDrop(faction);
+                if (dropCount > 0) {
+                    org.minecraft.atlas.faction.FactionVault.drop(faction, crystal.getLocation(), dropCount);
+                    FactionManager.saveFactions(org.minecraft.atlas.Atlas.factionsDataConfig);
+                    org.minecraft.atlas.Atlas.saveFactionsDataConfig();
+                }
+            }
+
             long immuneSecs = immunityMs / 1000L;
             String immuneStr = immuneSecs >= 60 ? (immuneSecs / 60) + "m " + (immuneSecs % 60) + "s" : immuneSecs + "s";
             TitleUtil.broadcastAlertBold(FactionManager.getOnlineFactionMembers(crystalFaction, null),

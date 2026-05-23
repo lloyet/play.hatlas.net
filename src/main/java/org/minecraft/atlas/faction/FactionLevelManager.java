@@ -20,6 +20,7 @@ public class FactionLevelManager {
     public record ProtectionTier(long durationMs, int cost) {}
     public record OutpostTier(int cost) {}
     public record HomeTier(int amount, int cost) {}
+    public record VaultTier(int size, int cost) {}
 
     private static List<HpTier>         hpTiers         = new ArrayList<>();
     private static List<ClaimTier>      claimTiers      = new ArrayList<>();
@@ -27,6 +28,12 @@ public class FactionLevelManager {
     private static List<ProtectionTier> protectionTiers = new ArrayList<>();
     private static OutpostTier          outpostTier     = null;
     private static List<HomeTier>       homeTiers       = new ArrayList<>();
+    private static List<VaultTier>      vaultTiers      = new ArrayList<>();
+
+    // ── Vault configuration ────────────────────────────────────────────────────
+    private static int    defaultVaultSize   = 5;
+    private static double vaultDropPercent   = 0.10;
+    private static int    vaultDropMin       = 10;
 
     static {
         expForLevel[0] = 0;
@@ -51,6 +58,14 @@ public class FactionLevelManager {
     public static List<ProtectionTier> getProtectionTiers() { return Collections.unmodifiableList(protectionTiers); }
     public static OutpostTier          getOutpostTier()     { return outpostTier; }
     public static List<HomeTier>       getHomeTiers()       { return Collections.unmodifiableList(homeTiers); }
+    public static List<VaultTier>      getVaultTiers()      { return Collections.unmodifiableList(vaultTiers); }
+
+    /** Default size given to new and pre-vault-skill factions. Configurable via {@code vault.default_size}. */
+    public static int    getDefaultVaultSize()   { return defaultVaultSize; }
+    /** Fraction (0..1) of vault gems dropped when crystal protection activates. */
+    public static double getVaultDropPercent()   { return vaultDropPercent; }
+    /** Floor for the protection-break drop — at least this many gems are dropped if available. */
+    public static int    getVaultDropMin()       { return vaultDropMin; }
 
     /**
      * Loads skill-point upgrade tiers from factions.yml. Call once from Atlas.onEnable.
@@ -59,7 +74,7 @@ public class FactionLevelManager {
      */
     public static void loadUpgrades(FileConfiguration config) {
         skillPointsPerLevel = config.getInt("skill_points_per_level", 1);
-        hpTiers.clear(); claimTiers.clear(); chestTiers.clear(); protectionTiers.clear(); homeTiers.clear();
+        hpTiers.clear(); claimTiers.clear(); chestTiers.clear(); protectionTiers.clear(); homeTiers.clear(); vaultTiers.clear();
         outpostTier = null;
 
         ConfigurationSection skills = config.getConfigurationSection("skills");
@@ -87,9 +102,21 @@ public class FactionLevelManager {
             if (m.get("amount") instanceof Number a && m.get("cost") instanceof Number c)
                 homeTiers.add(new HomeTier(a.intValue(), c.intValue()));
         }
+        for (Map<?, ?> m : skills.getMapList("vault")) {
+            if (m.get("size") instanceof Number s && m.get("cost") instanceof Number c)
+                vaultTiers.add(new VaultTier(s.intValue(), c.intValue()));
+        }
         ConfigurationSection outpostSection = skills.getConfigurationSection("outpost");
         if (outpostSection != null && outpostSection.contains("cost")) {
             outpostTier = new OutpostTier(outpostSection.getInt("cost"));
+        }
+
+        // Top-level vault config (not under skills) — default size and protection-break drop policy.
+        ConfigurationSection vaultCfg = config.getConfigurationSection("vault");
+        if (vaultCfg != null) {
+            defaultVaultSize = Math.max(1, vaultCfg.getInt("default_size", 5));
+            vaultDropPercent = Math.clamp(vaultCfg.getDouble("protection_break_drop_percent", 0.10), 0.0, 1.0);
+            vaultDropMin     = Math.max(0, vaultCfg.getInt("protection_break_drop_min", 10));
         }
     }
 }

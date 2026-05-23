@@ -25,6 +25,17 @@ public class GuiNavigator {
         }
     }
 
+    /**
+     * Discards the top entry without opening any inventory — used when the caller wants to
+     * replace the cached parent (e.g. after a mutation) with a freshly-constructed GUI.
+     * Returns the popped GUI, or null if the stack was empty.
+     */
+    public static AtlasGui pop(UUID playerUUID) {
+        Deque<AtlasGui> stack = stacks.get(playerUUID);
+        if (stack == null || stack.isEmpty()) return null;
+        return stack.pop();
+    }
+
     public static void clear(UUID playerUUID) {
         stacks.remove(playerUUID);
     }
