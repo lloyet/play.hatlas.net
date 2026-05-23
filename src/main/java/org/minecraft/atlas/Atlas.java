@@ -61,6 +61,8 @@ import org.minecraft.atlas.listener.RubyRestrictionListener;
 import org.minecraft.atlas.listener.AuctionNpcListener;
 import org.minecraft.atlas.auction.AuctionManager;
 import org.minecraft.atlas.command.AuctionCommand;
+import org.minecraft.atlas.command.OreZoneCommand;
+import org.minecraft.atlas.orezone.OreZoneManager;
 import org.minecraft.atlas.util.AfkManager;
 import org.minecraft.atlas.util.ItemClearManager;
 import org.minecraft.atlas.util.NpcLookHelper;
@@ -121,6 +123,12 @@ public final class Atlas extends JavaPlugin {
 
     public static YamlConfiguration auctionsDataConfig;
     public static File auctionsDataFile;
+
+    public static YamlConfiguration orezonesConfig;
+    public static File orezonesFile;
+
+    public static YamlConfiguration orezonesDataConfig;
+    public static File orezonesDataFile;
 
     @Override
     public void onEnable() {
@@ -194,6 +202,14 @@ public final class Atlas extends JavaPlugin {
         auctionsDataFile = new File(getDataFolder(), "auctions-data.yml");
         auctionsDataConfig = YamlConfiguration.loadConfiguration(auctionsDataFile);
 
+        // orezones.yml — ore-zone refill tuning (defaults, interval)
+        orezonesFile = new File(getDataFolder(), "orezones.yml");
+        if (!orezonesFile.exists()) saveResource("orezones.yml", false);
+        orezonesConfig = YamlConfiguration.loadConfiguration(orezonesFile);
+
+        orezonesDataFile = new File(getDataFolder(), "orezones-data.yml");
+        orezonesDataConfig = YamlConfiguration.loadConfiguration(orezonesDataFile);
+
         // Load from config / data files
         AtlasCrystalManager.loadConfig(factionsConfig);
         SafeZoneManager.loadConfig(safezonesDataConfig);
@@ -237,6 +253,8 @@ public final class Atlas extends JavaPlugin {
         RubyBlockManager.loadConfig(blocksDataConfig);
         AuctionManager.loadConfig(auctionsConfig);
         AuctionManager.loadData(auctionsDataConfig);
+        OreZoneManager.loadConfig(orezonesConfig);
+        OreZoneManager.load(orezonesDataConfig);
         ResourcePackManager.loadConfig(configFile);
         TagManager.init();
         TagManager.loadTags(tagsDataConfig);
@@ -273,6 +291,7 @@ public final class Atlas extends JavaPlugin {
         CombatLogManager.schedule(this);
         FactionClaimBorderRenderer.schedule(this);
         NpcLookHelper.schedule(this);
+        OreZoneManager.schedule(this);
 
         // Register all commands
         this.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS,
@@ -295,6 +314,7 @@ public final class Atlas extends JavaPlugin {
                         event.registrar().register(HomeCommand.buildDelHome());
                         event.registrar().register(ItemCommand.build());
                         event.registrar().register(AuctionCommand.build());
+                        event.registrar().register(OreZoneCommand.build());
                     }
                 }
         );
@@ -353,6 +373,10 @@ public final class Atlas extends JavaPlugin {
         AuctionManager.saveData(auctionsDataConfig);
         saveAuctionsDataConfig();
 
+        // Save to orezones-data.yml
+        OreZoneManager.save(orezonesDataConfig);
+        saveOrezonesDataConfig();
+
         getLogger().info("Atlas disabled.");
     }
 
@@ -377,6 +401,14 @@ public final class Atlas extends JavaPlugin {
             auctionsDataConfig.save(auctionsDataFile);
         } catch (IOException e) {
             instance.getLogger().severe("Could not save auctions-data.yml: " + e.getMessage());
+        }
+    }
+
+    public static void saveOrezonesDataConfig() {
+        try {
+            orezonesDataConfig.save(orezonesDataFile);
+        } catch (IOException e) {
+            instance.getLogger().severe("Could not save orezones-data.yml: " + e.getMessage());
         }
     }
 

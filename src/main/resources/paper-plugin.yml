@@ -160,3 +160,6 @@ permissions:
   atlas.auction.npc:
     description: Spawn the auctioneer NPC via /auction npc spawn
     default: op
+  atlas.orezone.admin:
+    description: Manage ore zones via /orezone (pos1, pos2, add, remove, reset, list)
+    default: op

@@ -1,6 +1,8 @@
 package org.minecraft.atlas.listener;
 
 import io.papermc.paper.event.player.PlayerPickBlockEvent;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.Effect;
@@ -36,6 +38,8 @@ import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.block.RubyBlockManager;
 import org.minecraft.atlas.Item.RubyItem;
 import org.minecraft.atlas.donjon.ElectricalCreeperManager;
+import org.minecraft.atlas.faction.FactionClaimManager;
+import org.minecraft.atlas.faction.FactionManager;
 
 import java.util.Map;
 import java.util.Set;
@@ -65,7 +69,30 @@ public final class BlockListener implements Listener {
         ItemStack inHand = event.getItemInHand();
         String customId = RubyBlockManager.customBlockIdForItem(inHand);
         if (customId == null) return;
+        Player player = event.getPlayer();
+        if (!canPlaceRubyAt(player, event.getBlockPlaced().getChunk())) {
+            event.setCancelled(true);
+            player.sendActionBar(rubyClaimDenialMessage());
+            return;
+        }
         RubyBlockManager.placeAt(event.getBlockPlaced(), customId);
+    }
+
+    /**
+     * Ruby blocks/ores may only be placed inside a chunk claimed by the player's
+     * own faction. Unclaimed chunks and other-faction chunks are both rejected.
+     */
+    private static boolean canPlaceRubyAt(Player player, Chunk chunk) {
+        String playerFaction = FactionManager.getPlayerFaction(player.getUniqueId());
+        if (playerFaction == null) return false;
+        String owner = FactionClaimManager.getClaimingFaction(
+                chunk.getWorld().getName(), chunk.getX(), chunk.getZ());
+        return playerFaction.equals(owner);
+    }
+
+    private static Component rubyClaimDenialMessage() {
+        return Component.text("⚔ Ruby blocks can only be placed in your faction's claim!",
+                NamedTextColor.RED);
     }
 
     /**
@@ -197,6 +224,10 @@ public final class BlockListener implements Listener {
 
         String heldId = RubyBlockManager.customBlockIdForItem(hand);
         if (heldId != null) {
+            if (!canPlaceRubyAt(player, target.getChunk())) {
+                player.sendActionBar(rubyClaimDenialMessage());
+                return;
+            }
             RubyBlockManager.placeAt(target, heldId);
             target.getWorld().playSound(target.getLocation().toCenterLocation(),
                     Sound.BLOCK_STONE_PLACE, 1.0f, 1.0f);
