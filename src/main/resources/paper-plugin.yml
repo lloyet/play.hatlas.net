@@ -4,13 +4,14 @@ main: org.minecraft.atlas.Atlas
 api-version: '1.21'
 load: POSTWORLD
 
-# Optional — declare if you depend on other plugins:
-# dependencies:
-#   server:
-#     SomePlugin:
-#       load: BEFORE          # BEFORE | AFTER | OMIT
-#       required: true        # plugin won't load without it
-#       join-classpath: true  # share classes (rarely needed under isolated loaders)
+# packetevents must load before us (locator-bar filter registers against its API) and
+# share its classes with our isolated Paper-plugin classloader.
+dependencies:
+  server:
+    packetevents:
+      load: BEFORE
+      required: true
+      join-classpath: true
 
 permissions:
   atlas.quest:
