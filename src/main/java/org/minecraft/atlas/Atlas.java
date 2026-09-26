@@ -1,5 +1,6 @@
 package org.minecraft.atlas;
 
+import com.github.retrooper.packetevents.PacketEvents;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.handler.LifecycleEventHandler;
 import io.papermc.paper.plugin.lifecycle.event.registrar.ReloadableRegistrarEvent;
@@ -59,6 +60,7 @@ import org.minecraft.atlas.Item.RubyItem;
 import org.minecraft.atlas.listener.BlockListener;
 import org.minecraft.atlas.listener.RubyRestrictionListener;
 import org.minecraft.atlas.listener.AuctionNpcListener;
+import org.minecraft.atlas.listener.LocatorBarListener;
 import org.minecraft.atlas.auction.AuctionManager;
 import org.minecraft.atlas.command.AuctionCommand;
 import org.minecraft.atlas.command.OreZoneCommand;
@@ -133,6 +135,10 @@ public final class Atlas extends JavaPlugin {
     @Override
     public void onEnable() {
         instance = this;
+
+        // Locator-bar faction filter. packetevents runs as its own plugin and owns the API
+        // lifecycle (load/init/terminate) — we only register our listener against it.
+        PacketEvents.getAPI().getEventManager().registerListener(new LocatorBarListener());
 
         // config.yml — tpa, spawn/random teleport, AFK, death-teleport cooldown
         saveDefaultConfig();

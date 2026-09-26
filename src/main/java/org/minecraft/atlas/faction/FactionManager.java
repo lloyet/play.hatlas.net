@@ -9,6 +9,7 @@ import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.crystal.AtlasCrystal;
 import org.minecraft.atlas.crystal.AtlasCrystalManager;
 import org.minecraft.atlas.job.JobManager;
+import org.minecraft.atlas.listener.LocatorBarListener;
 import org.minecraft.atlas.teleport.HomeManager;
 
 import java.util.*;
@@ -39,6 +40,7 @@ public class FactionManager {
         if (factionName == null) return false;
         Faction faction = factions.get(factionName);
         if (!faction.getOwner().equals(requesterUUID)) return false;
+        List<UUID> formerMembers = getFactionPlayers(factionName);
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
         faction.getMembers().forEach(uuid -> {
@@ -50,6 +52,7 @@ public class FactionManager {
         playerFaction.remove(requesterUUID);
         forfeitSecondaryHomes(requesterUUID);
         factions.remove(factionName);
+        LocatorBarListener.refresh(formerMembers);
         return true;
     }
 
@@ -94,6 +97,7 @@ public class FactionManager {
         if (faction == null) return null;
         faction.addMember(playerUUID);
         playerFaction.put(playerUUID, factionName);
+        LocatorBarListener.refresh(getFactionPlayers(factionName));
         return factionName;
     }
 
@@ -104,6 +108,7 @@ public class FactionManager {
         if (faction == null) return false;
         faction.addMember(playerUUID);
         playerFaction.put(playerUUID, factionName);
+        LocatorBarListener.refresh(getFactionPlayers(factionName));
         return true;
     }
 
@@ -118,11 +123,13 @@ public class FactionManager {
         if (factionName == null) return false;
         Faction faction = factions.get(factionName);
         if (faction.getOwner().equals(playerUUID)) return false;
+        List<UUID> affected = getFactionPlayers(factionName);
         faction.removeMember(playerUUID);
         faction.removeRole(playerUUID);
         playerFaction.remove(playerUUID);
         JobManager.removeJob(playerUUID);
         forfeitSecondaryHomes(playerUUID);
+        LocatorBarListener.refresh(affected);
         return true;
     }
 
@@ -140,11 +147,13 @@ public class FactionManager {
             if (requesterRole == FactionRole.MODERATOR && targetRole != FactionRole.MEMBER) return false;
             if (requesterRole == FactionRole.LEADER && targetRole == FactionRole.LEADER) return false;
         }
+        List<UUID> affected = getFactionPlayers(factionName);
         faction.removeMember(targetUUID);
         faction.removeRole(targetUUID);
         playerFaction.remove(targetUUID);
         JobManager.removeJob(targetUUID);
         forfeitSecondaryHomes(targetUUID);
+        LocatorBarListener.refresh(affected);
         return true;
     }
 
@@ -279,6 +288,7 @@ public class FactionManager {
     public static void disbandFaction(String factionName) {
         Faction faction = factions.get(factionName);
         if (faction == null) return;
+        List<UUID> formerMembers = getFactionPlayers(factionName);
         AtlasCrystalManager.removeAllForFaction(factionName);
         FactionClaimManager.removeAllClaims(factionName);
         faction.getMembers().forEach(uuid -> {
@@ -290,6 +300,7 @@ public class FactionManager {
         playerFaction.remove(faction.getOwner());
         forfeitSecondaryHomes(faction.getOwner());
         factions.remove(factionName);
+        LocatorBarListener.refresh(formerMembers);
     }
 
     /**

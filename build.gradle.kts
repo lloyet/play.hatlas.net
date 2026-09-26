@@ -6,10 +6,16 @@ plugins {
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://repo.codemc.io/repository/maven-releases/")
 }
 
 dependencies {
     compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
+
+    // Locator-bar packet interception. packetevents runs as its own server plugin
+    // (declared as a dependency in paper-plugin.yml), so it is compile-only here — we
+    // never bundle or manage its lifecycle, we just register a listener against it.
+    compileOnly("com.github.retrooper:packetevents-spigot:2.14.0")
 }
 
 java {
