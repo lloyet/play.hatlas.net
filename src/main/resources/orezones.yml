@@ -11,9 +11,10 @@ interval_reset_hours: 1
 # the ratio between ores changes.
 default_ore_weights:
   diamond: 3
-  gold:    8
+  gold: 8
   emerald: 2
-  iron:    25
-  copper:  20
-  coal:    35
-  ruby:    7
+  iron: 25
+  copper: 20
+  coal: 35
+  ruby: 7
+  stone: 55
