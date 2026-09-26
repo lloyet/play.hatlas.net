@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.minecraft.atlas.Atlas;
 import org.minecraft.atlas.crystal.AtlasCrystal;
 import org.minecraft.atlas.crystal.AtlasCrystalManager;
+import org.minecraft.atlas.Item.RubyItem;
 import org.minecraft.atlas.faction.Faction;
 import org.minecraft.atlas.faction.FactionLevelManager;
 import org.minecraft.atlas.faction.FactionManager;
@@ -39,7 +40,7 @@ import java.util.UUID;
 public class CrystalSkillListGui implements AtlasGui {
 
     /** Skill kinds in canonical display order. The GUI shows up to {@link #ROWS_PER_PAGE} per page. */
-    private enum SkillKind { HP, CLAIMS, CHEST, PROTECTION, HOMES, OUTPOST }
+    private enum SkillKind { HP, CLAIMS, CHEST, PROTECTION, HOMES, VAULT, OUTPOST }
 
     private static final int ROWS_PER_PAGE   = 4;
     private static final int SLOT_SP_INFO    = 4;
@@ -186,6 +187,18 @@ public class CrystalSkillListGui implements AtlasGui {
                 if (denyForCost(player, faction, tier.cost())) return;
                 openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.HOMES, tierIdx);
             }
+            case VAULT -> {
+                List<FactionLevelManager.VaultTier> tiers = FactionLevelManager.getVaultTiers();
+                if (tierIdx >= tiers.size()) return;
+                if (faction.hasPurchasedVaultTier(tierIdx)) {
+                    player.sendMessage(Component.text(
+                            "This vault tier is already purchased.", NamedTextColor.YELLOW));
+                    return;
+                }
+                FactionLevelManager.VaultTier tier = tiers.get(tierIdx);
+                if (denyForCost(player, faction, tier.cost())) return;
+                openConfirm(player, fn, CrystalSkillConfirmGui.SkillPurchaseType.VAULT, tierIdx);
+            }
             case OUTPOST -> {
                 if (tierIdx != 0) return;
                 FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
@@ -244,6 +257,11 @@ public class CrystalSkillListGui implements AtlasGui {
                 for (int i = 0; i < tiers.size(); i++)
                     inventory.setItem(rowStart + i, buildHomeTierItem(tiers.get(i), i, sp, faction));
             }
+            case VAULT -> {
+                List<FactionLevelManager.VaultTier> tiers = FactionLevelManager.getVaultTiers();
+                for (int i = 0; i < tiers.size(); i++)
+                    inventory.setItem(rowStart + i, buildVaultTierItem(tiers.get(i), i, sp, faction));
+            }
             case OUTPOST -> {
                 FactionLevelManager.OutpostTier tier = FactionLevelManager.getOutpostTier();
                 if (tier != null) {
@@ -261,6 +279,7 @@ public class CrystalSkillListGui implements AtlasGui {
         if (!FactionLevelManager.getChestTiers().isEmpty())      defined.add(SkillKind.CHEST);
         if (!FactionLevelManager.getProtectionTiers().isEmpty()) defined.add(SkillKind.PROTECTION);
         if (!FactionLevelManager.getHomeTiers().isEmpty())       defined.add(SkillKind.HOMES);
+        if (!FactionLevelManager.getVaultTiers().isEmpty())      defined.add(SkillKind.VAULT);
         if (FactionLevelManager.getOutpostTier() != null)        defined.add(SkillKind.OUTPOST);
         return defined;
     }
@@ -421,6 +440,42 @@ public class CrystalSkillListGui implements AtlasGui {
     /** Drops the trailing ".0" on whole numbers (e.g. 3.0 → "3", 1.5 → "1.5"). */
     private static String formatRegen(double v) {
         return v == Math.floor(v) ? String.valueOf((int) v) : String.valueOf(v);
+    }
+
+    private static ItemStack buildVaultTierItem(FactionLevelManager.VaultTier tier, int index,
+                                                int availableSp, Faction faction) {
+        boolean owned = faction.hasPurchasedVaultTier(index);
+        boolean canAfford = availableSp >= tier.cost();
+        NamedTextColor color =
+                owned     ? NamedTextColor.AQUA  :
+                canAfford ? NamedTextColor.GREEN : NamedTextColor.RED;
+
+        // Tiers 1-2 (indexes 0-1) use the ruby gem icon; tiers 3-4 (indexes 2-3) the ruby block.
+        ItemStack item = index <= 1 ? RubyItem.get("ruby") : RubyItem.get("ruby_block");
+        ItemMeta meta = item.getItemMeta();
+        if (owned) meta.setEnchantmentGlintOverride(true);
+        meta.displayName(Component.text("Vault Upgrade #" + (index + 1), color)
+                .decoration(TextDecoration.ITALIC, false));
+
+        List<Component> lore = new ArrayList<>();
+        lore.add(Component.empty());
+        lore.add(GuiUtil.loreLine("Vault Size", tier.size() + " slots",
+                tier.size() >= 54 ? NamedTextColor.GOLD : NamedTextColor.YELLOW));
+        lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+        lore.add(Component.empty());
+        if (owned) {
+            lore.add(Component.text("  ✔ Already purchased", NamedTextColor.AQUA)
+                    .decoration(TextDecoration.ITALIC, false));
+        } else {
+            lore.add(Component.text("  Each tier can be purchased once.", NamedTextColor.GRAY)
+                    .decoration(TextDecoration.ITALIC, false));
+            lore.add(Component.text(canAfford ? "  Click to purchase" : "  Not enough skill points", color)
+                    .decoration(TextDecoration.ITALIC, false));
+        }
+
+        meta.lore(lore);
+        item.setItemMeta(meta);
+        return item;
     }
 
     private static ItemStack buildClaimTierItem(FactionLevelManager.ClaimTier tier, int index, int availableSp) {

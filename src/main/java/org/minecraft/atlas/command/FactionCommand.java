@@ -9,15 +9,7 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
 import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
-import io.papermc.paper.dialog.Dialog;
-import io.papermc.paper.registry.data.dialog.ActionButton;
-import io.papermc.paper.registry.data.dialog.DialogBase;
-import io.papermc.paper.registry.data.dialog.action.DialogAction;
-import io.papermc.paper.registry.data.dialog.body.DialogBody;
-import io.papermc.paper.registry.data.dialog.input.DialogInput;
-import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.event.ClickCallback;
 import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
@@ -148,6 +140,13 @@ public class FactionCommand {
                     .append(Component.text("Skill Points: ", NamedTextColor.GRAY))
                     .append(Component.text(String.valueOf(faction.getSkillPoints()), NamedTextColor.LIGHT_PURPLE));
 
+            // Vault ruby balance — shown only to own faction members
+            int rubyGems = org.minecraft.atlas.faction.FactionVault.countGems(faction);
+            msg = msg.append(Component.newline())
+                    .append(Component.text("Vault Balance: ", NamedTextColor.GRAY))
+                    .append(Component.text(rubyGems + (rubyGems == 1 ? " ruby gem" : " ruby gems"),
+                            NamedTextColor.RED));
+
             // Territory info — only visible to own faction members
             int totalClaims    = AtlasCrystalManager.getTotalClaimedChunks(faction.getName());
             int totalCapacity  = AtlasCrystalManager.getTotalClaimCapacity(faction.getName());
@@ -238,66 +237,6 @@ public class FactionCommand {
         return s + "s";
     }
 
-    // -------------------------------------------------------------------------
-    // Atlas Crystal naming dialog
-    // -------------------------------------------------------------------------
-
-    static void openNamingDialog(Player player, AtlasCrystal pending, String errorMsg) {
-        List<DialogBody> body = new ArrayList<>();
-        if (errorMsg != null) {
-            body.add(DialogBody.plainMessage(Component.text(errorMsg, NamedTextColor.RED)));
-        }
-        body.add(DialogBody.plainMessage(
-                Component.text("Enter a unique name (single word, no spaces).", NamedTextColor.GRAY)));
-
-        DialogBase base = DialogBase.builder(Component.text("Name Your Atlas Crystal", NamedTextColor.GOLD))
-                .canCloseWithEscape(false)
-                .afterAction(DialogBase.DialogAfterAction.CLOSE)
-                .body(body)
-                .inputs(List.of(
-                        DialogInput.text("name", Component.text("Crystal Name"))
-                                .maxLength(32)
-                                .initial("")
-                                .labelVisible(true)
-                                .build()
-                ))
-                .build();
-
-        ActionButton submitButton = ActionButton.builder(Component.text("Confirm", NamedTextColor.GREEN))
-                .width(200)
-                .action(DialogAction.customClick((response, audience) -> {
-                    String name = response.getText("name");
-                    if (name == null || name.isBlank()) {
-                        openNamingDialog(player, pending, "Name cannot be empty.");
-                        return;
-                    }
-                    if (name.contains(" ")) {
-                        openNamingDialog(player, pending, "Name cannot contain spaces.");
-                        return;
-                    }
-                    if (AtlasCrystalManager.hasCrystalWithName(pending.getFactionName(), name)) {
-                        openNamingDialog(player, pending, "'" + name + "' is already taken.");
-                        return;
-                    }
-                    AtlasCrystalManager.clearPendingNaming(player.getUniqueId());
-                    AtlasCrystalManager.assignName(pending, name.trim());
-                    player.sendMessage(Component.text(
-                            "Atlas Crystal named '" + name + "'!", NamedTextColor.GREEN));
-                    FactionManager.broadcastToFaction(pending.getFactionName(),
-                            Component.text("Atlas Crystal '" + name + "' has been placed by "
-                                    + player.getName() + "!", NamedTextColor.GOLD),
-                            player.getUniqueId());
-                }, ClickCallback.Options.builder().uses(ClickCallback.UNLIMITED_USES).build()))
-                .build();
-
-        Dialog dialog = Dialog.create(factory ->
-                factory.empty()
-                        .base(base)
-                        .type(DialogType.multiAction(List.of(submitButton), null, 1))
-        );
-
-        player.showDialog(dialog);
-    }
 
     // -------------------------------------------------------------------------
     // Command tree
@@ -424,11 +363,15 @@ public class FactionCommand {
                                     FactionClaimManager.initializeClaim(name,
                                             player.getWorld().getName(), chunk.getX(), chunk.getZ());
 
-                                    // Open naming dialog
-                                    AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
-                                    openNamingDialog(player, atlasCrystal, null);
-                                    player.sendMessage(info("Once named, use /faction sethome <crystal> to set the home location."));
+                                    // Auto-name the founding crystal "main"; player can shift-click
+                                    // the nether-star in CrystalMainGui later to rename.
+                                    AtlasCrystalManager.assignName(atlasCrystal, "main");
+                                    // Auto-set faction home to the player's current spot (same chunk
+                                    // as the crystal — avoids spawning the home inside the entity).
+                                    atlasCrystal.setHome(player.getLocation());
+                                    AtlasCrystalManager.saveHome(atlasCrystal);
 
+                                    player.sendMessage(success("Crystal 'main' placed and faction home set to your location."));
                                     return Command.SINGLE_SUCCESS;
                                 })))
                 // ----- invite -----
@@ -1380,10 +1323,18 @@ public class FactionCommand {
                             atlasCrystal.setOutpost(true);
                             FactionClaimManager.claimChunk(factionName,
                                     player.getWorld().getName(), chunk.getX(), chunk.getZ());
-                            AtlasCrystalManager.setPendingNaming(player.getUniqueId(), atlasCrystal);
-                            openNamingDialog(player, atlasCrystal, null);
-                            player.sendMessage(success("Outpost crystal placed! Name it to complete setup."));
-                            player.sendMessage(info("Once named, use /faction sethome <crystal> to set its home location."));
+
+                            // Auto-name the outpost. Pick a unique suffix if "outpost" is taken
+                            // — outposts are capped at 1 per faction today, but stay resilient.
+                            String outpostName = "outpost";
+                            int suffix = 2;
+                            while (AtlasCrystalManager.hasCrystalWithName(factionName, outpostName)) {
+                                outpostName = "outpost-" + suffix++;
+                            }
+                            AtlasCrystalManager.assignName(atlasCrystal, outpostName);
+
+                            player.sendMessage(success("Outpost crystal '" + outpostName + "' placed!"));
+                            player.sendMessage(info("Use /faction sethome " + outpostName + " to set its home location."));
                             FactionManager.broadcastToFaction(factionName,
                                     info(player.getName() + " placed a faction outpost crystal!"),
                                     player.getUniqueId());
@@ -1627,6 +1578,30 @@ public class FactionCommand {
                                     }
                                     return Command.SINGLE_SUCCESS;
                                 })))
+                // ----- balance -----
+                .then(Commands.literal("balance")
+                        .requires(src -> src.getSender().hasPermission("atlas.faction.balance"))
+                        .executes(ctx -> {
+                            Entity executor = ctx.getSource().getExecutor();
+                            if (!(executor instanceof Player player)) {
+                                ctx.getSource().getSender().sendMessage(error("Only players can run this command."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            String fn = FactionManager.getPlayerFaction(player.getUniqueId());
+                            if (fn == null) {
+                                player.sendMessage(error("You are not in any faction."));
+                                return Command.SINGLE_SUCCESS;
+                            }
+                            Faction faction = FactionManager.getFaction(fn);
+                            int gems = org.minecraft.atlas.faction.FactionVault.countGems(faction);
+                            Component msg = Component.text("[", NamedTextColor.GRAY)
+                                    .append(Component.text(faction.getName(), faction.getColor()))
+                                    .append(Component.text("] vault holds ", NamedTextColor.GRAY))
+                                    .append(Component.text(String.valueOf(gems), NamedTextColor.RED))
+                                    .append(Component.text(gems == 1 ? " ruby gem." : " ruby gems.", NamedTextColor.GRAY));
+                            player.sendMessage(msg);
+                            return Command.SINGLE_SUCCESS;
+                        }))
                 .build();
     }
 }

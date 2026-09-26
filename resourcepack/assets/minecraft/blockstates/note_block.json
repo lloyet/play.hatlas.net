@@ -1,0 +1,11 @@
+{
+  "variants": {
+    "": { "model": "minecraft:block/note_block" },
+    "instrument=pling,note=0,powered=false": { "model": "hatlas:block/ruby_block" },
+    "instrument=pling,note=0,powered=true":  { "model": "hatlas:block/ruby_block" },
+    "instrument=pling,note=1,powered=false": { "model": "hatlas:block/ruby_ore" },
+    "instrument=pling,note=1,powered=true":  { "model": "hatlas:block/ruby_ore" },
+    "instrument=pling,note=2,powered=false": { "model": "hatlas:block/deepslate_ruby_ore" },
+    "instrument=pling,note=2,powered=true":  { "model": "hatlas:block/deepslate_ruby_ore" }
+  }
+}

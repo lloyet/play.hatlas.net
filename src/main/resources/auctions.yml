@@ -1,0 +1,5 @@
+# Auction-system tuning.
+
+# Maximum number of concurrent listings a single player can have on the market.
+# /auction sell is rejected when the seller already has this many open listings.
+max_listings_per_player: 5

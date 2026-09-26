@@ -227,6 +227,7 @@ public class JobCommand {
             return;
         }
         player.getWorld().spawn(player.getLocation(), Villager.class, v -> {
+            v.setVillagerType(Villager.Type.SAVANNA);
             v.setProfession(job.getProfession());
             v.setAI(false);
             v.setInvulnerable(true);

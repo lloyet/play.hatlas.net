@@ -7,6 +7,16 @@ faction_home:
 # Increase to reward players with more points per level.
 skill_points_per_level: 1
 
+# Faction vault — the ruby-only shared chest accessible via the Crystal main GUI.
+vault:
+  # Slots a faction starts with before any vault upgrade is purchased.
+  default_size: 5
+  # When an enemy player breaks a crystal's protection (HP → 0 but immunity available),
+  # this fraction of the vault's ruby gems is dropped at the crystal's location.
+  protection_break_drop_percent: 0.15
+  # ...but never fewer than this many gems (capped to whatever the vault actually holds).
+  protection_break_drop_min: 10
+
 # Skill upgrade prices — each entry is a purchasable tier that faction members
 # can buy via the Atlas Crystal skill GUI, spending faction skill points.
 #
@@ -69,6 +79,17 @@ skills:
       cost: 15
   outpost:
     cost: 15
+  # Vault upgrades — expand the faction's ruby-only shared vault. Default size is 5.
+  # Icons: tiers 1-2 use the ruby gem, tiers 3-4 use the ruby block.
+  vault:
+    - size: 9
+      cost: 1
+    - size: 18
+      cost: 3
+    - size: 27
+      cost: 5
+    - size: 54
+      cost: 9
 
 # Atlas Crystal settings
 crystal:

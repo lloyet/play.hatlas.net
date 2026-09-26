@@ -1,6 +1,7 @@
 package org.minecraft.atlas.faction;
 
 import net.kyori.adventure.text.format.NamedTextColor;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 
@@ -23,6 +24,11 @@ public class Faction {
 
     /** Indices into FactionLevelManager.getHomeTiers() that this faction has purchased. */
     private final Set<Integer> purchasedHomeTiers = new LinkedHashSet<>();
+
+    /** Indices into FactionLevelManager.getVaultTiers() that this faction has purchased. */
+    private final Set<Integer> purchasedVaultTiers = new LinkedHashSet<>();
+    private int vaultSize = FactionLevelManager.getDefaultVaultSize();
+    private ItemStack[] vaultContents = new ItemStack[FactionLevelManager.getDefaultVaultSize()];
 
     private final Set<String> allies = new HashSet<>();
 
@@ -77,6 +83,37 @@ public class Faction {
     public Set<Integer> getPurchasedHomeTiers() { return purchasedHomeTiers; }
     public boolean hasPurchasedHomeTier(int index) { return purchasedHomeTiers.contains(index); }
     public boolean addPurchasedHomeTier(int index) { return purchasedHomeTiers.add(index); }
+
+    public Set<Integer> getPurchasedVaultTiers() { return purchasedVaultTiers; }
+    public boolean hasPurchasedVaultTier(int index) { return purchasedVaultTiers.contains(index); }
+    public boolean addPurchasedVaultTier(int index) { return purchasedVaultTiers.add(index); }
+
+    public int getVaultSize() { return vaultSize; }
+
+    /** Sets the vault size, expanding (or truncating) the contents array preserving existing items. */
+    public void setVaultSize(int newSize) {
+        if (newSize <= 0 || newSize == vaultSize) return;
+        ItemStack[] resized = new ItemStack[newSize];
+        int copy = Math.min(vaultContents.length, newSize);
+        System.arraycopy(vaultContents, 0, resized, 0, copy);
+        this.vaultContents = resized;
+        this.vaultSize = newSize;
+    }
+
+    /** Returns the live vault contents array — caller may mutate. Length always equals vaultSize. */
+    public ItemStack[] getVaultContents() { return vaultContents; }
+
+    public void setVaultContents(ItemStack[] contents) {
+        if (contents == null) return;
+        if (contents.length == vaultSize) {
+            this.vaultContents = contents;
+            return;
+        }
+        ItemStack[] resized = new ItemStack[vaultSize];
+        int copy = Math.min(contents.length, vaultSize);
+        System.arraycopy(contents, 0, resized, 0, copy);
+        this.vaultContents = resized;
+    }
 
     /** Sum of {@code amount()} across all purchased home tiers. Each member's home cap is 1 + this. */
     public int getBonusHomes() {

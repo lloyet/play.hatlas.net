@@ -382,6 +382,23 @@ public class FactionManager {
             if (faction.isOutpostUnlocked()) s.set("outpost_unlocked", true);
             if (!faction.getPurchasedHomeTiers().isEmpty())
                 s.set("purchased_home_tiers", new ArrayList<>(faction.getPurchasedHomeTiers()));
+            if (!faction.getPurchasedVaultTiers().isEmpty())
+                s.set("purchased_vault_tiers", new ArrayList<>(faction.getPurchasedVaultTiers()));
+            if (faction.getVaultSize() != FactionLevelManager.getDefaultVaultSize())
+                s.set("vault_size", faction.getVaultSize());
+            org.bukkit.inventory.ItemStack[] vault = faction.getVaultContents();
+            boolean hasContents = false;
+            for (org.bukkit.inventory.ItemStack stack : vault) {
+                if (stack != null && stack.getType() != org.bukkit.Material.AIR) { hasContents = true; break; }
+            }
+            if (hasContents) {
+                ConfigurationSection vaultSec = s.createSection("vault_contents");
+                for (int i = 0; i < vault.length; i++) {
+                    if (vault[i] != null && vault[i].getType() != org.bukkit.Material.AIR) {
+                        vaultSec.set(String.valueOf(i), vault[i]);
+                    }
+                }
+            }
         }
     }
 
@@ -439,6 +456,21 @@ public class FactionManager {
             faction.setDowngradeWindowEndMs(s.getLong("downgrade_window_end", 0L));
             faction.setOutpostUnlocked(s.getBoolean("outpost_unlocked", false));
             for (int idx : s.getIntegerList("purchased_home_tiers")) faction.addPurchasedHomeTier(idx);
+            for (int idx : s.getIntegerList("purchased_vault_tiers")) faction.addPurchasedVaultTier(idx);
+
+            int defaultVaultSize = FactionLevelManager.getDefaultVaultSize();
+            int savedVaultSize = s.getInt("vault_size", defaultVaultSize);
+            if (savedVaultSize != defaultVaultSize) faction.setVaultSize(savedVaultSize);
+            ConfigurationSection vaultSec = s.getConfigurationSection("vault_contents");
+            if (vaultSec != null) {
+                org.bukkit.inventory.ItemStack[] vault = faction.getVaultContents();
+                for (String slotStr : vaultSec.getKeys(false)) {
+                    try {
+                        int slot = Integer.parseInt(slotStr);
+                        if (slot >= 0 && slot < vault.length) vault[slot] = vaultSec.getItemStack(slotStr);
+                    } catch (NumberFormatException ignored) {}
+                }
+            }
 
             factions.put(factionName, faction);
         }

@@ -22,7 +22,7 @@ import java.util.UUID;
 
 public class CrystalSkillConfirmGui implements AtlasGui {
 
-    public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST, HOMES }
+    public enum SkillPurchaseType { HP, CLAIMS, CHEST, PROTECTION, OUTPOST, HOMES, VAULT }
 
     private final String factionName;
     private final UUID crystalEntityUUID;
@@ -98,6 +98,12 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                     List<FactionLevelManager.HomeTier> tiers = FactionLevelManager.getHomeTiers();
                     if (tierIndex >= tiers.size()) yield false;
                     yield AtlasCrystalManager.purchaseHomeUpgrade(factionName, crystalEntityUUID,
+                            tiers.get(tierIndex), tierIndex);
+                }
+                case VAULT -> {
+                    List<FactionLevelManager.VaultTier> tiers = FactionLevelManager.getVaultTiers();
+                    if (tierIndex >= tiers.size()) yield false;
+                    yield AtlasCrystalManager.purchaseVaultUpgrade(factionName, crystalEntityUUID,
                             tiers.get(tierIndex), tierIndex);
                 }
             };
@@ -189,6 +195,16 @@ public class CrystalSkillConfirmGui implements AtlasGui {
                             .decoration(TextDecoration.ITALIC, false));
                     lore.add(GuiUtil.loreLine("Bonus Homes",
                             "+" + tier.amount() + " per member", NamedTextColor.AQUA));
+                    lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
+                }
+            }
+            case VAULT -> {
+                List<FactionLevelManager.VaultTier> tiers = FactionLevelManager.getVaultTiers();
+                if (tierIndex < tiers.size()) {
+                    FactionLevelManager.VaultTier tier = tiers.get(tierIndex);
+                    meta.displayName(Component.text("Purchase Vault Upgrade?", NamedTextColor.GOLD)
+                            .decoration(TextDecoration.ITALIC, false));
+                    lore.add(GuiUtil.loreLine("Vault Size", tier.size() + " slots", NamedTextColor.YELLOW));
                     lore.add(GuiUtil.loreLine("Cost", tier.cost() + " SP", NamedTextColor.LIGHT_PURPLE));
                 }
             }
